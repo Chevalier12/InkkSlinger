@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Globalization;
 using System.Reflection;
 
@@ -6,6 +7,68 @@ namespace InkkSlinger;
 
 internal static class BindingExpressionUtilities
 {
+    public static bool TryConvertValueForTarget(
+        object? value,
+        DependencyProperty targetProperty,
+        CultureInfo? culture,
+        out object? convertedValue)
+    {
+        convertedValue = value;
+
+        var targetType = targetProperty.PropertyType;
+        if (value == null)
+        {
+            if (targetType.IsValueType && Nullable.GetUnderlyingType(targetType) == null)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        if (targetType == typeof(object) || targetType.IsInstanceOfType(value))
+        {
+            return true;
+        }
+
+        var nullableTargetType = Nullable.GetUnderlyingType(targetType);
+        if (nullableTargetType != null)
+        {
+            targetType = nullableTargetType;
+        }
+
+        var conversionCulture = culture ?? CultureInfo.CurrentCulture;
+        if (targetType == typeof(string))
+        {
+            convertedValue = Convert.ToString(value, conversionCulture) ?? string.Empty;
+            return true;
+        }
+
+        var sourceType = value.GetType();
+        var targetConverter = TypeDescriptor.GetConverter(targetType);
+        if (targetConverter.CanConvertFrom(sourceType))
+        {
+            convertedValue = targetConverter.ConvertFrom(null, conversionCulture, value);
+            return convertedValue == null || targetProperty.PropertyType.IsInstanceOfType(convertedValue);
+        }
+
+        var sourceConverter = TypeDescriptor.GetConverter(sourceType);
+        if (sourceConverter.CanConvertTo(targetType))
+        {
+            convertedValue = sourceConverter.ConvertTo(null, conversionCulture, value, targetType);
+            return convertedValue == null || targetProperty.PropertyType.IsInstanceOfType(convertedValue);
+        }
+
+        if (value is IConvertible && typeof(IConvertible).IsAssignableFrom(targetType))
+        {
+            convertedValue = Convert.ChangeType(value, targetType, conversionCulture);
+            return convertedValue == null || targetProperty.PropertyType.IsInstanceOfType(convertedValue);
+        }
+
+        convertedValue = null;
+        return false;
+    }
+
     public static BindingMode ResolveEffectiveMode(BindingBase binding, DependencyObject target, DependencyProperty targetProperty)
     {
         if (binding.Mode != BindingMode.Default)

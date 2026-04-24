@@ -875,7 +875,7 @@ public sealed partial class UiRoot
 
     private static bool IsHoverHostElement(UIElement element)
     {
-        return element is ITextInputControl or Button or ComboBox or Thumb or GridSplitter or ColorPicker or ColorSpectrum or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
+        return element is ITextInputControl or Button or ComboBox or Thumb or GridSplitter or ResizeGrip or ColorPicker or ColorSpectrum or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
     }
 
     private static void SetHoverState(UIElement? element, bool isMouseOver)
@@ -902,6 +902,11 @@ public sealed partial class UiRoot
             case GridSplitter gridSplitter:
             {
                 gridSplitter.SetMouseOverFromInput(isMouseOver);
+                return;
+            }
+            case ResizeGrip resizeGrip:
+            {
+                resizeGrip.SetMouseOverFromInput(isMouseOver);
                 return;
             }
             case ColorPicker colorPicker:
@@ -1183,6 +1188,13 @@ public sealed partial class UiRoot
             var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
             _lastInputPointerMoveHandlerMs += elapsed;
         }
+        else if (_inputState.CapturedPointerElement is ResizeGrip dragResizeGrip)
+        {
+            var handlerStart = Stopwatch.GetTimestamp();
+            dragResizeGrip.HandlePointerMoveFromInput(pointerPosition);
+            var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+            _lastInputPointerMoveHandlerMs += elapsed;
+        }
         else if (_inputState.CapturedPointerElement is ScrollViewer dragScrollViewer)
         {
             var handlerStart = Stopwatch.GetTimestamp();
@@ -1424,6 +1436,11 @@ public sealed partial class UiRoot
         {
             CapturePointer(target);
         }
+        else if (button == MouseButton.Left && target is ResizeGrip resizeGrip &&
+                 resizeGrip.HandlePointerDownFromInput(pointerPosition))
+        {
+            CapturePointer(target);
+        }
         else if (button == MouseButton.Left && target is Slider slider &&
                  slider.HandlePointerDownFromInput(pointerPosition))
         {
@@ -1526,6 +1543,10 @@ public sealed partial class UiRoot
         else if (_inputState.CapturedPointerElement is GridSplitter gridSplitter && button == MouseButton.Left)
         {
             gridSplitter.HandlePointerUpFromInput();
+        }
+        else if (_inputState.CapturedPointerElement is ResizeGrip resizeGrip && button == MouseButton.Left)
+        {
+            resizeGrip.HandlePointerUpFromInput();
         }
         else if (_inputState.CapturedPointerElement is ScrollViewer scrollViewer && button == MouseButton.Left)
         {

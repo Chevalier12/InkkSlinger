@@ -11,24 +11,443 @@
              BorderBrush="{StaticResource DarkBorderBrush}"
              BorderThickness="1"
              Padding="12">
-  <Grid>
+  <Grid x:Name="ResizeGripViewRootGrid">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <Border Grid.Row="0" Background="{StaticResource DarkElevatedBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,8">
-      <Label Content="Control Demo: ResizeGrip" Foreground="{StaticResource TextPrimaryBrush}" />
+    <Border Grid.Row="0"
+            Background="{StaticResource DarkElevatedBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14"
+            Margin="0,0,0,10">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+          <TextBlock Text="Control Demo: ResizeGrip Workbench"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontSize="18"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="Drag the lower-right grip on each resizable surface to exercise target binding, auto popup targeting, snap increments, min and max constraints, grip sizing, colors, hover, and dragging visual states."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,4,0,0" />
+        </StackPanel>
+
+        <Border Grid.Column="1"
+                Background="{StaticResource DarkBgBrush}"
+                BorderBrush="#9DD7A5"
+                BorderThickness="1"
+                CornerRadius="14"
+                Padding="12,6"
+                Margin="12,0,0,0"
+                VerticalAlignment="Center">
+          <TextBlock Text="Target • Increment • Bounds"
+                     Foreground="#9DD7A5"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+        </Border>
+      </Grid>
     </Border>
 
-    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="8">
-      <ContentControl x:Name="DemoHost" />
+    <Border Grid.Row="1"
+            Background="{StaticResource DarkSurfaceBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="12">
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="340" />
+          </Grid.ColumnDefinitions>
+
+          <StackPanel Grid.Column="0">
+            <Border Background="{StaticResource DarkBgBrush}"
+                    BorderBrush="{StaticResource DarkBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="14"
+                    Margin="0,0,0,12">
+              <StackPanel>
+                <TextBlock Text="Explicit Target"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="This grip targets the named panel with x:Reference and resizes both Width and Height. The target is clamped between MinWidth/MinHeight and MaxWidth/MaxHeight."
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,3,0,12" />
+
+                <Grid>
+                  <Border x:Name="PrimaryResizableCard"
+                          Width="360"
+                          Height="210"
+                          MinWidth="240"
+                          MinHeight="150"
+                          MaxWidth="620"
+                          MaxHeight="360"
+                          HorizontalAlignment="Left"
+                          VerticalAlignment="Top"
+                          Background="{StaticResource DarkElevatedBrush}"
+                          BorderBrush="#5FB3F3"
+                          BorderThickness="1"
+                          CornerRadius="8"
+                          Padding="16">
+                    <Grid>
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                      </Grid.RowDefinitions>
+
+                      <TextBlock Grid.Row="0"
+                                 Text="Resizable document panel"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 FontWeight="SemiBold"
+                                 TextWrapping="Wrap" />
+                      <TextBlock Grid.Row="1"
+                                 Text="Width and Height are live dependency properties on the target. Drag outward, then back inward to see the min and max constraints apply without helper code."
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Margin="0,8,32,8" />
+                      <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding Path=Width, ElementName=PrimaryResizableCard}"
+                                   Foreground="#8DD7F7"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Path=Height, ElementName=PrimaryResizableCard}"
+                                   Foreground="#8DD7F7"
+                                   FontWeight="SemiBold"
+                                   Margin="12,0,32,0" />
+                      </Grid>
+
+                      <ResizeGrip Grid.Row="0"
+                                  Grid.RowSpan="3"
+                                  Target="{x:Reference PrimaryResizableCard}"
+                                  GripSize="28"
+                                  ResizeIncrement="1"
+                                  Background="#24384F"
+                                  Foreground="#AEE2FF"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Bottom"
+                                  Margin="0,0,-8,-8" />
+                    </Grid>
+                  </Border>
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <Grid Margin="0,0,0,12">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <Border Grid.Column="0"
+                      Background="{StaticResource DarkBgBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="8"
+                      Padding="14">
+                <StackPanel>
+                  <TextBlock Text="Snapped increments"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             FontSize="15"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="ResizeIncrement snaps the requested size to a grid. This card moves in 24-pixel steps."
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,3,0,12" />
+                  <Border x:Name="SnappedResizableCard"
+                          Width="264"
+                          Height="168"
+                          MinWidth="192"
+                          MinHeight="120"
+                          MaxWidth="384"
+                          MaxHeight="288"
+                          HorizontalAlignment="Left"
+                          Background="{StaticResource DarkElevatedBrush}"
+                          BorderBrush="#F2B84B"
+                          BorderThickness="1"
+                          CornerRadius="8"
+                          Padding="12">
+                    <Grid>
+                      <TextBlock Text="24 px snapping"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Margin="0,0,36,0" />
+                      <ResizeGrip Target="{x:Reference SnappedResizableCard}"
+                                  GripSize="24"
+                                  ResizeIncrement="24"
+                                  Background="#3B321D"
+                                  Foreground="#FFD782"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Bottom" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </Border>
+
+              <Border Grid.Column="2"
+                      Background="{StaticResource DarkBgBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="8"
+                      Padding="14">
+                <StackPanel>
+                  <TextBlock Text="Compact grip"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             FontSize="15"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="GripSize controls measure and hit area. Values below the framework minimum coerce to the minimum usable size."
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,3,0,12" />
+                  <Border x:Name="CompactResizableCard"
+                          Width="232"
+                          Height="136"
+                          MinWidth="160"
+                          MinHeight="96"
+                          MaxWidth="340"
+                          MaxHeight="220"
+                          HorizontalAlignment="Left"
+                          Background="{StaticResource DarkElevatedBrush}"
+                          BorderBrush="#C292FF"
+                          BorderThickness="1"
+                          CornerRadius="8"
+                          Padding="12">
+                    <Grid>
+                      <TextBlock Text="Small but interactive"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Margin="0,0,28,0" />
+                      <ResizeGrip Target="{x:Reference CompactResizableCard}"
+                                  GripSize="8"
+                                  ResizeIncrement="8"
+                                  Background="#312842"
+                                  Foreground="#D9C3FF"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Bottom" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </Grid>
+
+            <Border Background="{StaticResource DarkBgBrush}"
+                    BorderBrush="{StaticResource DarkBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="14">
+              <StackPanel>
+                <TextBlock Text="Visual states"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="ResizeGrip renders a transparent or colored background, dotted foreground marks, a brighter hover state, and a brighter dragging state."
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,3,0,12" />
+
+                <WrapPanel>
+                  <Border Width="116"
+                          Height="82"
+                          Background="{StaticResource DarkElevatedBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="8"
+                          Margin="0,0,10,10">
+                    <Grid>
+                      <TextBlock Text="Transparent"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 TextWrapping="Wrap" />
+                      <ResizeGrip GripSize="24"
+                                  Background="#00000000"
+                                  Foreground="#C4C4C4"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Bottom" />
+                    </Grid>
+                  </Border>
+                  <Border Width="116"
+                          Height="82"
+                          Background="{StaticResource DarkElevatedBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="8"
+                          Margin="0,0,10,10">
+                    <Grid>
+                      <TextBlock Text="Accent"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 TextWrapping="Wrap" />
+                      <ResizeGrip GripSize="24"
+                                  Background="#273D35"
+                                  Foreground="#9DD7A5"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Bottom" />
+                    </Grid>
+                  </Border>
+                  <Border Width="116"
+                          Height="82"
+                          Background="{StaticResource DarkElevatedBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="8"
+                          Margin="0,0,10,10">
+                    <Grid>
+                      <TextBlock Text="Disabled"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 TextWrapping="Wrap" />
+                      <ResizeGrip GripSize="24"
+                                  IsEnabled="False"
+                                  Background="#202020"
+                                  Foreground="#666666"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Bottom" />
+                    </Grid>
+                  </Border>
+                </WrapPanel>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <StackPanel Grid.Column="2">
+            <Border Background="{StaticResource DarkBgBrush}"
+                    BorderBrush="{StaticResource DarkBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="14"
+                    Margin="0,0,0,12">
+              <StackPanel>
+                <TextBlock Text="Auto Popup Target"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="When no Target is set, a ResizeGrip inside a Popup resizes that containing Popup."
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,3,0,12" />
+
+                <Popup x:Name="FloatingResizePopup"
+                       Width="250"
+                       Height="170"
+                       MinWidth="180"
+                       MinHeight="120"
+                       MaxWidth="320"
+                       MaxHeight="260"
+                       Left="0"
+                       Top="0"
+                       PlacementMode="Absolute">
+                  <Border Background="{StaticResource DarkElevatedBrush}"
+                          BorderBrush="#9DD7A5"
+                          BorderThickness="1"
+                          CornerRadius="8"
+                          Padding="12">
+                    <Grid>
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                      </Grid.RowDefinitions>
+                      <TextBlock Grid.Row="0"
+                                 Text="Resizable popup"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 FontWeight="SemiBold"
+                                 TextWrapping="Wrap" />
+                      <TextBlock Grid.Row="1"
+                                 Text="The grip has no explicit target; it walks up to the popup and resizes it."
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Margin="0,8,28,8" />
+                      <TextBlock Grid.Row="2"
+                                 Text="{Binding Path=Width, ElementName=FloatingResizePopup}"
+                                 Foreground="#9DD7A5"
+                                 FontWeight="SemiBold" />
+                      <ResizeGrip Grid.Row="0"
+                                  Grid.RowSpan="3"
+                                  GripSize="26"
+                                  ResizeIncrement="10"
+                                  Background="#263728"
+                                  Foreground="#B7E7BE"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Bottom"
+                                  Margin="0,0,-8,-8" />
+                    </Grid>
+                  </Border>
+                </Popup>
+              </StackPanel>
+            </Border>
+
+            <Border Background="{StaticResource DarkBgBrush}"
+                    BorderBrush="{StaticResource DarkBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="14">
+              <StackPanel>
+                <TextBlock Text="Property checklist"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="Target accepts a FrameworkElement reference, ResizeIncrement snaps size changes, GripSize sets the desired grip footprint, Background fills the grip cell, and Foreground draws the dotted handle."
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,3,0,12" />
+
+                <Grid>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+
+                  <TextBlock Grid.Row="0" Grid.Column="0" Text="Target" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" Margin="0,0,12,8" />
+                  <TextBlock Grid.Row="0" Grid.Column="1" Text="Named element or containing Popup" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                  <TextBlock Grid.Row="1" Grid.Column="0" Text="Bounds" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" Margin="0,0,12,8" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Text="Uses target MinWidth, MinHeight, MaxWidth, and MaxHeight" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                  <TextBlock Grid.Row="2" Grid.Column="0" Text="State" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" Margin="0,0,12,8" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Text="IsMouseOver and IsDragging brighten the rendered marks" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                  <TextBlock Grid.Row="3" Grid.Column="0" Text="Input" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" Margin="0,0,12,0" />
+                  <TextBlock Grid.Row="3" Grid.Column="1" Text="Pointer capture keeps resizing while the drag leaves the grip" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </Grid>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Grid>
+      </ScrollViewer>
     </Border>
   </Grid>
 </UserControl>
-
-
-
-
-
-

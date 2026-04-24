@@ -996,6 +996,7 @@ public class ScrollViewer : ContentControl
         var border = MathF.Max(0f, BorderThickness);
         var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
         var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
+        SyncInternalScrollBarLayoutDimensions(horizontalBarThickness, verticalBarThickness);
         var fullRect = new LayoutRect(LayoutSlot.X + border, LayoutSlot.Y + border, MathF.Max(0f, finalSize.X - (border * 2f)), MathF.Max(0f, finalSize.Y - (border * 2f)));
         var decision = ResolveBarsForArrange(fullRect);
         var viewportMetricsChanged = ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight, publishViewportMetrics: true);
@@ -2452,26 +2453,18 @@ public class ScrollViewer : ContentControl
 
     private float ResolveHorizontalBarThicknessForLayout()
     {
-        if (_horizontalBar.GetValueSource(FrameworkElement.HeightProperty) != DependencyPropertyValueSource.Default &&
-            float.IsFinite(_horizontalBar.Height) &&
-            _horizontalBar.Height > 0f)
-        {
-            return MathF.Max(8f, _horizontalBar.Height);
-        }
-
         return MathF.Max(8f, ScrollBarThickness);
     }
 
     private float ResolveVerticalBarThicknessForLayout()
     {
-        if (_verticalBar.GetValueSource(FrameworkElement.WidthProperty) != DependencyPropertyValueSource.Default &&
-            float.IsFinite(_verticalBar.Width) &&
-            _verticalBar.Width > 0f)
-        {
-            return MathF.Max(8f, _verticalBar.Width);
-        }
-
         return MathF.Max(8f, ScrollBarThickness);
+    }
+
+    private void SyncInternalScrollBarLayoutDimensions(float horizontalBarThickness, float verticalBarThickness)
+    {
+        SetIfChanged(FrameworkElement.HeightProperty, _horizontalBar, horizontalBarThickness);
+        SetIfChanged(FrameworkElement.WidthProperty, _verticalBar, verticalBarThickness);
     }
 
     private void UpdateScrollBarValues()

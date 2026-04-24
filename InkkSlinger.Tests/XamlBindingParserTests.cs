@@ -28,6 +28,50 @@ public class XamlBindingParserTests
     }
 
     [Fact]
+    public void BindingMarkup_ConvertsFloatSourceToStringTarget()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <Border x:Name="Source" Width="123" />
+    <TextBlock x:Name="Output" Text="{Binding Path=Width, ElementName=Source}" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var output = (TextBlock?)root.FindName("Output");
+
+        Assert.NotNull(output);
+        Assert.Equal("123", output!.Text);
+    }
+
+    [Fact]
+    public void PriorityBinding_ConvertsFloatSourceToStringTarget()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <Border x:Name="Source" Width="128" />
+    <TextBlock x:Name="Output">
+      <TextBlock.Text>
+        <PriorityBinding>
+          <Binding Path="Width" ElementName="Source" />
+        </PriorityBinding>
+      </TextBlock.Text>
+    </TextBlock>
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var output = (TextBlock?)root.FindName("Output");
+
+        Assert.NotNull(output);
+        Assert.Equal("128", output!.Text);
+    }
+
+    [Fact]
     public void MultiBindingElement_ParsesAndApplies()
     {
         const string xaml = """

@@ -442,7 +442,11 @@ public sealed class PriorityBindingExpression : IBindingExpression
             return false;
         }
 
-        if (value != null && !_targetProperty.PropertyType.IsInstanceOfType(value))
+        if (!BindingExpressionUtilities.TryConvertValueForTarget(
+                value,
+                _targetProperty,
+                binding.ConverterCulture,
+                out value))
         {
             resolvedValue = null;
             return false;
@@ -454,20 +458,22 @@ public sealed class PriorityBindingExpression : IBindingExpression
 
     private void ApplyTargetValue(object? value)
     {
-        if (value == null &&
-            _targetProperty.PropertyType.IsValueType &&
-            Nullable.GetUnderlyingType(_targetProperty.PropertyType) == null)
+        if (!BindingExpressionUtilities.TryConvertValueForTarget(
+                value,
+                _targetProperty,
+                null,
+                out var convertedValue))
         {
             return;
         }
 
         var current = _target.GetValue(_targetProperty);
-        if (Equals(current, value))
+        if (Equals(current, convertedValue))
         {
             return;
         }
 
-        _target.SetValue(_targetProperty, value);
+        _target.SetValue(_targetProperty, convertedValue);
     }
 
     private static Type ResolveLeafTargetType(object source, Binding binding)

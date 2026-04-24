@@ -60,9 +60,13 @@ public class ResizeGrip : Control
             typeof(ResizeGrip),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    private Vector2 _dragStartPosition;
+    private float _startWidth;
+    private float _startHeight;
 
     public ResizeGrip()
     {
+        Focusable = false;
     }
 
     public FrameworkElement? Target
@@ -141,9 +145,72 @@ public class ResizeGrip : Control
         }
     }
 
+    internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
+    {
+        if (!IsEnabled || !HitTest(pointerPosition))
+        {
+            return false;
+        }
 
+        var target = ResolveTarget();
+        if (target == null)
+        {
+            return false;
+        }
 
+        _dragStartPosition = pointerPosition;
+        _startWidth = ResolveCurrentDimension(target.Width, target.ActualWidth, target.DesiredSize.X);
+        _startHeight = ResolveCurrentDimension(target.Height, target.ActualHeight, target.DesiredSize.Y);
+        IsDragging = true;
+        return true;
+    }
 
+    internal bool HandlePointerMoveFromInput(Vector2 pointerPosition)
+    {
+        if (!IsDragging)
+        {
+            return false;
+        }
+
+        var target = ResolveTarget();
+        if (target == null)
+        {
+            EndDrag(releaseCapture: true);
+            return false;
+        }
+
+        var delta = pointerPosition - _dragStartPosition;
+        var width = Snap(_startWidth + delta.X, ResizeIncrement);
+        var height = Snap(_startHeight + delta.Y, ResizeIncrement);
+        var previousWidth = target.Width;
+        var previousHeight = target.Height;
+
+        ApplyResize(target, width, height);
+
+        return MathF.Abs(target.Width - previousWidth) > 0.001f ||
+               MathF.Abs(target.Height - previousHeight) > 0.001f;
+    }
+
+    internal bool HandlePointerUpFromInput()
+    {
+        if (!IsDragging)
+        {
+            return false;
+        }
+
+        EndDrag(releaseCapture: true);
+        return true;
+    }
+
+    internal void SetMouseOverFromInput(bool isMouseOver)
+    {
+        if (IsMouseOver == isMouseOver)
+        {
+            return;
+        }
+
+        IsMouseOver = isMouseOver;
+    }
 
 
 

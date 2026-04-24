@@ -17,18 +17,496 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <Border Grid.Row="0" Background="{StaticResource DarkElevatedBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,8">
-      <Label Content="Control Demo: ScrollViewer" Foreground="{StaticResource TextPrimaryBrush}" />
+    <Border Grid.Row="0"
+            Background="{StaticResource DarkElevatedBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14"
+            Margin="0,0,0,10">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+          <TextBlock Text="Control Demo: ScrollViewer Workbench"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontSize="18"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="A WPF-style surface for vertical and horizontal scrolling, scrollbar visibility modes, viewport metrics, wheel and thumb interaction, programmatic offsets, scroll chrome, clipping, canvas content, virtualizing content, and transform-based content movement."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,4,0,0" />
+        </StackPanel>
+
+        <Border Grid.Column="1"
+                Background="{StaticResource DarkBgBrush}"
+                BorderBrush="#7BC4A8"
+                BorderThickness="1"
+                CornerRadius="14"
+                Padding="12,6"
+                Margin="12,0,0,0"
+                VerticalAlignment="Center">
+          <TextBlock Text="Offsets / Viewport / Chrome"
+                     Foreground="#D3F5E7"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+        </Border>
+      </Grid>
     </Border>
 
-    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="8">
-      <ContentControl x:Name="DemoHost" />
-    </Border>
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="14" />
+        <ColumnDefinition Width="336" />
+      </Grid.ColumnDefinitions>
+
+      <ScrollViewer Grid.Column="0"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled"
+                    Background="#0F151D"
+                    BorderBrush="#293746"
+                    BorderThickness="1"
+                    ScrollBarThickness="12">
+        <StackPanel Margin="12">
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="14"
+                  Margin="0,0,0,12">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <StackPanel Grid.Row="0">
+                <TextBlock Text="Live document viewport"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="This viewer uses real overflowing content. Use the mouse wheel, drag the scrollbars, click tracks, press the jump buttons, or move the offset sliders to validate the same offset and metric surface."
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,0" />
+              </StackPanel>
+
+              <Grid Grid.Row="1" Margin="0,12,0,12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="14" />
+                  <ColumnDefinition Width="260" />
+                </Grid.ColumnDefinitions>
+
+                <ScrollViewer x:Name="WorkbenchScrollViewer"
+                              Grid.Column="0"
+                              Height="326"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto"
+                              Background="#111923"
+                              BorderBrush="#466176"
+                              BorderThickness="1"
+                              ScrollBarThickness="14"
+                              ViewportChanged="OnWorkbenchViewportChanged">
+                  <StackPanel x:Name="WorkbenchDocumentHost"
+                              Width="880"
+                              ScrollViewer.UseTransformContentScrolling="True">
+                    <Border Background="#172231"
+                            BorderBrush="#355168"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="14"
+                            Margin="10,10,10,8">
+                      <StackPanel>
+                        <TextBlock Text="Oversized report content"
+                                   Foreground="#E7F2FA"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="The content root is intentionally wider and taller than the viewport so both internal scrollbars can be exercised. HorizontalScrollBarVisibility is explicitly enabled; VerticalScrollBarVisibility starts in Auto, matching the default vertical behavior."
+                                   Foreground="#BFD4E3"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0" />
+                      </StackPanel>
+                    </Border>
+
+                    <Grid Margin="10,0,10,8">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="270" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="270" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="270" />
+                      </Grid.ColumnDefinitions>
+
+                      <Border Grid.Column="0" Background="#132A34" BorderBrush="#3C7B8D" BorderThickness="1" CornerRadius="6" Padding="12">
+                        <StackPanel>
+                          <TextBlock Text="Panel A" Foreground="#D9F4FA" FontWeight="SemiBold" />
+                          <TextBlock Text="Shows normal wheel scrolling against a stack of elements." Foreground="#B5D9E2" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        </StackPanel>
+                      </Border>
+                      <Border Grid.Column="2" Background="#251E32" BorderBrush="#6E5B91" BorderThickness="1" CornerRadius="6" Padding="12">
+                        <StackPanel>
+                          <TextBlock Text="Panel B" Foreground="#EEE4FA" FontWeight="SemiBold" />
+                          <TextBlock Text="Wider content makes the horizontal thumb meaningful." Foreground="#D7C6EA" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        </StackPanel>
+                      </Border>
+                      <Border Grid.Column="4" Background="#2B2617" BorderBrush="#8B7440" BorderThickness="1" CornerRadius="6" Padding="12">
+                        <StackPanel>
+                          <TextBlock Text="Panel C" Foreground="#F8EBC6" FontWeight="SemiBold" />
+                          <TextBlock Text="Use the right edge to validate max horizontal offset clamping." Foreground="#EAD6A0" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        </StackPanel>
+                      </Border>
+                    </Grid>
+
+                    <Border Background="#121B25" BorderBrush="#33485C" BorderThickness="1" CornerRadius="6" Padding="12" Margin="10,0,10,8">
+                      <StackPanel>
+                        <TextBlock Text="Scrollable timeline" Foreground="#E7F2FA" FontWeight="SemiBold" />
+                        <TextBlock Text="Rows below provide enough vertical extent to test line-sized wheel deltas, large track clicks, thumb dragging, and programmatic offset jumps." Foreground="#BFD4E3" TextWrapping="Wrap" Margin="0,4,0,8" />
+                        <WrapPanel x:Name="WorkbenchRowsHost" />
+                      </StackPanel>
+                    </Border>
+                  </StackPanel>
+                </ScrollViewer>
+
+                <StackPanel Grid.Column="2">
+                  <Border Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="12"
+                          Margin="0,0,0,10">
+                    <StackPanel>
+                      <TextBlock Text="Viewport metrics"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 FontWeight="SemiBold"
+                                 TextWrapping="Wrap" />
+                      <TextBlock x:Name="WorkbenchOffsetText" Foreground="{StaticResource TextSecondaryBrush}" Text="Offset" TextWrapping="Wrap" Margin="0,8,0,0" />
+                      <TextBlock x:Name="WorkbenchExtentText" Foreground="{StaticResource TextSecondaryBrush}" Text="Extent" TextWrapping="Wrap" Margin="0,4,0,0" />
+                      <TextBlock x:Name="WorkbenchViewportText" Foreground="{StaticResource TextSecondaryBrush}" Text="Viewport" TextWrapping="Wrap" Margin="0,4,0,0" />
+                      <TextBlock x:Name="WorkbenchMaxOffsetText" Foreground="{StaticResource TextSecondaryBrush}" Text="Max offset" TextWrapping="Wrap" Margin="0,4,0,0" />
+                      <TextBlock x:Name="ViewportEventCountText" Foreground="{StaticResource TextSecondaryBrush}" Text="ViewportChanged events" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                  </Border>
+
+                  <Border Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="12"
+                          Margin="0,0,0,10">
+                    <StackPanel>
+                      <TextBlock Text="Scrollbar visibility"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 FontWeight="SemiBold"
+                                 TextWrapping="Wrap" />
+                      <TextBlock Text="Horizontal" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,4" />
+                      <ComboBox x:Name="HorizontalVisibilityComboBox" SelectionChanged="OnVisibilitySelectionChanged" />
+                      <TextBlock Text="Vertical" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,4" />
+                      <ComboBox x:Name="VerticalVisibilityComboBox" SelectionChanged="OnVisibilitySelectionChanged" />
+                    </StackPanel>
+                  </Border>
+
+                  <Border Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="12">
+                    <StackPanel>
+                      <TextBlock Text="Chrome and movement"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 FontWeight="SemiBold"
+                                 TextWrapping="Wrap" />
+                      <TextBlock Text="Scrollbar thickness" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,4" />
+                      <Slider x:Name="ScrollBarThicknessSlider"
+                              Minimum="8"
+                              Maximum="26"
+                              Value="14"
+                              TickFrequency="2"
+                              IsSnapToTickEnabled="True"
+                              TickPlacement="BottomRight"
+                              ValueChanged="OnWorkbenchOptionChanged" />
+                      <TextBlock x:Name="ScrollBarThicknessText" Foreground="{StaticResource TextSecondaryBrush}" Text="Thickness" TextWrapping="Wrap" Margin="0,4,0,8" />
+                      <CheckBox x:Name="TransformContentScrollingCheckBox"
+                                Content="Use transform-based content scrolling"
+                                IsChecked="True"
+                                Checked="OnWorkbenchOptionChanged"
+                                Unchecked="OnWorkbenchOptionChanged" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Grid>
+
+              <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="14" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Background="{StaticResource DarkBgBrush}"
+                        BorderBrush="{StaticResource DarkBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="12">
+                  <StackPanel>
+                    <TextBlock Text="Programmatic scrolling"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap" />
+                    <WrapPanel Margin="0,10,0,8">
+                      <Button Content="Top" Padding="12,6" Margin="0,0,8,8" Click="OnScrollTopClicked" />
+                      <Button Content="Middle" Padding="12,6" Margin="0,0,8,8" Click="OnScrollMiddleClicked" />
+                      <Button Content="Bottom" Padding="12,6" Margin="0,0,8,8" Click="OnScrollBottomClicked" />
+                      <Button Content="Left" Padding="12,6" Margin="0,0,8,8" Click="OnScrollLeftClicked" />
+                      <Button Content="Center" Padding="12,6" Margin="0,0,8,8" Click="OnScrollCenterClicked" />
+                      <Button Content="Right" Padding="12,6" Margin="0,0,0,8" Click="OnScrollRightClicked" />
+                    </WrapPanel>
+                    <TextBlock Text="Horizontal offset" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                    <Slider x:Name="HorizontalOffsetSlider" Minimum="0" Maximum="1" Value="0" ValueChanged="OnOffsetSliderChanged" Margin="0,4,0,8" />
+                    <TextBlock Text="Vertical offset" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                    <Slider x:Name="VerticalOffsetSlider" Minimum="0" Maximum="1" Value="0" ValueChanged="OnOffsetSliderChanged" Margin="0,4,0,0" />
+                  </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2"
+                        Background="{StaticResource DarkBgBrush}"
+                        BorderBrush="{StaticResource DarkBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="12">
+                  <StackPanel>
+                    <TextBlock Text="Visibility mode matrix"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="These compact viewers keep Auto, Visible, Hidden, and Disabled on screen at the same time. Auto appears only when overflow exists; Visible reserves space even when content is small; Hidden allows scrolling without drawing chrome; Disabled constrains content to the viewport on that axis."
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,10" />
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="10" />
+                        <RowDefinition Height="Auto" />
+                      </Grid.RowDefinitions>
+
+                      <ScrollViewer Grid.Row="0" Grid.Column="0" Height="112" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="#111923" BorderBrush="#40576B" BorderThickness="1">
+                        <StackPanel Margin="8">
+                          <TextBlock Text="Auto" Foreground="#E7F2FA" FontWeight="SemiBold" />
+                          <TextBlock Text="A" Foreground="#BFD4E3" />
+                          <TextBlock Text="B" Foreground="#BFD4E3" />
+                          <TextBlock Text="C" Foreground="#BFD4E3" />
+                          <TextBlock Text="D" Foreground="#BFD4E3" />
+                          <TextBlock Text="E" Foreground="#BFD4E3" />
+                          <TextBlock Text="F" Foreground="#BFD4E3" />
+                        </StackPanel>
+                      </ScrollViewer>
+                      <ScrollViewer Grid.Row="0" Grid.Column="2" Height="112" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled" Background="#111923" BorderBrush="#40576B" BorderThickness="1">
+                        <StackPanel Margin="8">
+                          <TextBlock Text="Visible" Foreground="#E7F2FA" FontWeight="SemiBold" />
+                          <TextBlock Text="Reserved chrome" Foreground="#BFD4E3" />
+                        </StackPanel>
+                      </ScrollViewer>
+                      <ScrollViewer Grid.Row="2" Grid.Column="0" Height="112" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" Background="#111923" BorderBrush="#40576B" BorderThickness="1">
+                        <StackPanel Margin="8">
+                          <TextBlock Text="Hidden" Foreground="#E7F2FA" FontWeight="SemiBold" />
+                          <TextBlock Text="Wheel still moves content" Foreground="#BFD4E3" TextWrapping="Wrap" />
+                          <TextBlock Text="More content" Foreground="#BFD4E3" />
+                          <TextBlock Text="More content" Foreground="#BFD4E3" />
+                          <TextBlock Text="More content" Foreground="#BFD4E3" />
+                        </StackPanel>
+                      </ScrollViewer>
+                      <ScrollViewer Grid.Row="2" Grid.Column="2" Height="112" VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled" Background="#111923" BorderBrush="#40576B" BorderThickness="1">
+                        <StackPanel Margin="8">
+                          <TextBlock Text="Disabled" Foreground="#E7F2FA" FontWeight="SemiBold" />
+                          <TextBlock Text="Axis is measured to the viewport." Foreground="#BFD4E3" TextWrapping="Wrap" />
+                          <TextBlock Text="Overflow is not scrollable." Foreground="#BFD4E3" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </ScrollViewer>
+                    </Grid>
+                  </StackPanel>
+                </Border>
+              </Grid>
+            </Grid>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="14"
+                  Margin="0,0,0,12">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <StackPanel Grid.Column="0">
+                <TextBlock Text="Two-axis canvas workspace"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="Canvas content demonstrates explicit extent in both axes, clipping to the viewport, and horizontal plus vertical scrollbar coordination."
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,10" />
+                <ScrollViewer x:Name="CanvasScrollViewer"
+                              Height="278"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto"
+                              Background="#10161B"
+                              BorderBrush="#38566B"
+                              BorderThickness="1"
+                              ScrollBarThickness="12"
+                              ViewportChanged="OnCanvasViewportChanged">
+                  <Canvas Width="1120" Height="620" Background="#0E141B">
+                    <Border Canvas.Left="24" Canvas.Top="24" Width="240" Height="132" Background="#19313C" BorderBrush="#4BA3B8" BorderThickness="1" CornerRadius="6" Padding="12">
+                      <StackPanel>
+                        <TextBlock Text="Origin" Foreground="#E0F8FC" FontWeight="SemiBold" />
+                        <TextBlock Text="Top-left content verifies offset zero." Foreground="#B9E1E8" TextWrapping="Wrap" Margin="0,4,0,0" />
+                      </StackPanel>
+                    </Border>
+                    <Border Canvas.Left="450" Canvas.Top="92" Width="260" Height="160" Background="#281F37" BorderBrush="#7960A0" BorderThickness="1" CornerRadius="6" Padding="12">
+                      <StackPanel>
+                        <TextBlock Text="Middle island" Foreground="#F0E8FA" FontWeight="SemiBold" />
+                        <TextBlock Text="Drag thumbs or use wheel input to inspect retained rendering while content moves under the clip." Foreground="#D7C9EA" TextWrapping="Wrap" Margin="0,4,0,0" />
+                      </StackPanel>
+                    </Border>
+                    <Border Canvas.Left="830" Canvas.Top="392" Width="240" Height="150" Background="#302B19" BorderBrush="#9B8141" BorderThickness="1" CornerRadius="6" Padding="12">
+                      <StackPanel>
+                        <TextBlock Text="Far edge" Foreground="#FAEFC9" FontWeight="SemiBold" />
+                        <TextBlock Text="Bottom-right content verifies maximum offsets and bar thumb size." Foreground="#EEDAA4" TextWrapping="Wrap" Margin="0,4,0,0" />
+                      </StackPanel>
+                    </Border>
+                  </Canvas>
+                </ScrollViewer>
+                <TextBlock x:Name="CanvasMetricsText"
+                           Text="Canvas metrics"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,8,0,0" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="2">
+                <TextBlock Text="Virtualizing content host"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="A VirtualizingStackPanel inside ScrollViewer validates the special measure contract for large direct panel content and keeps realization behavior visible."
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,10" />
+                <ScrollViewer x:Name="VirtualizedScrollViewer"
+                              Height="278"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto"
+                              Background="#10161B"
+                              BorderBrush="#38566B"
+                              BorderThickness="1"
+                              ScrollBarThickness="12"
+                              ViewportChanged="OnVirtualizedViewportChanged">
+                  <VirtualizingStackPanel x:Name="VirtualizedRowsHost"
+                                          IsVirtualizing="True"
+                                          Orientation="Vertical" />
+                </ScrollViewer>
+                <WrapPanel Margin="0,8,0,0">
+                  <Button Content="Start" Padding="12,6" Margin="0,0,8,8" Click="OnVirtualizedStartClicked" />
+                  <Button Content="Middle" Padding="12,6" Margin="0,0,8,8" Click="OnVirtualizedMiddleClicked" />
+                  <Button Content="End" Padding="12,6" Margin="0,0,0,8" Click="OnVirtualizedEndClicked" />
+                </WrapPanel>
+                <TextBlock x:Name="VirtualizedMetricsText"
+                           Text="Virtualized metrics"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <Border Grid.Column="2"
+              Background="{StaticResource DarkElevatedBrush}"
+              BorderBrush="{StaticResource DarkBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="14">
+        <StackPanel>
+          <TextBlock Text="Coverage checklist"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontSize="16"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="Single-content hosting: every demo places one direct content root under the viewer."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,10,0,0" />
+          <TextBlock Text="Visibility modes: Auto, Visible, Hidden, and Disabled are available in the workbench and matrix."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,8,0,0" />
+          <TextBlock Text="Metrics: HorizontalOffset, VerticalOffset, ExtentWidth, ExtentHeight, ViewportWidth, and ViewportHeight update as the viewport changes."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,8,0,0" />
+          <TextBlock Text="Programmatic API: buttons and sliders call ScrollToHorizontalOffset and ScrollToVerticalOffset with clamped max values."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,8,0,0" />
+          <TextBlock Text="Input paths: wheel scrolling, scrollbar thumb drag, and track clicks all operate against the same live viewer state."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,8,0,0" />
+          <TextBlock Text="Chrome: Background, BorderBrush, BorderThickness, and ScrollBarThickness are styled directly on real ScrollViewer instances."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,8,0,0" />
+          <TextBlock Text="Content movement: the workbench toggles ScrollViewer.UseTransformContentScrolling on the direct content root."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,8,0,0" />
+          <TextBlock Text="Large surfaces: the page includes both canvas-style two-axis content and a VirtualizingStackPanel-hosted list."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,8,0,0" />
+
+          <Border Background="{StaticResource DarkBgBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="6"
+                  Padding="12"
+                  Margin="0,14,0,0">
+            <StackPanel>
+              <TextBlock Text="Live status"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+              <TextBlock x:Name="LiveStatusText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         Text="Waiting for layout."
+                         TextWrapping="Wrap"
+                         Margin="0,8,0,0" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Border>
+    </Grid>
   </Grid>
 </UserControl>
-
-
-
-
-
-
