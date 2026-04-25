@@ -411,6 +411,155 @@ public partial class RichTextBox
              (_contentHost.ExtentWidth > 0f || _contentHost.ExtentHeight > 0f);
     }
 
+    private bool ScrollBy(float horizontalDelta, float verticalDelta, string reason)
+    {
+        return SetScrollOffsets(GetEffectiveHorizontalOffset() + horizontalDelta, GetEffectiveVerticalOffset() + verticalDelta, reason);
+    }
+
+    private bool SetScrollOffsets(float horizontalOffset, float verticalOffset, string reason)
+    {
+        var metrics = GetScrollMetrics();
+        var clampedHorizontal = Math.Clamp(horizontalOffset, 0f, metrics.ScrollableWidth);
+        var clampedVertical = Math.Clamp(verticalOffset, 0f, metrics.ScrollableHeight);
+        var currentHorizontal = GetEffectiveHorizontalOffset();
+        var currentVertical = GetEffectiveVerticalOffset();
+        if (Math.Abs(clampedHorizontal - currentHorizontal) <= 0.01f &&
+            Math.Abs(clampedVertical - currentVertical) <= 0.01f)
+        {
+            return false;
+        }
+
+        if (_contentHost != null && HasUsableContentHostMetrics())
+        {
+            _hasPendingContentHostScrollOffsets = false;
+            _contentHost.ScrollToHorizontalOffset(clampedHorizontal);
+            _contentHost.ScrollToVerticalOffset(clampedVertical);
+            NotifyViewportChangedIfNeeded(ViewportNotificationSource.SetScrollOffsets);
+            EnsureHostedDocumentChildLayout();
+            return true;
+        }
+
+        _horizontalOffset = clampedHorizontal;
+        _verticalOffset = clampedVertical;
+        _hasPendingContentHostScrollOffsets = _contentHost != null;
+        NotifyViewportChangedIfNeeded(ViewportNotificationSource.SetScrollOffsets);
+        InvalidateVisualWithReason(reason);
+        return true;
+    }
+
+    private void QueueViewportChangedNotification()
+    {
+        _diagQueueViewportChangedNotificationCallCount++;
+        _runtimeQueueViewportChangedNotificationCallCount++;
+        if (_hasPendingViewportChangedNotification)
+        {
+            _diagQueueViewportChangedNotificationAlreadyPendingCount++;
+            _runtimeQueueViewportChangedNotificationAlreadyPendingCount++;
+        }
+
+        _hasPendingViewportChangedNotification = true;
+    }
+
+    private void FlushPendingViewportChangedNotification()
+    {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagFlushPendingViewportChangedNotificationCallCount++;
+        _runtimeFlushPendingViewportChangedNotificationCallCount++;
+        if (!_hasPendingViewportChangedNotification)
+        {
+            _diagFlushPendingViewportChangedNotificationSkippedNoPendingCount++;
+            _runtimeFlushPendingViewportChangedNotificationSkippedNoPendingCount++;
+            var elapsedNoPendingTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagFlushPendingViewportChangedNotificationElapsedTicks += elapsedNoPendingTicks;
+            _runtimeFlushPendingViewportChangedNotificationElapsedTicks += elapsedNoPendingTicks;
+            return;
+        }
+
+        _hasPendingViewportChangedNotification = false;
+        var notifyStartTicks = Stopwatch.GetTimestamp();
+        NotifyViewportChangedIfNeeded(ViewportNotificationSource.PendingFlush);
+        var notifyElapsedTicks = Stopwatch.GetTimestamp() - notifyStartTicks;
+        _diagFlushPendingViewportChangedNotificationNotifyElapsedTicks += notifyElapsedTicks;
+        _runtimeFlushPendingViewportChangedNotificationNotifyElapsedTicks += notifyElapsedTicks;
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _diagFlushPendingViewportChangedNotificationElapsedTicks += elapsedTicks;
+        _runtimeFlushPendingViewportChangedNotificationElapsedTicks += elapsedTicks;
+    }
+
+    private void NotifyViewportChangedIfNeeded(ViewportNotificationSource source = ViewportNotificationSource.Unknown)
+    {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagNotifyViewportChangedCallCount++;
+        _runtimeNotifyViewportChangedCallCount++;
+        TrackNotifyViewportChangedCallSource(source);
+        var metrics = GetScrollMetrics();
+        var changeMask = GetViewportMetricChangeMask(
+            metrics,
+            _lastViewportChangedHorizontalOffset,
+            _lastViewportChangedVerticalOffset,
+            _lastViewportChangedViewportWidth,
+            _lastViewportChangedViewportHeight,
+            _lastViewportChangedExtentWidth,
+            _lastViewportChangedExtentHeight);
+        if (changeMask == ViewportMetricChangeMask.None)
+        {
+            _diagNotifyViewportChangedSkippedNoChangeCount++;
+            _runtimeNotifyViewportChangedSkippedNoChangeCount++;
+            var skippedElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagNotifyViewportChangedElapsedTicks += skippedElapsedTicks;
+            _runtimeNotifyViewportChangedElapsedTicks += skippedElapsedTicks;
+            return;
+        }
+
+        _lastViewportChangedHorizontalOffset = metrics.HorizontalOffset;
+        _lastViewportChangedVerticalOffset = metrics.VerticalOffset;
+        _lastViewportChangedViewportWidth = metrics.ViewportWidth;
+        _lastViewportChangedViewportHeight = metrics.ViewportHeight;
+        _lastViewportChangedExtentWidth = metrics.ExtentWidth;
+        _lastViewportChangedExtentHeight = metrics.ExtentHeight;
+        _diagNotifyViewportChangedRaisedCount++;
+        _runtimeNotifyViewportChangedRaisedCount++;
+        TrackNotifyViewportChangedRaise(source, changeMask, metrics);
+        var subscriberStartTicks = Stopwatch.GetTimestamp();
+        ViewportChanged?.Invoke(this, EventArgs.Empty);
+        var subscriberElapsedTicks = Stopwatch.GetTimestamp() - subscriberStartTicks;
+        _diagNotifyViewportChangedSubscriberElapsedTicks += subscriberElapsedTicks;
+        _runtimeNotifyViewportChangedSubscriberElapsedTicks += subscriberElapsedTicks;
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _diagNotifyViewportChangedElapsedTicks += elapsedTicks;
+        _runtimeNotifyViewportChangedElapsedTicks += elapsedTicks;
+    }
+
+    private RichTextBoxScrollMetrics GetScrollMetrics()
+    {
+        if (_contentHost != null && HasUsableContentHostMetrics())
+        {
+            return new RichTextBoxScrollMetrics(
+                _contentHost.HorizontalOffset,
+                _contentHost.VerticalOffset,
+                _contentHost.ViewportWidth,
+                _contentHost.ViewportHeight,
+                _contentHost.ExtentWidth,
+                _contentHost.ExtentHeight);
+        }
+
+        var textRect = GetTextRect();
+        if (textRect.Width <= 0f || textRect.Height <= 0f)
+        {
+            return new RichTextBoxScrollMetrics(_horizontalOffset, _verticalOffset, 0f, 0f, 0f, 0f);
+        }
+
+        var layout = BuildOrGetLayout(textRect.Width);
+        ClampScrollOffsets(layout, textRect);
+        return new RichTextBoxScrollMetrics(
+            _horizontalOffset,
+            _verticalOffset,
+            textRect.Width,
+            textRect.Height,
+            layout.ContentWidth,
+            layout.ContentHeight);
+    }
+
     private float ResolveHostedContentLayoutWidth(float fallbackWidth)
     {
         if (TextWrapping == TextWrapping.NoWrap)
@@ -1078,3 +1227,16 @@ internal readonly record struct RichTextBoxViewportLayoutSnapshot(
     LayoutRect TextRect,
     float HorizontalOffset,
     float VerticalOffset);
+
+internal readonly record struct RichTextBoxScrollMetrics(
+    float HorizontalOffset,
+    float VerticalOffset,
+    float ViewportWidth,
+    float ViewportHeight,
+    float ExtentWidth,
+    float ExtentHeight)
+{
+    public float ScrollableWidth => Math.Max(0f, ExtentWidth - ViewportWidth);
+
+    public float ScrollableHeight => Math.Max(0f, ExtentHeight - ViewportHeight);
+}
