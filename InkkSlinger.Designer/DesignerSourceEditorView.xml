@@ -287,27 +287,38 @@
       <ColumnDefinition Width="320" MinWidth="220" />
     </Grid.ColumnDefinitions>
 
-    <IDE_Editor x:Name="SourceEditor"
-                Grid.Column="0"
-                TextChanged="OnSourceEditorTextChanged"
-                ViewportChanged="OnSourceEditorViewportChanged"
-                LayoutUpdated="OnSourceEditorLayoutUpdated"
-                Background="#0D131A"
-                BorderThickness="0"
-                Foreground="#D8E3EE"
-                CaretBrush="#7FD0FF"
-                SelectionBrush="#1A4A7A"
-                Padding="10"
-                HorizontalScrollBarVisibility="Auto"
-                VerticalScrollBarVisibility="Auto"
-                AcceptsReturn="True"
-                AcceptsTab="True"
-                TextWrapping="NoWrap"
-                FontFamily="Consolas"
-                FontSize="16"
-                LineNumberBackground="#0A1017"
-                LineNumberForeground="#4A6880"
-                LineNumberSeparatorBrush="#1A2637" />
+    <Grid Grid.Column="0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="108" />
+      </Grid.ColumnDefinitions>
+
+      <IDE_Editor x:Name="SourceEditor"
+                  Grid.Column="0"
+                  TextChanged="OnSourceEditorTextChanged"
+                  ViewportChanged="OnSourceEditorViewportChanged"
+                  LayoutUpdated="OnSourceEditorLayoutUpdated"
+                  Background="#0D131A"
+                  BorderThickness="0"
+                  Foreground="#D8E3EE"
+                  CaretBrush="#7FD0FF"
+                  SelectionBrush="#1A4A7A"
+                  Padding="10"
+                  HorizontalScrollBarVisibility="Auto"
+                  VerticalScrollBarVisibility="Auto"
+                  AcceptsReturn="True"
+                  AcceptsTab="True"
+                  TextWrapping="NoWrap"
+                  FontFamily="Consolas"
+                  FontSize="16"
+                  LineNumberBackground="#0A1017"
+                  LineNumberForeground="#4A6880"
+                  LineNumberSeparatorBrush="#1A2637" />
+
+      <IDEEditorMinimap x:Name="SourceMinimap"
+                        Grid.Column="1"
+                        SourceText="{Binding SourceText, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type DesignerSourceEditorView}}}" />
+    </Grid>
 
     <GridSplitter x:Name="SourcePropertyInspectorSplitter"
                   Grid.Column="1"

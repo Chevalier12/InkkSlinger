@@ -1,8 +1,6 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger.Designer;
@@ -18,8 +16,52 @@ public readonly record struct DesignerXmlSyntaxToken(int Start, int Length, Desi
     public int End => Start + Length;
 }
 
-public readonly record struct DesignerXmlSyntaxColors(Color DefaultForeground, Color ControlTypeForeground, Color PropertyForeground)
+public readonly record struct DesignerXmlSyntaxColors
 {
+    public DesignerXmlSyntaxColors(Color defaultForeground, Color controlTypeForeground, Color propertyForeground)
+        : this(
+            defaultForeground,
+            controlTypeForeground,
+            propertyForeground,
+            new Color(102, 161, 218),
+            new Color(183, 221, 151),
+            new Color(106, 153, 85),
+            new Color(146, 169, 191))
+    {
+    }
+
+    public DesignerXmlSyntaxColors(
+        Color defaultForeground,
+        Color controlTypeForeground,
+        Color propertyForeground,
+        Color delimiterForeground,
+        Color stringForeground,
+        Color commentForeground,
+        Color namespaceForeground)
+    {
+        DefaultForeground = defaultForeground;
+        ControlTypeForeground = controlTypeForeground;
+        PropertyForeground = propertyForeground;
+        DelimiterForeground = delimiterForeground;
+        StringForeground = stringForeground;
+        CommentForeground = commentForeground;
+        NamespaceForeground = namespaceForeground;
+    }
+
+    public Color DefaultForeground { get; }
+
+    public Color ControlTypeForeground { get; }
+
+    public Color PropertyForeground { get; }
+
+    public Color DelimiterForeground { get; }
+
+    public Color StringForeground { get; }
+
+    public Color CommentForeground { get; }
+
+    public Color NamespaceForeground { get; }
+
     public static readonly DesignerXmlSyntaxColors Default = new(
         new Color(216, 227, 238),
         new Color(127, 208, 255),
@@ -40,103 +82,17 @@ public static class DesignerXmlSyntaxHighlighter
         InsideDeclaration
     }
 
-    private static readonly IReadOnlyDictionary<string, Type> KnownControlTypesByName = XamlLoader.GetKnownTypes()
-        .GroupBy(static knownType => knownType.Name, StringComparer.Ordinal)
-        .ToDictionary(static group => group.Key, static group => group.First().Type, StringComparer.Ordinal);
-    private static readonly ConcurrentDictionary<string, DesignerXmlSyntaxTokenKind?> TagNameTokenKinds = new(StringComparer.Ordinal);
-
     public static IReadOnlyList<DesignerXmlSyntaxToken> Classify(string? text)
     {
-        var source = text ?? string.Empty;
-        var tokens = new List<DesignerXmlSyntaxToken>();
-        var index = 0;
-
-        while (index < source.Length)
-        {
-            if (source[index] != '<')
-            {
-                index++;
-                continue;
-            }
-
-            if (TrySkip(source, ref index, "<!--", "-->") ||
-                TrySkip(source, ref index, "<![CDATA[", "]]>") ||
-                TrySkip(source, ref index, "<?", "?>"))
-            {
-                continue;
-            }
-
-            if (Matches(source, index, "<!"))
-            {
-                SkipUntil(source, ref index, '>');
-                continue;
-            }
-
-            index++;
-            if (index < source.Length && source[index] == '/')
-            {
-                index++;
-            }
-
-            SkipWhitespace(source, ref index);
-            var tagNameStart = index;
-            ReadXmlName(source, ref index);
-            AddTagNameToken(tokens, source, tagNameStart, index - tagNameStart);
-
-            while (index < source.Length)
-            {
-                SkipWhitespace(source, ref index);
-                if (index >= source.Length)
-                {
-                    break;
-                }
-
-                if (source[index] == '>')
-                {
-                    index++;
-                    break;
-                }
-
-                if (source[index] == '/' && index + 1 < source.Length && source[index + 1] == '>')
-                {
-                    index += 2;
-                    break;
-                }
-
-                if (source[index] == '"' || source[index] == '\'')
-                {
-                    SkipQuotedValue(source, ref index);
-                    continue;
-                }
-
-                var attributeNameStart = index;
-                ReadXmlName(source, ref index);
-                if (index == attributeNameStart)
-                {
-                    index++;
-                    continue;
-                }
-
-                var attributeNameLength = index - attributeNameStart;
-                if (!IsNamespaceDeclaration(source.AsSpan(attributeNameStart, attributeNameLength)))
-                {
-                    AddToken(tokens, attributeNameStart, attributeNameLength, DesignerXmlSyntaxTokenKind.PropertyName);
-                }
-
-                SkipWhitespace(source, ref index);
-                if (index < source.Length && source[index] == '=')
-                {
-                    index++;
-                    SkipWhitespace(source, ref index);
-                    if (index < source.Length && (source[index] == '"' || source[index] == '\''))
-                    {
-                        SkipQuotedValue(source, ref index);
-                    }
-                }
-            }
-        }
-
-        return tokens;
+        return IDEEditorXmlSyntaxClassifier.Classify(text)
+            .Where(static token => token.Kind is IDEEditorXmlSyntaxTokenKind.ControlTypeName or IDEEditorXmlSyntaxTokenKind.PropertyName)
+            .Select(static token => new DesignerXmlSyntaxToken(
+                token.Start,
+                token.Length,
+                token.Kind == IDEEditorXmlSyntaxTokenKind.ControlTypeName
+                    ? DesignerXmlSyntaxTokenKind.ControlTypeName
+                    : DesignerXmlSyntaxTokenKind.PropertyName))
+            .ToArray();
     }
 
     public static FlowDocument CreateHighlightedDocument(string? text, DesignerXmlSyntaxColors? colors = null)
@@ -152,7 +108,7 @@ public static class DesignerXmlSyntaxHighlighter
 
         var palette = colors ?? DesignerXmlSyntaxColors.Default;
         var normalized = NormalizeLineEndings(text);
-        var tokens = Classify(normalized);
+        var tokens = IDEEditorXmlSyntaxClassifier.Classify(normalized);
 
         document.Blocks.Clear();
         var lines = normalized.Split('\n');
@@ -195,7 +151,7 @@ public static class DesignerXmlSyntaxHighlighter
 
         var previousLines = previousNormalized.Split('\n');
         var currentLines = currentNormalized.Split('\n');
-        if (previousLines.Length != currentLines.Length || document.Blocks.Count != currentLines.Length)
+        if (document.Blocks.Count != previousLines.Length)
         {
             return false;
         }
@@ -210,31 +166,58 @@ public static class DesignerXmlSyntaxHighlighter
 
         var previousLineStates = ComputeLineStartStates(previousNormalized, previousLines.Length);
         var currentLineStates = ComputeLineStartStates(currentNormalized, currentLines.Length);
-        var currentTokens = Classify(currentNormalized);
+        var currentTokens = IDEEditorXmlSyntaxClassifier.Classify(currentNormalized);
         var lineStarts = ComputeLineStarts(currentLines);
         var palette = colors ?? DesignerXmlSyntaxColors.Default;
-        var refreshedAnyParagraph = false;
-
-        for (var i = 0; i < currentLines.Length; i++)
+        var sharedPrefixCount = 0;
+        var sharedPrefixLimit = Math.Min(previousLines.Length, currentLines.Length);
+        while (sharedPrefixCount < sharedPrefixLimit &&
+               string.Equals(previousLines[sharedPrefixCount], currentLines[sharedPrefixCount], StringComparison.Ordinal) &&
+               previousLineStates[sharedPrefixCount] == currentLineStates[sharedPrefixCount])
         {
-            if (string.Equals(previousLines[i], currentLines[i], StringComparison.Ordinal) &&
-                previousLineStates[i] == currentLineStates[i])
-            {
-                continue;
-            }
-
-            var existingParagraph = (Paragraph)document.Blocks[i];
-            document.Blocks[i] = CreateHighlightedParagraph(
-                currentNormalized,
-                lineStarts[i],
-                currentLines[i].Length,
-                currentTokens,
-                palette,
-                existingParagraph);
-            refreshedAnyParagraph = true;
+            sharedPrefixCount++;
         }
 
-        return refreshedAnyParagraph;
+        var sharedSuffixCount = 0;
+        while (sharedSuffixCount < previousLines.Length - sharedPrefixCount &&
+               sharedSuffixCount < currentLines.Length - sharedPrefixCount)
+        {
+            var previousIndex = previousLines.Length - 1 - sharedSuffixCount;
+            var currentIndex = currentLines.Length - 1 - sharedSuffixCount;
+            if (!string.Equals(previousLines[previousIndex], currentLines[currentIndex], StringComparison.Ordinal) ||
+                previousLineStates[previousIndex] != currentLineStates[currentIndex])
+            {
+                break;
+            }
+
+            sharedSuffixCount++;
+        }
+
+        var previousChangedCount = previousLines.Length - sharedPrefixCount - sharedSuffixCount;
+        var currentChangedCount = currentLines.Length - sharedPrefixCount - sharedSuffixCount;
+        if (previousChangedCount == 0 && currentChangedCount == 0)
+        {
+            return true;
+        }
+
+        for (var i = previousChangedCount - 1; i >= 0; i--)
+        {
+            document.Blocks.RemoveAt(sharedPrefixCount + i);
+        }
+
+        for (var i = 0; i < currentChangedCount; i++)
+        {
+            var lineIndex = sharedPrefixCount + i;
+            var paragraph = CreateHighlightedParagraph(
+                currentNormalized,
+                lineStarts[lineIndex],
+                currentLines[lineIndex].Length,
+                currentTokens,
+                palette);
+            document.Blocks.Insert(sharedPrefixCount + i, paragraph);
+        }
+
+        return true;
     }
 
     private static void AddLineRuns(
@@ -242,7 +225,7 @@ public static class DesignerXmlSyntaxHighlighter
         string source,
         int lineStart,
         int lineLength,
-        IReadOnlyList<DesignerXmlSyntaxToken> tokens,
+        IReadOnlyList<IDEEditorXmlSyntaxToken> tokens,
         DesignerXmlSyntaxColors colors)
     {
         var lineEnd = lineStart + lineLength;
@@ -273,7 +256,7 @@ public static class DesignerXmlSyntaxHighlighter
                 AddRun(
                     paragraph,
                     source.Substring(highlightStart, highlightEnd - highlightStart),
-                    token.Kind == DesignerXmlSyntaxTokenKind.ControlTypeName ? colors.ControlTypeForeground : colors.PropertyForeground);
+                    ResolveColor(token.Kind, colors));
             }
 
             cursor = highlightEnd;
@@ -299,7 +282,7 @@ public static class DesignerXmlSyntaxHighlighter
         string source,
         int lineStart,
         int lineLength,
-        IReadOnlyList<DesignerXmlSyntaxToken> tokens,
+        IReadOnlyList<IDEEditorXmlSyntaxToken> tokens,
         DesignerXmlSyntaxColors colors,
         Paragraph? templateParagraph = null)
     {
@@ -326,6 +309,22 @@ public static class DesignerXmlSyntaxHighlighter
             var tab = source.Tabs[i];
             destination.Tabs.Add(new TextTabProperties(tab.Alignment, tab.Location, tab.TabLeader, tab.AligningCharacter));
         }
+    }
+
+    private static Color ResolveColor(IDEEditorXmlSyntaxTokenKind kind, DesignerXmlSyntaxColors colors)
+    {
+        return kind switch
+        {
+            IDEEditorXmlSyntaxTokenKind.ControlTypeName => colors.ControlTypeForeground,
+            IDEEditorXmlSyntaxTokenKind.PropertyName => colors.PropertyForeground,
+            IDEEditorXmlSyntaxTokenKind.ElementName => colors.DefaultForeground,
+            IDEEditorXmlSyntaxTokenKind.Delimiter or IDEEditorXmlSyntaxTokenKind.Equals => colors.DelimiterForeground,
+            IDEEditorXmlSyntaxTokenKind.String => colors.StringForeground,
+            IDEEditorXmlSyntaxTokenKind.Comment or IDEEditorXmlSyntaxTokenKind.CData => colors.CommentForeground,
+            IDEEditorXmlSyntaxTokenKind.NamespaceDeclaration => colors.NamespaceForeground,
+            IDEEditorXmlSyntaxTokenKind.ProcessingInstruction or IDEEditorXmlSyntaxTokenKind.Declaration => colors.NamespaceForeground,
+            _ => colors.DefaultForeground
+        };
     }
 
     private static int[] ComputeLineStarts(string[] lines)
@@ -498,68 +497,6 @@ public static class DesignerXmlSyntaxHighlighter
         return states;
     }
 
-    private static bool TrySkip(string source, ref int index, string prefix, string suffix)
-    {
-        if (!Matches(source, index, prefix))
-        {
-            return false;
-        }
-
-        index += prefix.Length;
-        var suffixIndex = source.IndexOf(suffix, index, StringComparison.Ordinal);
-        index = suffixIndex >= 0 ? suffixIndex + suffix.Length : source.Length;
-        return true;
-    }
-
-    private static void SkipUntil(string source, ref int index, char terminator)
-    {
-        while (index < source.Length && source[index] != terminator)
-        {
-            index++;
-        }
-
-        if (index < source.Length)
-        {
-            index++;
-        }
-    }
-
-    private static void SkipQuotedValue(string source, ref int index)
-    {
-        var quote = source[index];
-        index++;
-        while (index < source.Length && source[index] != quote)
-        {
-            index++;
-        }
-
-        if (index < source.Length)
-        {
-            index++;
-        }
-    }
-
-    private static void SkipWhitespace(string source, ref int index)
-    {
-        while (index < source.Length && char.IsWhiteSpace(source[index]))
-        {
-            index++;
-        }
-    }
-
-    private static void ReadXmlName(string source, ref int index)
-    {
-        while (index < source.Length && IsXmlNameCharacter(source[index]))
-        {
-            index++;
-        }
-    }
-
-    private static bool IsXmlNameCharacter(char value)
-    {
-        return char.IsLetterOrDigit(value) || value is ':' or '_' or '-' or '.';
-    }
-
     private static bool Matches(string source, int index, string value)
     {
         return index >= 0 &&
@@ -567,155 +504,18 @@ public static class DesignerXmlSyntaxHighlighter
                string.Compare(source, index, value, 0, value.Length, StringComparison.Ordinal) == 0;
     }
 
-    private static void AddToken(List<DesignerXmlSyntaxToken> tokens, int start, int length, DesignerXmlSyntaxTokenKind kind)
-    {
-        if (length <= 0)
-        {
-            return;
-        }
-
-        tokens.Add(new DesignerXmlSyntaxToken(start, length, kind));
-    }
-
-    private static void AddTagNameToken(List<DesignerXmlSyntaxToken> tokens, string source, int start, int length)
-    {
-        if (length <= 0)
-        {
-            return;
-        }
-
-        var tagName = source.Substring(start, length);
-        var kind = TagNameTokenKinds.GetOrAdd(tagName, static candidate => ClassifyTagName(candidate));
-        if (!kind.HasValue)
-        {
-            return;
-        }
-
-        tokens.Add(new DesignerXmlSyntaxToken(start, length, kind.Value));
-    }
-
     internal static bool TryClassifyTagName(string? tagName, out DesignerXmlSyntaxTokenKind kind)
     {
-        var resolvedKind = ClassifyTagName(tagName ?? string.Empty);
-        if (!resolvedKind.HasValue)
+        if (!IDEEditorXmlSyntaxClassifier.TryClassifyTagName(tagName, out var resolvedKind))
         {
             kind = default;
             return false;
         }
 
-        kind = resolvedKind.Value;
+        kind = resolvedKind == IDEEditorXmlSyntaxTokenKind.ControlTypeName
+            ? DesignerXmlSyntaxTokenKind.ControlTypeName
+            : DesignerXmlSyntaxTokenKind.PropertyName;
         return true;
-    }
-
-    private static DesignerXmlSyntaxTokenKind? ClassifyTagName(string tagName)
-    {
-        var candidate = tagName.AsSpan();
-        if (TryResolveKnownType(candidate, out _))
-        {
-            return DesignerXmlSyntaxTokenKind.ControlTypeName;
-        }
-
-        if (IsKnownPropertyElement(candidate))
-        {
-            return DesignerXmlSyntaxTokenKind.PropertyName;
-        }
-
-        return null;
-    }
-
-    private static bool IsKnownPropertyElement(ReadOnlySpan<char> tagName)
-    {
-        var separatorIndex = tagName.IndexOf('.');
-        if (separatorIndex <= 0 || separatorIndex >= tagName.Length - 1)
-        {
-            return false;
-        }
-
-        if (!TryResolveKnownType(tagName[..separatorIndex], out var ownerType))
-        {
-            return false;
-        }
-
-        var propertyName = tagName[(separatorIndex + 1)..].ToString();
-        return HasInstanceProperty(ownerType, propertyName) ||
-               HasDependencyPropertyField(ownerType, propertyName) ||
-               HasAttachedSetter(ownerType, propertyName);
-    }
-
-    private static bool TryResolveKnownType(ReadOnlySpan<char> typeName, out Type type)
-    {
-        var unqualifiedName = UnqualifyXmlName(typeName).ToString();
-        return KnownControlTypesByName.TryGetValue(unqualifiedName, out type!);
-    }
-
-    private static ReadOnlySpan<char> UnqualifyXmlName(ReadOnlySpan<char> value)
-    {
-        var separatorIndex = value.IndexOf(':');
-        return separatorIndex >= 0 ? value[(separatorIndex + 1)..] : value;
-    }
-
-    private static bool HasInstanceProperty(Type ownerType, string propertyName)
-    {
-        var current = ownerType;
-        while (current != null)
-        {
-            if (current.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly) != null)
-            {
-                return true;
-            }
-
-            current = current.BaseType;
-        }
-
-        return false;
-    }
-
-    private static bool HasDependencyPropertyField(Type ownerType, string propertyName)
-    {
-        var fieldName = propertyName + "Property";
-        var current = ownerType;
-        while (current != null)
-        {
-            var field = current.GetField(fieldName, BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly);
-            if (field?.FieldType == typeof(DependencyProperty))
-            {
-                return true;
-            }
-
-            current = current.BaseType;
-        }
-
-        return false;
-    }
-
-    private static bool HasAttachedSetter(Type ownerType, string propertyName)
-    {
-        var setterName = "Set" + propertyName;
-        var current = ownerType;
-        while (current != null)
-        {
-            foreach (var method in current.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
-            {
-                if (!string.Equals(method.Name, setterName, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                if (method.GetParameters().Length == 2)
-                {
-                    return true;
-                }
-            }
-
-            current = current.BaseType;
-        }
-
-        return false;
-    }
-
-    private static bool IsNamespaceDeclaration(ReadOnlySpan<char> value)
-    {
-        return value.SequenceEqual("xmlns".AsSpan()) || value.StartsWith("xmlns:".AsSpan(), StringComparison.Ordinal);
     }
 
     private static string NormalizeLineEndings(string? text)

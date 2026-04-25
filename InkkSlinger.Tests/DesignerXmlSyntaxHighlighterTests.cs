@@ -17,6 +17,13 @@ public class DesignerXmlSyntaxHighlighterTests
         </UserControl>
         """;
 
+        private const string CommentXml = """
+                <Grid xmlns="urn:inkkslinger-ui">
+                    <!-- Designer note -->
+                    <TextBlock Text="Hello" />
+                </Grid>
+                """;
+
         private const string UnknownTagXml = """
                 <UserControl xmlns="urn:inkkslinger-ui"
                                          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
@@ -88,12 +95,32 @@ public class DesignerXmlSyntaxHighlighterTests
     }
 
     [Fact]
+    public void SharedClassifier_EmitsXmlSyntaxAndSemanticTokensFromOnePass()
+    {
+        var tokens = InkkSlinger.IDEEditorXmlSyntaxClassifier.Classify(CommentXml);
+        var tokenPairs = tokens
+            .Select(token => (Text: CommentXml.Substring(token.Start, token.Length), token.Kind))
+            .ToArray();
+
+        Assert.Contains(tokenPairs, token => token.Text == "<" && token.Kind == IDEEditorXmlSyntaxTokenKind.Delimiter);
+        Assert.Contains(tokenPairs, token => token.Text == "Grid" && token.Kind == IDEEditorXmlSyntaxTokenKind.ControlTypeName);
+        Assert.Contains(tokenPairs, token => token.Text == "xmlns" && token.Kind == IDEEditorXmlSyntaxTokenKind.NamespaceDeclaration);
+        Assert.Contains(tokenPairs, token => token.Text.Contains("Designer note", StringComparison.Ordinal) && token.Kind == IDEEditorXmlSyntaxTokenKind.Comment);
+        Assert.Contains(tokenPairs, token => token.Text == "Text" && token.Kind == IDEEditorXmlSyntaxTokenKind.PropertyName);
+        Assert.Contains(tokenPairs, token => token.Text == "\"Hello\"" && token.Kind == IDEEditorXmlSyntaxTokenKind.String);
+    }
+
+    [Fact]
     public void CreateHighlightedDocument_AssignsExpectedColorsToHighlightedRuns()
     {
         var colors = new InkkSlinger.Designer.DesignerXmlSyntaxColors(
             new Color(10, 20, 30),
             new Color(40, 50, 60),
-            new Color(70, 80, 90));
+            new Color(70, 80, 90),
+            new Color(100, 110, 120),
+            new Color(130, 140, 150),
+            new Color(160, 170, 180),
+            new Color(190, 200, 210));
 
         var document = InkkSlinger.Designer.DesignerXmlSyntaxHighlighter.CreateHighlightedDocument(SampleXml, colors);
         var runs = document.Blocks
@@ -107,7 +134,9 @@ public class DesignerXmlSyntaxHighlighterTests
         Assert.Contains(runs, run => run.Text == "Background" && run.Foreground == colors.PropertyForeground);
         Assert.Contains(runs, run => run.Text == "Grid.Row" && run.Foreground == colors.PropertyForeground);
         Assert.Contains(runs, run => run.Text == "Text" && run.Foreground == colors.PropertyForeground);
-        Assert.Contains(runs, run => run.Text.Contains("Hello", StringComparison.Ordinal) && run.Foreground == colors.DefaultForeground);
+        Assert.Contains(runs, run => run.Text.Contains("Hello", StringComparison.Ordinal) && run.Foreground == colors.StringForeground);
+        Assert.Contains(runs, run => run.Text == "<" && run.Foreground == colors.DelimiterForeground);
+        Assert.Contains(runs, run => run.Text == "xmlns" && run.Foreground == colors.NamespaceForeground);
     }
 
     [Fact]
@@ -127,6 +156,28 @@ public class DesignerXmlSyntaxHighlighterTests
 
         Assert.Contains(runs, run => run.Text.Contains("hahahaha", StringComparison.Ordinal) && run.Foreground == colors.DefaultForeground);
         Assert.DoesNotContain(runs, run => run.Text.Contains("hahahaha", StringComparison.Ordinal) && run.Foreground == colors.ControlTypeForeground);
+    }
+
+    [Fact]
+    public void CreateHighlightedDocument_AssignsCommentColorToXmlComments()
+    {
+        var colors = new InkkSlinger.Designer.DesignerXmlSyntaxColors(
+            new Color(10, 20, 30),
+            new Color(40, 50, 60),
+            new Color(70, 80, 90),
+            new Color(100, 110, 120),
+            new Color(130, 140, 150),
+            new Color(160, 170, 180),
+            new Color(190, 200, 210));
+
+        var document = InkkSlinger.Designer.DesignerXmlSyntaxHighlighter.CreateHighlightedDocument(CommentXml, colors);
+        var runs = document.Blocks
+            .OfType<Paragraph>()
+            .SelectMany(static paragraph => paragraph.Inlines.OfType<Run>())
+            .Where(static run => !string.IsNullOrEmpty(run.Text))
+            .ToArray();
+
+        Assert.Contains(runs, run => run.Text.Contains("Designer note", StringComparison.Ordinal) && run.Foreground == colors.CommentForeground);
     }
 
     [Fact]

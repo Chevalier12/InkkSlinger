@@ -4002,6 +4002,362 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditorTypingSlashAfterLessThan_IndentsInferredClosingTagToOpeningTagLine()
+    {
+        var source = NormalizeLineEndings(
+            """
+            <Grid>
+              <TextBlock Text="Designer Preview"
+                         Foreground="#E7EDF5"
+                         FontSize="22"
+                         FontWeight="SemiBold">
+            <
+            </Grid>
+            """);
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var insertionIndex = shell.SourceText.IndexOf("\n<\n", StringComparison.Ordinal) + 1;
+        Assert.True(insertionIndex >= 1);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(insertionIndex + 1, 0);
+
+        Assert.True(sourceEditor.HandleTextInputFromInput('/'));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var expected = NormalizeLineEndings(
+            """
+            <Grid>
+              <TextBlock Text="Designer Preview"
+                         Foreground="#E7EDF5"
+                         FontSize="22"
+                         FontWeight="SemiBold">
+              </TextBlock>
+            </Grid>
+            """);
+
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Equal(expected, NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(0, sourceEditor.SelectionLength);
+
+        var runs = GetDocumentRuns(sourceEditor.Document);
+        Assert.Contains(runs, run => run.Text == "Grid" && run.Foreground == InkkSlinger.Designer.DesignerXmlSyntaxColors.Default.ControlTypeForeground);
+        Assert.Contains(runs, run => run.Text == "TextBlock" && run.Foreground == InkkSlinger.Designer.DesignerXmlSyntaxColors.Default.ControlTypeForeground);
+        Assert.Contains(runs, run => run.Text == "Text" && run.Foreground == InkkSlinger.Designer.DesignerXmlSyntaxColors.Default.PropertyForeground);
+        Assert.Contains(runs, run => run.Text == "Foreground" && run.Foreground == InkkSlinger.Designer.DesignerXmlSyntaxColors.Default.PropertyForeground);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_TabAndShiftTab_IndentAndOutdentSelectedLines()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<Grid>\n<TextBlock />\n<Button />\n</Grid>"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var selectionStart = shell.SourceText.IndexOf("<TextBlock", StringComparison.Ordinal);
+        var selectionLength = shell.SourceText.IndexOf("</Grid>", StringComparison.Ordinal) - selectionStart;
+        sourceEditor.SetFocusedFromInput(true);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Select(selectionStart, selectionLength);
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 2);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Tab, clickPoint));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Contains("\n  <TextBlock />\n  <Button />\n", shell.SourceText, StringComparison.Ordinal);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Tab, clickPoint, heldModifiers: [Keys.LeftShift]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal("<Grid>\n<TextBlock />\n<Button />\n</Grid>", shell.SourceText);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_CommandKeys_HandleCommentFormatMoveDuplicateAndDeleteLine()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<Grid>\n<TextBlock />\n<Button />\n</Grid>"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Select(shell.SourceText.IndexOf("<TextBlock", StringComparison.Ordinal), 0);
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 2);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.OemQuestion, clickPoint, heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.Contains("<!-- <TextBlock /> -->", shell.SourceText, StringComparison.Ordinal);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.OemQuestion, clickPoint, heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.Contains("<TextBlock />", shell.SourceText, StringComparison.Ordinal);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Down, clickPoint, heldModifiers: [Keys.LeftAlt]));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.True(shell.SourceText.IndexOf("<Button />", StringComparison.Ordinal) < shell.SourceText.IndexOf("<TextBlock />", StringComparison.Ordinal));
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Down, clickPoint, heldModifiers: [Keys.LeftAlt, Keys.LeftShift]));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.True(shell.SourceText.Split("<TextBlock />").Length - 1 >= 2);
+
+        sourceEditor.Select(shell.SourceText.IndexOf("<Button />", StringComparison.Ordinal), 0);
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.K, clickPoint, heldModifiers: [Keys.LeftControl, Keys.LeftShift]));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.DoesNotContain("<Button />", shell.SourceText, StringComparison.Ordinal);
+        Assert.Contains("<TextBlock />", shell.SourceText, StringComparison.Ordinal);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.F, clickPoint, heldModifiers: [Keys.LeftControl, Keys.LeftShift]));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.Contains("\n  <TextBlock />", shell.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_PairedQuotesAndSmartEnter_InsertExpectedXmlEditingText()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<Grid>"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Select(shell.SourceText.Length, 0);
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Enter, clickPoint));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.Equal("<Grid>\n  ", shell.SourceText);
+
+        Assert.True(sourceEditor.HandleTextCompositionFromInput("<TextBlock Text="));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.True(sourceEditor.HandleTextInputFromInput('"'));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal("<Grid>\n  <TextBlock Text=\"\"", shell.SourceText);
+        Assert.Equal(shell.SourceText.Length - 1, sourceEditor.SelectionStart);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_EnterInLargeDocument_PreservesMostHighlightedParagraphs()
+    {
+        var sourceBuilder = new StringBuilder();
+        sourceBuilder.AppendLine("<Grid>");
+        for (var i = 0; i < 900; i++)
+        {
+            sourceBuilder.AppendLine($"  <TextBlock Grid.Row=\"{i}\" Text=\"Line {i:000}\" />");
+        }
+
+        sourceBuilder.Append("</Grid>");
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = NormalizeLineEndings(sourceBuilder.ToString())
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var originalParagraphs = sourceEditor.Document.Blocks.OfType<Paragraph>().ToArray();
+        var targetLine = "  <TextBlock Grid.Row=\"450\" Text=\"Line 450\" />";
+        var insertionIndex = shell.SourceText.IndexOf(targetLine, StringComparison.Ordinal) + targetLine.Length;
+        Assert.True(insertionIndex > targetLine.Length);
+
+        sourceEditor.SetFocusedFromInput(true);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Select(insertionIndex, 0);
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Enter, clickPoint));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var updatedParagraphs = sourceEditor.Document.Blocks.OfType<Paragraph>().ToArray();
+        var preservedCount = originalParagraphs.Count(updatedParagraphs.Contains);
+
+        Assert.Equal(originalParagraphs.Length + 1, updatedParagraphs.Length);
+        Assert.True(
+            preservedCount >= originalParagraphs.Length - 4,
+            $"Enter rebuilt too many highlighted paragraphs. Preserved {preservedCount} of {originalParagraphs.Length}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RenamingXmlTagName_UpdatesPairedTag()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<Grid>\n</Grid>"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(1, "Grid".Length);
+
+        Assert.True(sourceEditor.HandleTextCompositionFromInput("StackPanel"));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal("<StackPanel>\n</StackPanel>", shell.SourceText);
+        Assert.Equal(shell.SourceText, NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_FoldCommands_CollapseAndExpandXmlElementProjection()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<Grid>\n  <TextBlock />\n  <Button />\n</Grid>"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Select(1, 0);
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.OemOpenBrackets, clickPoint, heldModifiers: [Keys.LeftControl, Keys.LeftShift]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal(1, shell.SourceEditorView.CollapsedXmlFoldCount);
+        Assert.Equal("<Grid>\n  ...\n</Grid>", NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal("<Grid>\n  <TextBlock />\n  <Button />\n</Grid>", shell.SourceText);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.OemCloseBrackets, clickPoint, heldModifiers: [Keys.LeftControl, Keys.LeftShift]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal(0, shell.SourceEditorView.CollapsedXmlFoldCount);
+        Assert.Equal(shell.SourceText, NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_SourceOverview_PopulatesXmlDocumentOutline()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<Grid>\n  <StackPanel>\n    <TextBlock />\n  </StackPanel>\n</Grid>"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var overview = shell.SourceEditorView.SourceOverviewItems;
+
+        Assert.Contains(overview, item => item.Name == "Grid" && item.LineNumber == 1);
+        Assert.Contains(overview, item => item.Name == "StackPanel" && item.LineNumber == 2);
+        Assert.Contains(overview, item => item.Name == "TextBlock" && item.LineNumber == 3);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_MinimapClick_NavigatesToDocumentLine()
+    {
+        var sourceBuilder = new StringBuilder();
+        sourceBuilder.AppendLine("<Grid>");
+        for (var i = 1; i <= 120; i++)
+        {
+            sourceBuilder.AppendLine($"  <TextBlock Text=\"Line {i:00}\" />");
+        }
+
+        sourceBuilder.Append("</Grid>");
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = NormalizeLineEndings(sourceBuilder.ToString())
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.Select(0, 0);
+        var originalSelectionStart = sourceEditor.SelectionStart;
+        var originalSelectionLength = sourceEditor.SelectionLength;
+
+        Assert.True(shell.SourceEditorView.Minimap.LineCount > 30);
+        var minimapSlot = shell.SourceEditorView.Minimap.LayoutSlot;
+        Assert.True(minimapSlot.Width > 0f && minimapSlot.Height > 0f, $"Expected minimap to be arranged, but slot={FormatRect(minimapSlot)}.");
+        var pointer = new Vector2(
+            minimapSlot.X + (minimapSlot.Width * 0.5f),
+            minimapSlot.Y + (minimapSlot.Height * 0.8f));
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true, pointerMoved: false));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true, pointerMoved: false));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.True(shell.SourceEditorView.Minimap.NavigateRequestCount > 0);
+        Assert.True(sourceEditor.VerticalOffset > 0f);
+        Assert.Equal(originalSelectionStart, sourceEditor.SelectionStart);
+        Assert.Equal(originalSelectionLength, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_ConfigurableIndent_AppliesToEnterTabAndFormat()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<Grid>"
+        };
+        shell.SourceEditorView.EditorIndentText = "    ";
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Select(shell.SourceText.Length, 0);
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Enter, clickPoint));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.Equal("<Grid>\n    ", shell.SourceText);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Tab, clickPoint));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.Equal("<Grid>\n        ", shell.SourceText);
+
+        shell.SourceText = "<Grid>\n<TextBlock />\n</Grid>";
+        sourceEditor.Select(0, 0);
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.F, clickPoint, heldModifiers: [Keys.LeftControl, Keys.LeftShift]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal("<Grid>\n    <TextBlock />\n</Grid>", shell.SourceText);
+    }
+
+    [Fact]
     public void ShellView_SourceEditorTypingSlashAfterLessThan_PrefersImmediateUpwardSelfClosingControlOverOuterAncestor()
     {
         const string sourceText = """

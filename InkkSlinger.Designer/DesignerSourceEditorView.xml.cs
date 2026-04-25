@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using InkkSlinger;
 using InkkSlinger.UI.Telemetry;
@@ -57,6 +58,22 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
             typeof(DesignerSourceEditorView),
             new FrameworkPropertyMetadata(Array.Empty<object>()));
 
+    public static readonly DependencyProperty EditorIndentTextProperty =
+        DependencyProperty.Register(
+            nameof(EditorIndentText),
+            typeof(string),
+            typeof(DesignerSourceEditorView),
+            new FrameworkPropertyMetadata(
+                IDEEditorTextCommandService.DefaultIndent,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is DesignerSourceEditorView view)
+                    {
+                        view.RefreshHighlightedSourceDocument(previousText: null, currentText: view.SourceText, dismissCompletionPopup: false);
+                    }
+                },
+                coerceValueCallback: static (_, value) => value is string text && text.Length > 0 ? text : IDEEditorTextCommandService.DefaultIndent));
+
     private bool _suppressSourceEditorChanges;
     private float _lastObservedViewportHorizontalOffset = float.NaN;
     private float _lastObservedViewportVerticalOffset = float.NaN;
@@ -64,6 +81,7 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
     private float _lastObservedViewportHeight = float.NaN;
     private IReadOnlyList<DesignerControlCompletionItem> _completionItems = Array.Empty<DesignerControlCompletionItem>();
     private IReadOnlyList<string> _completionItemNames = Array.Empty<string>();
+    private IReadOnlyList<DesignerXmlDocumentOverviewItem> _sourceOverviewItems = Array.Empty<DesignerXmlDocumentOverviewItem>();
     private IReadOnlyList<DesignerSourceInspectableProperty> _currentSourceInspectorProperties = Array.Empty<DesignerSourceInspectableProperty>();
     private CompletionContext? _completionContext;
     private bool _suppressCompletionListSelectionChanged;
@@ -73,6 +91,15 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
     private DesignerSourceTagSelection? _currentSourceTagSelection;
     private bool _suppressSourceInspectorApply;
     private bool _suppressSourceInspectorFilterTextChanged;
+    private bool _forceFullSourceHighlightRefresh;
+    private int? _pendingSourceEditorSelectionStart;
+    private int _pendingSourceEditorSelectionLength;
+    private IReadOnlyList<DesignerXmlFoldRange> _currentXmlFoldRanges = Array.Empty<DesignerXmlFoldRange>();
+    private readonly HashSet<string> _collapsedXmlFoldRangeKeys = new(StringComparer.Ordinal);
+    private bool _suppressPairedTagRenameSync;
+    private bool _isSourceMinimapDragging;
+    private int? _lastSourceMinimapNavigatedLine;
+    private float? _lastSourceMinimapNavigatedVerticalOffset;
     private static long _diagSourceEditorTextChangedCallCount;
     private static long _diagSourceEditorTextChangedElapsedTicks;
     private static long _diagSourceEditorTextChangedRefreshHighlightedCallCount;
@@ -106,7 +133,11 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
 
         CompletionPopup.Closed += OnCompletionPopupClosed;
         CompletionListBox.SelectionChanged += OnCompletionListSelectionChanged;
+        SourceMinimap.NavigateRequested += OnSourceMinimapNavigateRequested;
         CompletionListBox.AddHandler<MouseRoutedEventArgs>(UIElement.MouseUpEvent, OnCompletionListMouseUp, handledEventsToo: true);
+        AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonDownEvent, OnSourceMinimapPreviewMouseLeftButtonDown, handledEventsToo: true);
+        AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseMoveEvent, OnSourceMinimapPreviewMouseMove, handledEventsToo: true);
+        AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonUpEvent, OnSourceMinimapPreviewMouseLeftButtonUp, handledEventsToo: true);
         SourceEditor.AddHandler<KeyRoutedEventArgs>(UIElement.KeyDownEvent, OnSourceEditorKeyDown, handledEventsToo: true);
         SourceEditor.AddHandler<FocusChangedRoutedEventArgs>(UIElement.LostFocusEvent, OnSourceEditorLostFocus, handledEventsToo: true);
         SourceEditor.SelectionChanged += OnSourceEditorSelectionChanged;
@@ -128,6 +159,8 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
 
     public IDE_Editor Editor => SourceEditor;
 
+    public IDEEditorMinimap Minimap => SourceMinimap;
+
     public Border LineNumberBorder => SourceEditor.LineNumberBorder;
 
     public IDEEditorLineNumberPresenter LineNumberPanel => SourceEditor.LineNumberPresenter;
@@ -139,6 +172,16 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
     }
 
     public bool IsControlCompletionOpen => CompletionPopup.IsOpen;
+
+    public string EditorIndentText
+    {
+        get => GetValue<string>(EditorIndentTextProperty) ?? IDEEditorTextCommandService.DefaultIndent;
+        set => SetValue(EditorIndentTextProperty, value);
+    }
+
+    public int CollapsedXmlFoldCount => _collapsedXmlFoldRangeKeys.Count;
+
+    public IReadOnlyList<DesignerXmlDocumentOverviewItem> SourceOverviewItems => _sourceOverviewItems;
 
     public IReadOnlyList<string> ControlCompletionItems => _completionItemNames;
 
@@ -234,18 +277,33 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
 
         var previousText = SourceText;
         var currentText = DocumentEditing.GetText(SourceEditor.Document);
+        if (_collapsedXmlFoldRangeKeys.Count > 0)
+        {
+            return;
+        }
+
         TryAutoInsertTagSuffix(ref currentText);
+        if (!_suppressPairedTagRenameSync)
+        {
+            TrySynchronizePairedTagRename(previousText, ref currentText);
+        }
         if (!string.Equals(previousText, currentText, StringComparison.Ordinal))
         {
             SourceText = currentText;
         }
 
-        var refreshedHighlighted = ShouldRefreshHighlightedSourceDocument(previousText, currentText);
+        var forceFullHighlightRefresh = _forceFullSourceHighlightRefresh;
+        _forceFullSourceHighlightRefresh = false;
+
+        var refreshedHighlighted = forceFullHighlightRefresh || ShouldRefreshHighlightedSourceDocument(previousText, currentText);
         long refreshHighlightedElapsedTicks = 0;
         if (refreshedHighlighted)
         {
             var refreshHighlightedStartTicks = Stopwatch.GetTimestamp();
-                RefreshHighlightedSourceDocument(previousText, currentText, dismissCompletionPopup: false);
+            RefreshHighlightedSourceDocument(
+                forceFullHighlightRefresh ? null : previousText,
+                currentText,
+                dismissCompletionPopup: false);
             refreshHighlightedElapsedTicks = Stopwatch.GetTimestamp() - refreshHighlightedStartTicks;
             _runtimeSourceEditorTextChangedRefreshHighlightedCallCount++;
             _runtimeSourceEditorTextChangedRefreshHighlightedElapsedTicks += refreshHighlightedElapsedTicks;
@@ -284,6 +342,8 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         _runtimeLastSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks = refreshPropertyInspectorElapsedTicks;
         _runtimeLastSourceEditorTextChangedRefreshedCompletion = refreshedCompletion;
         _runtimeLastSourceEditorTextChangedRefreshCompletionElapsedTicks = refreshCompletionElapsedTicks;
+
+        ApplyPendingSourceEditorSelection();
     }
 
     private void TryAutoInsertTagSuffix(ref string currentText)
@@ -302,7 +362,17 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
 
         if (insertedCharacter == '\n')
         {
-            TryAutoIndentImmediateClosingTag(previousText, currentText, insertedIndex, out currentText);
+            ApplySourceEditorTextEdit(
+                DesignerXmlEditorLanguageService.ApplySmartEnter(previousText, currentText, insertedIndex, EditorIndentText),
+                previousText: previousText);
+            currentText = DocumentEditing.GetText(SourceEditor.Document);
+            return;
+        }
+
+        if (DesignerXmlEditorLanguageService.TryHandlePairedCharacter(currentText, insertedIndex, insertedCharacter, out var pairedEdit))
+        {
+            ApplySourceEditorTextEdit(pairedEdit);
+            currentText = DocumentEditing.GetText(SourceEditor.Document);
             return;
         }
 
@@ -316,6 +386,47 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
 
             TryAutoInsertSelfClosingBracket(currentText, insertedIndex, out currentText);
         }
+    }
+
+    private void ApplySourceEditorTextEdit(IDEEditorTextEditResult edit, bool dismissCompletionPopup = false, string? previousText = null)
+    {
+        var normalizedText = IDEEditorTextCommandService.Normalize(edit.Text);
+        _forceFullSourceHighlightRefresh = false;
+        RefreshHighlightedSourceDocument(previousText: previousText, currentText: normalizedText, dismissCompletionPopup: dismissCompletionPopup);
+        SourceEditor.Select(
+            Math.Clamp(edit.SelectionStart, 0, normalizedText.Length),
+            Math.Clamp(edit.SelectionLength, 0, normalizedText.Length - Math.Clamp(edit.SelectionStart, 0, normalizedText.Length)));
+        _pendingSourceEditorSelectionStart = Math.Clamp(edit.SelectionStart, 0, normalizedText.Length);
+        _pendingSourceEditorSelectionLength = Math.Clamp(edit.SelectionLength, 0, normalizedText.Length - _pendingSourceEditorSelectionStart.Value);
+        SourceText = normalizedText;
+    }
+
+    private void TrySynchronizePairedTagRename(string previousText, ref string currentText)
+    {
+        if (DesignerXmlEditorLanguageService.TrySynchronizePairedTagRename(
+                previousText,
+                currentText,
+                SourceEditor.SelectionStart,
+                out var edit))
+        {
+            ApplySourceEditorTextEdit(edit);
+            currentText = DocumentEditing.GetText(SourceEditor.Document);
+        }
+    }
+
+    private void ApplyPendingSourceEditorSelection()
+    {
+        if (!_pendingSourceEditorSelectionStart.HasValue)
+        {
+            return;
+        }
+
+        var textLength = DocumentEditing.GetText(SourceEditor.Document).Length;
+        var selectionStart = Math.Clamp(_pendingSourceEditorSelectionStart.Value, 0, textLength);
+        var selectionLength = Math.Clamp(_pendingSourceEditorSelectionLength, 0, textLength - selectionStart);
+        _pendingSourceEditorSelectionStart = null;
+        _pendingSourceEditorSelectionLength = 0;
+        SourceEditor.Select(selectionStart, selectionLength);
     }
 
     private void TryAutoInsertClosingTag(string currentText, int insertedIndex, out string updatedText)
@@ -384,6 +495,7 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         }
 
         var closingTagOpenIndex = slashIndex - 1;
+        var closingTagIndentation = GetInferredClosingTagIndentation(currentText, target.TagStartIndex, closingTagOpenIndex);
         _suppressSourceEditorChanges = true;
         try
         {
@@ -396,7 +508,15 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
                 }
 
                 DocumentEditing.DeleteRange(SourceEditor.Document, removalStart, target.SelfClosingSlashIndex - removalStart + 1);
+                _forceFullSourceHighlightRefresh = true;
                 closingTagOpenIndex -= target.SelfClosingSlashIndex - removalStart + 1;
+            }
+
+            if (closingTagIndentation.Length > 0)
+            {
+                DocumentEditing.InsertTextAt(SourceEditor.Document, closingTagOpenIndex, closingTagIndentation);
+                _forceFullSourceHighlightRefresh = true;
+                closingTagOpenIndex += closingTagIndentation.Length;
             }
 
             SourceEditor.Select(closingTagOpenIndex + 2, 0);
@@ -436,6 +556,8 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         {
             UpdateCompletionPopupPlacement();
         }
+
+        UpdateSourceMinimapMetrics();
     }
 
     private void OnSourceEditorViewportChanged(object? sender, EventArgs args)
@@ -463,6 +585,8 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         {
             UpdateCompletionPopupPlacement();
         }
+
+        UpdateSourceMinimapMetrics();
     }
 
     private void OnSourceTextChanged(string newText)
@@ -479,23 +603,26 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         }
 
         DismissCompletionPopup();
-            RefreshHighlightedSourceDocument(previousText: null, currentText: newText, dismissCompletionPopup: false);
+        ClearCollapsedXmlFolds();
+        RefreshHighlightedSourceDocument(previousText: null, currentText: newText, dismissCompletionPopup: false);
         RefreshSourcePropertyInspector();
     }
 
     private void LoadDocumentIntoEditor(string? text)
     {
-            RefreshHighlightedSourceDocument(previousText: null, currentText: text, dismissCompletionPopup: true);
+        RefreshHighlightedSourceDocument(previousText: null, currentText: text, dismissCompletionPopup: true);
     }
 
-        private void RefreshHighlightedSourceDocument(string? previousText, string? currentText, bool dismissCompletionPopup)
+    private void RefreshHighlightedSourceDocument(string? previousText, string? currentText, bool dismissCompletionPopup)
     {
         if (dismissCompletionPopup)
         {
             DismissCompletionPopup();
         }
 
-            var normalizedText = currentText ?? string.Empty;
+        var normalizedText = currentText ?? string.Empty;
+        RefreshSourceOverview(normalizedText);
+        var displayText = CreateSourceEditorDisplayText(normalizedText);
         var selectionStart = SourceEditor.SelectionStart;
         var selectionLength = SourceEditor.SelectionLength;
         var horizontalOffset = SourceEditor.HorizontalOffset;
@@ -504,12 +631,13 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         _suppressSourceEditorChanges = true;
         try
         {
-                var refreshedIncrementally = !string.IsNullOrEmpty(previousText) &&
-                    DesignerXmlSyntaxHighlighter.TryPopulateDocumentIncrementally(SourceEditor.Document, previousText, normalizedText);
-                if (!refreshedIncrementally)
-                {
-                    DesignerXmlSyntaxHighlighter.PopulateDocument(SourceEditor.Document, normalizedText);
-                }
+            var refreshedIncrementally = _collapsedXmlFoldRangeKeys.Count == 0 &&
+                !string.IsNullOrEmpty(previousText) &&
+                DesignerXmlSyntaxHighlighter.TryPopulateDocumentIncrementally(SourceEditor.Document, previousText, displayText);
+            if (!refreshedIncrementally)
+            {
+                DesignerXmlSyntaxHighlighter.PopulateDocument(SourceEditor.Document, displayText);
+            }
 
             SourceEditor.RefreshDocumentMetrics();
 
@@ -519,6 +647,7 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
             SourceEditor.Select(clampedSelectionStart, clampedSelectionLength);
             SourceEditor.ScrollToHorizontalOffset(horizontalOffset);
             SourceEditor.ScrollToVerticalOffset(verticalOffset);
+            SourceEditor.IsReadOnly = _collapsedXmlFoldRangeKeys.Count > 0;
             SourceEditor.PreserveCurrentScrollOffsetsOnNextLayout();
         }
         finally
@@ -529,7 +658,7 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
 
     private void NavigateToLine(int oneBasedLineNumber)
     {
-        var sourceText = DocumentEditing.GetText(SourceEditor.Document);
+        var sourceText = SourceText;
         if (!TryGetLineSelectionRange(sourceText, oneBasedLineNumber, out var selectionStart, out var selectionLength))
         {
             return;
@@ -545,6 +674,11 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         RefreshSourcePropertyInspector();
     }
 
+    private void ScrollSourceEditorToOffsetFromMinimap(float verticalOffset)
+    {
+        SourceEditor.ScrollToVerticalOffset(Math.Max(0f, verticalOffset));
+    }
+
     private void OnSourceEditorKeyDown(object? sender, KeyRoutedEventArgs args)
     {
         _ = sender;
@@ -555,69 +689,292 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
             return;
         }
 
-        if (args.Key == Keys.Tab && args.Modifiers == ModifierKeys.None && !IsControlCompletionOpen)
+        if (IsControlCompletionOpen)
         {
-            args.Handled = SourceEditor.HandleTextCompositionFromInput("  ");
+            switch (args.Key)
+            {
+                case Keys.Escape:
+                    DismissCompletionPopup();
+                    args.Handled = true;
+                    return;
+                case Keys.Up:
+                    MoveCompletionSelection(-1);
+                    args.Handled = true;
+                    return;
+                case Keys.Down:
+                    MoveCompletionSelection(1);
+                    args.Handled = true;
+                    return;
+                case Keys.Home:
+                    SetCompletionSelection(0);
+                    args.Handled = true;
+                    return;
+                case Keys.End:
+                    SetCompletionSelection(_completionItems.Count - 1);
+                    args.Handled = true;
+                    return;
+                case Keys.PageUp:
+                    MoveCompletionSelection(-8);
+                    args.Handled = true;
+                    return;
+                case Keys.PageDown:
+                    MoveCompletionSelection(8);
+                    args.Handled = true;
+                    return;
+                case Keys.Enter:
+                case Keys.Tab:
+                    if (TryAcceptSelectedCompletion())
+                    {
+                        args.Handled = true;
+                    }
+
+                    return;
+                default:
+                    if (ShouldDismissCompletionForKey(args.Key, args.Modifiers))
+                    {
+                        DismissCompletionPopup();
+                    }
+
+                    return;
+            }
+        }
+
+        if (TryHandleSourceEditorCommandKey(args.Key, args.Modifiers))
+        {
+            args.Handled = true;
             return;
         }
 
         if (args.Key == Keys.Back && args.Modifiers == ModifierKeys.None)
         {
             args.Handled = SourceEditor.HandleKeyDownFromInput(Keys.Back, ModifierKeys.None);
+        }
+    }
+
+    private bool TryHandleSourceEditorCommandKey(Keys key, ModifierKeys modifiers)
+    {
+        var text = DocumentEditing.GetText(SourceEditor.Document);
+        var selectionStart = SourceEditor.SelectionStart;
+        var selectionLength = SourceEditor.SelectionLength;
+
+        if (key == Keys.Enter && modifiers == ModifierKeys.None)
+        {
+            var inserted = IDEEditorTextCommandService.ReplaceSelection(text, selectionStart, selectionLength, "\n");
+            ApplySourceEditorTextEdit(
+                DesignerXmlEditorLanguageService.ApplySmartEnter(text, inserted.Text, selectionStart, EditorIndentText),
+                previousText: text);
+            return true;
+        }
+
+        if (key == Keys.Tab && modifiers == ModifierKeys.None)
+        {
+            ApplySourceEditorTextEdit(
+                selectionLength == 0
+                    ? IDEEditorTextCommandService.ReplaceSelection(text, selectionStart, selectionLength, EditorIndentText)
+                    : IDEEditorTextCommandService.IndentSelectedLines(text, selectionStart, selectionLength, EditorIndentText));
+            return true;
+        }
+
+        if (key == Keys.Tab && modifiers == ModifierKeys.Shift)
+        {
+            ApplySourceEditorTextEdit(IDEEditorTextCommandService.OutdentSelectedLines(text, selectionStart, selectionLength, EditorIndentText));
+            return true;
+        }
+
+        if (IsSlashKey(key) && modifiers == ModifierKeys.Control)
+        {
+            ApplySourceEditorTextEdit(DesignerXmlEditorLanguageService.ToggleXmlComment(text, selectionStart, selectionLength));
+            return true;
+        }
+
+        if (key == Keys.K && modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            ApplySourceEditorTextEdit(IDEEditorTextCommandService.DeleteSelectedLines(text, selectionStart, selectionLength));
+            return true;
+        }
+
+        if ((key == Keys.Down || key == Keys.Up) && modifiers == (ModifierKeys.Alt | ModifierKeys.Shift))
+        {
+            ApplySourceEditorTextEdit(IDEEditorTextCommandService.DuplicateSelectedLines(text, selectionStart, selectionLength));
+            return true;
+        }
+
+        if ((key == Keys.Down || key == Keys.Up) && modifiers == ModifierKeys.Alt)
+        {
+            ApplySourceEditorTextEdit(IDEEditorTextCommandService.MoveSelectedLines(text, selectionStart, selectionLength, key == Keys.Up ? -1 : 1));
+            return true;
+        }
+
+        if (key == Keys.F && modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            ApplySourceEditorTextEdit(IDEEditorTextCommandService.FormatAll(text, value => DesignerXmlEditorLanguageService.FormatDocument(value, EditorIndentText), selectionStart, selectionLength));
+            return true;
+        }
+
+        if (key == Keys.OemOpenBrackets && modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            ToggleXmlFoldAtCaret();
+            return true;
+        }
+
+        if (key == Keys.OemCloseBrackets && modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            ClearCollapsedXmlFolds();
+            RefreshHighlightedSourceDocument(previousText: null, currentText: SourceText, dismissCompletionPopup: false);
+            return true;
+        }
+
+        if (key == Keys.M && modifiers == ModifierKeys.Control &&
+            DesignerXmlEditorLanguageService.TryFindMatchingTag(text, selectionStart, out var match))
+        {
+            SourceEditor.Select(match.Start, match.Length);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsSlashKey(Keys key)
+    {
+        return key is Keys.Divide or Keys.OemQuestion;
+    }
+
+    private string CreateSourceEditorDisplayText(string sourceText)
+    {
+        _currentXmlFoldRanges = DesignerXmlEditorLanguageService.GetFoldRanges(sourceText);
+        if (_collapsedXmlFoldRangeKeys.Count == 0)
+        {
+            return sourceText;
+        }
+
+        var collapsedRanges = _currentXmlFoldRanges
+            .Where(range => _collapsedXmlFoldRangeKeys.Contains(GetXmlFoldRangeKey(range)))
+            .ToArray();
+        _collapsedXmlFoldRangeKeys.Clear();
+        foreach (var range in collapsedRanges)
+        {
+            _collapsedXmlFoldRangeKeys.Add(GetXmlFoldRangeKey(range));
+        }
+
+        return DesignerXmlEditorLanguageService.TryCreateFoldedProjection(sourceText, collapsedRanges, out var projection)
+            ? projection
+            : sourceText;
+    }
+
+    private void ToggleXmlFoldAtCaret()
+    {
+        if (_collapsedXmlFoldRangeKeys.Count > 0)
+        {
+            ClearCollapsedXmlFolds();
+            RefreshHighlightedSourceDocument(previousText: null, currentText: SourceText, dismissCompletionPopup: false);
             return;
         }
 
-        if (!IsControlCompletionOpen)
+        if (!DesignerXmlEditorLanguageService.TryFindFoldRangeAtOrNearCaret(SourceText, SourceEditor.SelectionStart, out var range))
         {
             return;
         }
 
-        switch (args.Key)
+        _collapsedXmlFoldRangeKeys.Add(GetXmlFoldRangeKey(range));
+        RefreshHighlightedSourceDocument(previousText: null, currentText: SourceText, dismissCompletionPopup: false);
+    }
+
+    private void ClearCollapsedXmlFolds()
+    {
+        if (_collapsedXmlFoldRangeKeys.Count == 0)
         {
-            case Keys.Escape:
-                DismissCompletionPopup();
-                args.Handled = true;
-                return;
-            case Keys.Up:
-                MoveCompletionSelection(-1);
-                args.Handled = true;
-                return;
-            case Keys.Down:
-                MoveCompletionSelection(1);
-                args.Handled = true;
-                return;
-            case Keys.Home:
-                SetCompletionSelection(0);
-                args.Handled = true;
-                return;
-            case Keys.End:
-                SetCompletionSelection(_completionItems.Count - 1);
-                args.Handled = true;
-                return;
-            case Keys.PageUp:
-                MoveCompletionSelection(-8);
-                args.Handled = true;
-                return;
-            case Keys.PageDown:
-                MoveCompletionSelection(8);
-                args.Handled = true;
-                return;
-            case Keys.Enter:
-            case Keys.Tab:
-                if (TryAcceptSelectedCompletion())
-                {
-                    args.Handled = true;
-                }
-
-                return;
-            default:
-                if (ShouldDismissCompletionForKey(args.Key, args.Modifiers))
-                {
-                    DismissCompletionPopup();
-                }
-
-                return;
+            SourceEditor.IsReadOnly = false;
+            return;
         }
+
+        _collapsedXmlFoldRangeKeys.Clear();
+        SourceEditor.IsReadOnly = false;
+    }
+
+    private static string GetXmlFoldRangeKey(DesignerXmlFoldRange range)
+    {
+        return string.Create(CultureInfo.InvariantCulture, $"{range.StartOffset}:{range.EndOffset}:{range.Name}");
+    }
+
+    private void RefreshSourceOverview(string sourceText)
+    {
+        _sourceOverviewItems = DesignerXmlEditorLanguageService.GetDocumentOverview(sourceText);
+        SourceMinimap.SourceText = sourceText;
+        UpdateSourceMinimapMetrics();
+    }
+
+    private void UpdateSourceMinimapMetrics()
+    {
+        SourceMinimap.EditorVerticalOffset = SourceEditor.VerticalOffset;
+        SourceMinimap.EditorViewportHeight = SourceEditor.ViewportHeight;
+        SourceMinimap.EditorEstimatedLineHeight = Math.Max(1f, SourceEditor.EstimatedLineHeight);
+    }
+
+    private void OnSourceMinimapNavigateRequested(object? sender, IDEEditorMinimapNavigateEventArgs args)
+    {
+        _ = sender;
+        if (_lastSourceMinimapNavigatedVerticalOffset.HasValue &&
+            Math.Abs(_lastSourceMinimapNavigatedVerticalOffset.Value - args.VerticalOffset) < 0.01f)
+        {
+            return;
+        }
+
+        _lastSourceMinimapNavigatedLine = args.LineNumber;
+        _lastSourceMinimapNavigatedVerticalOffset = args.VerticalOffset;
+        if (_collapsedXmlFoldRangeKeys.Count > 0)
+        {
+            ClearCollapsedXmlFolds();
+            RefreshHighlightedSourceDocument(previousText: null, currentText: SourceText, dismissCompletionPopup: false);
+        }
+
+        ScrollSourceEditorToOffsetFromMinimap(args.VerticalOffset);
+    }
+
+    private void OnSourceMinimapPreviewMouseLeftButtonDown(object? sender, MouseRoutedEventArgs args)
+    {
+        _ = sender;
+        if (args.Button != MouseButton.Left)
+        {
+            return;
+        }
+
+        _lastSourceMinimapNavigatedLine = null;
+        _lastSourceMinimapNavigatedVerticalOffset = null;
+        if (SourceMinimap.BeginPointerNavigation(args.Position))
+        {
+            _isSourceMinimapDragging = true;
+            args.Handled = true;
+            return;
+        }
+    }
+
+    private void OnSourceMinimapPreviewMouseMove(object? sender, MouseRoutedEventArgs args)
+    {
+        _ = sender;
+        if (!_isSourceMinimapDragging)
+        {
+            return;
+        }
+
+        if (SourceMinimap.ContinuePointerNavigation(args.Position))
+        {
+            args.Handled = true;
+        }
+    }
+
+    private void OnSourceMinimapPreviewMouseLeftButtonUp(object? sender, MouseRoutedEventArgs args)
+    {
+        _ = sender;
+        if (!_isSourceMinimapDragging)
+        {
+            return;
+        }
+
+        _isSourceMinimapDragging = false;
+        SourceMinimap.EndPointerNavigation();
+        _lastSourceMinimapNavigatedLine = null;
+        _lastSourceMinimapNavigatedVerticalOffset = null;
+        args.Handled = true;
     }
 
     private void OnSourceEditorLostFocus(object? sender, FocusChangedRoutedEventArgs args)
@@ -1273,9 +1630,17 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         var replacement = BuildCompletionReplacement(selectedItem.ElementName);
         SourceEditor.SetFocusedFromInput(true);
         SourceEditor.Select(context.ReplaceStart, context.ReplaceLength);
-        if (!SourceEditor.HandleTextCompositionFromInput(replacement))
+        _suppressPairedTagRenameSync = true;
+        try
         {
-            return false;
+            if (!SourceEditor.HandleTextCompositionFromInput(replacement))
+            {
+                return false;
+            }
+        }
+        finally
+        {
+            _suppressPairedTagRenameSync = false;
         }
 
         var caretIndex = context.ReplaceStart + selectedItem.ElementName.Length + 1;
@@ -1515,6 +1880,44 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         }
 
         return sourceText.AsSpan(closingTagStartIndex).StartsWith(("</" + tagName + ">") .AsSpan(), StringComparison.Ordinal);
+    }
+
+    private static string GetInferredClosingTagIndentation(string sourceText, int targetTagStartIndex, int closingTagOpenIndex)
+    {
+        if (targetTagStartIndex < 0 ||
+            targetTagStartIndex >= sourceText.Length ||
+            closingTagOpenIndex < 0 ||
+            closingTagOpenIndex >= sourceText.Length)
+        {
+            return string.Empty;
+        }
+
+        var closingLineStartIndex = GetLineStartIndex(sourceText, closingTagOpenIndex);
+        for (var index = closingLineStartIndex; index < closingTagOpenIndex; index++)
+        {
+            if (!IsIndentationCharacter(sourceText[index]))
+            {
+                return string.Empty;
+            }
+        }
+
+        var targetLineStartIndex = GetLineStartIndex(sourceText, targetTagStartIndex);
+        var targetIndentationLength = 0;
+        while (targetLineStartIndex + targetIndentationLength < sourceText.Length &&
+               IsIndentationCharacter(sourceText[targetLineStartIndex + targetIndentationLength]))
+        {
+            targetIndentationLength++;
+        }
+
+        var closingIndentationLength = closingTagOpenIndex - closingLineStartIndex;
+        if (targetIndentationLength <= closingIndentationLength)
+        {
+            return string.Empty;
+        }
+
+        return sourceText.Substring(
+            targetLineStartIndex + closingIndentationLength,
+            targetIndentationLength - closingIndentationLength);
     }
 
     private static bool TryGetSelfClosingTagName(string sourceText, int slashIndex, out string tagName)
