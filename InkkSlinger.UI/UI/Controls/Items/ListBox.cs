@@ -139,6 +139,14 @@ public class ListBox : Selector
         set => SetValue(BorderThicknessProperty, value);
     }
 
+    internal Func<object, bool>? IsItemItsOwnContainerOverrideCallback { get; set; }
+
+    internal Func<object, UIElement>? CreateContainerForItemOverrideCallback { get; set; }
+
+    internal Func<object?, DataTemplate, UIElement?>? BuildContainerForTemplatedItemOverrideCallback { get; set; }
+
+    internal Action<UIElement, object, int>? PrepareContainerForItemOverrideCallback { get; set; }
+
     public override IEnumerable<UIElement> GetVisualChildren()
     {
         foreach (var element in base.GetVisualChildren())
@@ -192,11 +200,21 @@ public class ListBox : Selector
 
     protected override bool IsItemItsOwnContainerOverride(object item)
     {
+        if (IsItemItsOwnContainerOverrideCallback != null)
+        {
+            return IsItemItsOwnContainerOverrideCallback(item);
+        }
+
         return item is ListBoxItem;
     }
 
     protected override UIElement CreateContainerForItemOverride(object item)
     {
+        if (CreateContainerForItemOverrideCallback != null)
+        {
+            return CreateContainerForItemOverrideCallback(item);
+        }
+
         var container = new ListBoxItem();
 
         if (item is UIElement element)
@@ -215,6 +233,11 @@ public class ListBox : Selector
 
     protected override UIElement? BuildContainerForTemplatedItemOverride(object? item, DataTemplate selectedTemplate)
     {
+        if (BuildContainerForTemplatedItemOverrideCallback != null)
+        {
+            return BuildContainerForTemplatedItemOverrideCallback(item, selectedTemplate);
+        }
+
         var container = CreateContainerForItemOverride(item ?? string.Empty);
         if (container is not ContentControl contentControl)
         {
@@ -241,9 +264,12 @@ public class ListBox : Selector
                 label.FontSize = FontSize;
                 label.FontWeight = FontWeight;
                 label.FontStyle = FontStyle;
+                PrepareContainerForItemOverrideCallback?.Invoke(element, item, index);
                 return;
             }
         }
+
+        PrepareContainerForItemOverrideCallback?.Invoke(element, item, index);
     }
 
     protected override void OnSelectionChanged(SelectionChangedEventArgs args)
@@ -482,6 +508,16 @@ public class ListBox : Selector
     }
 
     private ScrollViewer ActiveScrollViewer => _templatedScrollViewer ?? _fallbackScrollViewer;
+
+    internal int GetRealizedItemContainerCountForDiagnostics()
+    {
+        if (_itemsHost is VirtualizingStackPanel virtualizingHost && virtualizingHost.IsVirtualizationActive)
+        {
+            return virtualizingHost.RealizedChildrenCount;
+        }
+
+        return GetItemContainersForPresenter().Count;
+    }
 
     private void UpdateItemsHost()
     {

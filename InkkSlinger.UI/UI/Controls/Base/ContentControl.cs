@@ -144,6 +144,7 @@ public class ContentControl : Control
 
     private UIElement? _contentElement;
     private ContentPresenter? _activeContentPresenter;
+    private bool _isForcingDeferredContentElementBuild;
     protected UIElement? ContentElement => _contentElement;
 
     protected virtual bool ShouldCreateImplicitContentElement(object? content, DataTemplate? selectedTemplate)
@@ -151,6 +152,13 @@ public class ContentControl : Control
         _ = content;
         _ = selectedTemplate;
         return true;
+    }
+
+    protected virtual bool ShouldDeferContentElementBuild(object? content, DataTemplate? selectedTemplate)
+    {
+        _ = content;
+        _ = selectedTemplate;
+        return false;
     }
 
     public object? Content
@@ -310,6 +318,7 @@ public class ContentControl : Control
         _runtimeMeasureOverrideCallCount++;
         try
         {
+            EnsureContentElementForLayout();
             var templateSize = base.MeasureOverride(availableSize);
 
             if (_activeContentPresenter != null)
@@ -378,6 +387,7 @@ public class ContentControl : Control
         _runtimeArrangeOverrideCallCount++;
         try
         {
+            EnsureContentElementForLayout();
             base.ArrangeOverride(finalSize);
 
             if (_activeContentPresenter != null)
@@ -550,6 +560,29 @@ public class ContentControl : Control
         return CreateAggregateTelemetrySnapshot(reset: true);
     }
 
+    protected void EnsureContentElementForLayout()
+    {
+        if (_activeContentPresenter != null || _contentElement != null)
+        {
+            return;
+        }
+
+        if (Content == null && ContentTemplate == null && ContentTemplateSelector == null)
+        {
+            return;
+        }
+
+        _isForcingDeferredContentElementBuild = true;
+        try
+        {
+            UpdateContentElement(Content);
+        }
+        finally
+        {
+            _isForcingDeferredContentElementBuild = false;
+        }
+    }
+
     private void UpdateContentElement(object? content)
     {
         var start = Stopwatch.GetTimestamp();
@@ -614,6 +647,11 @@ public class ContentControl : Control
             this);
         if (selectedTemplate != null)
         {
+            if (!_isForcingDeferredContentElementBuild && ShouldDeferContentElementBuild(content, selectedTemplate))
+            {
+                return;
+            }
+
             _runtimeUpdateContentElementTemplateSelectedCount++;
             IncrementAggregate(ref _diagUpdateContentElementTemplateSelectedCount);
             var builtElement = selectedTemplate.Build(content, this);
@@ -640,6 +678,11 @@ public class ContentControl : Control
 
         if (content != null)
         {
+            if (!_isForcingDeferredContentElementBuild && ShouldDeferContentElementBuild(content, selectedTemplate: null))
+            {
+                return;
+            }
+
             _runtimeUpdateContentElementImplicitLabelCreatedCount++;
             IncrementAggregate(ref _diagUpdateContentElementImplicitLabelCreatedCount);
             AttachContentElement(new Label

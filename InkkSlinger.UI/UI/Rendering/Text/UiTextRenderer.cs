@@ -12,6 +12,7 @@ namespace InkkSlinger;
 internal static class UiTextRenderer
 {
     private const int MetricsCacheCapacity = 4096;
+    private const int InkBoundsCacheCapacity = 2048;
     private const int LineHeightCacheCapacity = 256;
     private const int ShapedTextLayoutCacheCapacity = 2048;
     private const int DrawableTextLayoutCacheCapacity = 2048;
@@ -24,6 +25,8 @@ internal static class UiTextRenderer
     private static readonly Dictionary<UiTypography, UiResolvedTypeface> TypefaceCache = new();
     private static readonly Dictionary<UiTextMetricsCacheKey, UiTextMetrics> MetricsCache = new();
     private static readonly Queue<UiTextMetricsCacheKey> MetricsCacheOrder = new();
+    private static readonly Dictionary<UiTextInkBoundsCacheKey, LayoutRect> InkBoundsCache = new();
+    private static readonly Queue<UiTextInkBoundsCacheKey> InkBoundsCacheOrder = new();
     private static readonly Dictionary<UiLineHeightCacheKey, float> LineHeightCache = new();
     private static readonly Queue<UiLineHeightCacheKey> LineHeightCacheOrder = new();
     private static readonly Dictionary<UiShapedTextLayoutCacheKey, UiShapedTextLayout> ShapedTextLayoutCache = new();
@@ -73,6 +76,8 @@ internal static class UiTextRenderer
             TypefaceCache.Clear();
             MetricsCache.Clear();
             MetricsCacheOrder.Clear();
+            InkBoundsCache.Clear();
+            InkBoundsCacheOrder.Clear();
             LineHeightCache.Clear();
             LineHeightCacheOrder.Clear();
             ShapedTextLayoutCache.Clear();
@@ -443,12 +448,37 @@ internal static class UiTextRenderer
 
     internal static LayoutRect GetInkBoundsForTests(UiTypography typography, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
     {
+        return GetInkBounds(typography, text, styleOverride);
+    }
+
+    internal static LayoutRect GetInkBounds(UiTypography typography, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
         if (string.IsNullOrEmpty(text))
         {
             return new LayoutRect(0f, 0f, 0f, 0f);
         }
 
         var effectiveTypography = typography.Apply(styleOverride);
+        var cacheKey = new UiTextInkBoundsCacheKey(effectiveTypography, text);
+        lock (SyncRoot)
+        {
+            if (InkBoundsCache.TryGetValue(cacheKey, out var cached))
+            {
+                return cached;
+            }
+        }
+
+        var bounds = CalculateInkBounds(effectiveTypography, text);
+        lock (SyncRoot)
+        {
+            AddInkBoundsCacheEntryNoLock(cacheKey, bounds);
+        }
+
+        return bounds;
+    }
+
+    private static LayoutRect CalculateInkBounds(UiTypography effectiveTypography, string text)
+    {
         var typeface = ResolveTypefaceCached(effectiveTypography);
         var pixelSize = Math.Max(1, (int)MathF.Round(effectiveTypography.Size));
         var shapedLayout = ResolveShapedTextLayout(effectiveTypography, text);
@@ -505,13 +535,13 @@ internal static class UiTextRenderer
         }
 
         var typeface = ResolveTypefaceCached(typography);
-    var lineMetrics = ResolveLineMetrics(typography);
-    var lineHeight = MathF.Max(1f, lineMetrics.LineHeight);
+        var lineMetrics = ResolveLineMetrics(typography);
+        var lineHeight = MathF.Max(1f, lineMetrics.LineHeight);
         var pixelSize = Math.Max(1, (int)MathF.Round(typography.Size));
         var codePoints = new List<int>(text.Length);
         var positions = new List<Vector2>(text.Length);
         var penX = 0f;
-    var baselineY = lineMetrics.Ascent;
+        var baselineY = lineMetrics.Ascent;
         var maxWidth = 0f;
         uint previousGlyphIndex = 0;
         var characterSpacing = GetCharacterSpacingPixels(typography);
@@ -715,6 +745,23 @@ internal static class UiTextRenderer
 
         LineHeightCache[key] = lineHeight;
         LineHeightCacheOrder.Enqueue(key);
+    }
+
+    private static void AddInkBoundsCacheEntryNoLock(UiTextInkBoundsCacheKey key, LayoutRect bounds)
+    {
+        if (InkBoundsCache.ContainsKey(key))
+        {
+            return;
+        }
+
+        if (InkBoundsCache.Count >= InkBoundsCacheCapacity)
+        {
+            var evicted = InkBoundsCacheOrder.Dequeue();
+            InkBoundsCache.Remove(evicted);
+        }
+
+        InkBoundsCache[key] = bounds;
+        InkBoundsCacheOrder.Enqueue(key);
     }
 
     private static void AddShapedTextLayoutEntryNoLock(UiShapedTextLayoutCacheKey key, UiShapedTextLayout layout)

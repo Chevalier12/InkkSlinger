@@ -405,6 +405,16 @@ public class ComboBox : Selector
         return container;
     }
 
+    protected override UIElement? BuildContainerForTemplatedItemOverride(object? item, DataTemplate selectedTemplate)
+    {
+        var container = new ComboBoxItem
+        {
+            Content = item,
+            ContentTemplate = selectedTemplate
+        };
+        return container;
+    }
+
     protected override void PrepareContainerForItemOverride(UIElement element, object item, int index)
     {
         IncrementMetric(ref _runtimePrepareContainerCallCount, ref _diagPrepareContainerCallCount);
@@ -531,14 +541,28 @@ public class ComboBox : Selector
             }
 
             IncrementMetric(ref _runtimeRenderTextDrawCount, ref _diagRenderTextDrawCount);
-            var textX = slot.X + Padding.Left + BorderThickness;
-            var textY = slot.Y + ((slot.Height - UiTextRenderer.GetLineHeight(this, FontSize)) / 2f);
-            UiTextRenderer.DrawString(spriteBatch, this, text, new Vector2(textX, textY), Foreground * Opacity, FontSize, opaqueBackground: true);
+            UiTextRenderer.DrawString(spriteBatch, this, text, ResolveSelectedTextRenderPosition(slot, text), Foreground * Opacity, FontSize, opaqueBackground: true);
         }
         finally
         {
             AddMetric(ref _runtimeRenderElapsedTicks, ref _diagRenderElapsedTicks, Stopwatch.GetTimestamp() - start);
         }
+    }
+
+    internal Vector2 GetSelectedTextRenderPositionForTests(string text)
+    {
+        return ResolveSelectedTextRenderPosition(LayoutSlot, text);
+    }
+
+    private Vector2 ResolveSelectedTextRenderPosition(LayoutRect slot, string text)
+    {
+        var textX = slot.X + Padding.Left + BorderThickness;
+        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
+        var inkBounds = UiTextRenderer.GetInkBounds(typography, text);
+        var textY = inkBounds.Height > 0f
+            ? slot.Y + ((slot.Height - inkBounds.Height) / 2f) - inkBounds.Y
+            : slot.Y + ((slot.Height - UiTextRenderer.GetLineHeight(typography)) / 2f);
+        return new Vector2(textX, textY);
     }
 
     private void OnIsDropDownOpenChanged(bool isOpen)
@@ -594,7 +618,6 @@ public class ComboBox : Selector
             }
 
             EnsureDropDownControls();
-            RefreshDropDownItems();
 
             if (_dropDownPopup == null || _dropDownList == null)
             {
@@ -602,16 +625,7 @@ public class ComboBox : Selector
                 return;
             }
 
-            _isSynchronizingDropDown = true;
-            try
-            {
-                RefreshDropDownItems();
-                _dropDownList.SelectedIndex = SelectedIndex;
-            }
-            finally
-            {
-                _isSynchronizingDropDown = false;
-            }
+            RefreshDropDownItems();
 
             _dropDownPopup.PlacementTarget = this;
             _dropDownPopup.PlacementMode = PopupPlacementMode.Bottom;
@@ -652,8 +666,13 @@ public class ComboBox : Selector
                 _dropDownList = new ListBox
                 {
                     Style = DropDownListStyle,
-                    SelectionMode = SelectionMode.Single
+                    SelectionMode = SelectionMode.Single,
+                    IsVirtualizing = true
                 };
+                _dropDownList.IsItemItsOwnContainerOverrideCallback = static _ => false;
+                _dropDownList.CreateContainerForItemOverrideCallback = item => BuildDropDownContainer(item, index: -1);
+                _dropDownList.BuildContainerForTemplatedItemOverrideCallback = (item, _) => BuildDropDownContainer(item, index: -1);
+                _dropDownList.PrepareContainerForItemOverrideCallback = PrepareDropDownContainer;
                 _dropDownList.SelectionChanged += OnDropDownSelectionChanged;
             }
             else
@@ -761,15 +780,20 @@ public class ComboBox : Selector
             try
             {
                 _dropDownList.ItemContainerStyle = ItemContainerStyle;
+                _dropDownList.ItemContainerStyleSelector = ItemContainerStyleSelector;
                 _dropDownList.ItemsPanel = ItemsPanel;
-                _dropDownList.Items.Clear();
+
+                var projectedItems = new List<object>(ItemContainers.Count);
                 for (var i = 0; i < ItemContainers.Count; i++)
                 {
                     var container = ItemContainers[i];
                     var item = ItemFromContainer(container);
                     IncrementMetric(ref _runtimeRefreshDropDownItemsProjectedItemCount, ref _diagRefreshDropDownItemsProjectedItemCount);
-                    _dropDownList.Items.Add(BuildDropDownContainer(item, i));
+                    projectedItems.Add(item ?? string.Empty);
                 }
+
+                _dropDownList.Items.Clear();
+                _dropDownList.AddItems(projectedItems);
 
                 IncrementMetric(ref _runtimeRefreshDropDownItemsSelectedIndexSyncCount, ref _diagRefreshDropDownItemsSelectedIndexSyncCount);
                 _dropDownList.SelectedIndex = SelectedIndex;
@@ -783,6 +807,16 @@ public class ComboBox : Selector
         {
             AddMetric(ref _runtimeRefreshDropDownItemsElapsedTicks, ref _diagRefreshDropDownItemsElapsedTicks, Stopwatch.GetTimestamp() - start);
         }
+    }
+
+    private void PrepareDropDownContainer(UIElement element, object item, int index)
+    {
+        if (element is not ComboBoxItem comboBoxItem)
+        {
+            return;
+        }
+
+        comboBoxItem.IsSelected = index == (_dropDownList?.SelectedIndex ?? SelectedIndex);
     }
 
     private Panel? FindHostPanel()
@@ -885,8 +919,27 @@ public class ComboBox : Selector
         }
         else
         {
-            container.ClearValue(ContentControl.ContentProperty);
-            container.Text = GetDisplayText(item);
+            var selectedTemplate = ItemTemplate != null || ItemTemplateSelector != null
+                ? DataTemplateResolver.ResolveTemplateForContent(
+                    this,
+                    item,
+                    ItemTemplate,
+                    ItemTemplateSelector,
+                    this)
+                : null;
+
+            if (selectedTemplate != null)
+            {
+                container.Text = string.Empty;
+                container.Content = item;
+                container.ContentTemplate = selectedTemplate;
+            }
+            else
+            {
+                container.ClearValue(ContentControl.ContentTemplateProperty);
+                container.ClearValue(ContentControl.ContentProperty);
+                container.Text = GetDisplayText(item);
+            }
         }
 
         SyncContainerTypography(container);
@@ -963,7 +1016,7 @@ public class ComboBox : Selector
             _isSynchronizingDropDown,
             SelectedIndex,
             ItemContainers.Count,
-            _dropDownList?.Items.Count ?? 0,
+            _dropDownList?.GetRealizedItemContainerCountForDiagnostics() ?? 0,
             LayoutSlot.Width,
             LayoutSlot.Height,
             GetDisplayText(SelectedItem),

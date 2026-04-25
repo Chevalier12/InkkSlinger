@@ -5,8 +5,6 @@ namespace InkkSlinger.Designer;
 
 public interface IDesignerDocumentFileStore
 {
-    string ReadAllText(string path);
-
     bool Exists(string path);
 
     void WriteAllText(string path, string text);
@@ -14,12 +12,6 @@ public interface IDesignerDocumentFileStore
 
 public sealed class PhysicalDesignerDocumentFileStore : IDesignerDocumentFileStore
 {
-    public string ReadAllText(string path)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        return NormalizeLineEndings(File.ReadAllText(path));
-    }
-
     public bool Exists(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -57,13 +49,11 @@ public sealed class PhysicalDesignerDocumentFileStore : IDesignerDocumentFileSto
 public sealed class DesignerDocumentController
 {
     private readonly IDesignerDocumentFileStore _fileStore;
-    private readonly string _newDocumentText;
 
     public DesignerDocumentController(string newDocumentText, IDesignerDocumentFileStore? fileStore = null)
     {
-        _newDocumentText = NormalizeLineEndings(newDocumentText);
         _fileStore = fileStore ?? new PhysicalDesignerDocumentFileStore();
-        CurrentText = _newDocumentText;
+        CurrentText = NormalizeLineEndings(newDocumentText);
     }
 
     public string CurrentText { get; private set; }
@@ -89,21 +79,6 @@ public sealed class DesignerDocumentController
         return true;
     }
 
-    public void New()
-    {
-        CurrentText = _newDocumentText;
-        CurrentPath = null;
-        IsDirty = false;
-    }
-
-    public void Open(string path)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        CurrentText = NormalizeLineEndings(_fileStore.ReadAllText(path));
-        CurrentPath = path;
-        IsDirty = false;
-    }
-
     public bool PathExists(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -122,7 +97,7 @@ public sealed class DesignerDocumentController
         return true;
     }
 
-    public void SaveAs(string path)
+    public void SaveToPath(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         _fileStore.WriteAllText(path, CurrentText);

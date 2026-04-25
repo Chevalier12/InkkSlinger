@@ -130,16 +130,28 @@ public class ListBoxItem : ContentControl
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
-        var desired = base.MeasureOverride(availableSize);
         if (HasTemplateRoot)
         {
-            return desired;
+            return base.MeasureOverride(availableSize);
         }
 
+        EnsureContentElementForLayout();
+
         var padding = Padding;
-        desired.X += padding.Horizontal;
-        desired.Y += padding.Vertical;
-        return desired;
+        var content = ContentElement as FrameworkElement;
+        if (content == null)
+        {
+            return new Vector2(padding.Horizontal, padding.Vertical);
+        }
+
+        content.Measure(
+            new Vector2(
+                System.MathF.Max(0f, availableSize.X - padding.Horizontal),
+                System.MathF.Max(0f, availableSize.Y - padding.Vertical)));
+
+        return new Vector2(
+            content.DesiredSize.X + padding.Horizontal,
+            content.DesiredSize.Y + padding.Vertical);
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)

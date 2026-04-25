@@ -92,6 +92,31 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void Refresh_ValidPanelRoot_SucceedsAndBuildsPreview()
+    {
+        const string viewXml = """
+                <DockPanel xmlns="urn:inkkslinger-ui"
+                           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    <TextBlock x:Name="PanelChild"
+                               Text="Hello from a panel root" />
+                </DockPanel>
+                """;
+        var controller = new InkkSlinger.Designer.DesignerController();
+
+        var succeeded = controller.Refresh(viewXml);
+
+        Assert.True(succeeded);
+        var previewRoot = Assert.IsType<DockPanel>(controller.PreviewRoot);
+        Assert.Equal(InkkSlinger.Designer.DesignerPreviewState.Success, controller.PreviewState);
+        Assert.True(controller.LastRefreshSucceeded);
+        Assert.NotNull(controller.VisualTreeRoot);
+        Assert.Equal("DockPanel", controller.VisualTreeRoot!.TypeName);
+        Assert.Contains(previewRoot.GetVisualChildren(), child => child is TextBlock textBlock && textBlock.Name == "PanelChild");
+        Assert.Equal("DockPanel", controller.Inspector.Properties.Single(property => property.Name == "Type").Value);
+        Assert.DoesNotContain(controller.Diagnostics, diagnostic => diagnostic.Code == XamlDiagnosticCode.GeneralFailure);
+    }
+
+    [Fact]
     public void SelectVisualNode_KnownNode_UpdatesInspectorState()
     {
         var controller = new InkkSlinger.Designer.DesignerController();
@@ -4923,50 +4948,100 @@ public class DesignerControllerTests
     }
 
     [Fact]
-    public void ShellView_FileCommands_WireToolbarButtonsAndUseDocumentWorkflow()
+    public void ShellView_ToolbarExposesSaveAndRefreshOnlyForDocumentWorkflow()
     {
         var fileStore = new FakeDocumentFileStore();
-        fileStore.ReadTexts["C:/designer/open.xml"] = ValidViewXml;
         var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl />", fileStore);
+        documentController.SaveToPath("C:/designer/current.xml");
         var shell = new InkkSlinger.Designer.DesignerShellView(documentController);
 
-        var openButton = Assert.IsType<Button>(shell.FindName("OpenButton"));
         var saveButton = Assert.IsType<Button>(shell.FindName("SaveButton"));
-        var promptPrimaryButton = Assert.IsType<Button>(shell.FindName("WorkflowPromptPrimaryButton"));
-        _ = Assert.IsType<TextBox>(shell.FindName("DocumentPathTextBox"));
-
-        Assert.True(CommandSourceExecution.TryExecute(openButton, shell));
-        shell.ViewModel.PromptPathText = "C:/designer/open.xml";
-        Assert.True(CommandSourceExecution.TryExecute(promptPrimaryButton, shell));
-        Assert.Equal(NormalizeLineEndings(ValidViewXml), shell.SourceText);
-        Assert.False(shell.DocumentController.IsDirty);
+        _ = Assert.IsType<Button>(shell.FindName("RefreshButton"));
+        Assert.Null(shell.FindName("NewButton"));
+        Assert.Null(shell.FindName("OpenButton"));
+        Assert.Null(shell.FindName("SaveAsButton"));
+        Assert.Null(shell.FindName("WorkflowPromptSecondaryButton"));
 
         shell.SourceText = ValidViewXml.Replace("Hello designer", "Saved from shell", StringComparison.Ordinal);
 
         Assert.True(CommandSourceExecution.TryExecute(saveButton, shell));
-        Assert.Equal(shell.SourceText, fileStore.WrittenTexts["C:/designer/open.xml"]);
+        Assert.Equal(shell.SourceText, fileStore.WrittenTexts["C:/designer/current.xml"]);
         Assert.False(shell.DocumentController.IsDirty);
     }
 
     [Fact]
-    public void ShellView_NewCommand_ShowsUnsavedChangesPromptAndDiscardResetsDocument()
+    public void ShellView_RootTemplatePicker_CreatesBarebonesRootDocument()
     {
-        var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl />");
-        var shell = new InkkSlinger.Designer.DesignerShellView(documentController)
-        {
-            SourceText = ValidViewXml
-        };
+        var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl><TextBlock Text=\"Debug\" /></UserControl>");
+        var shell = new InkkSlinger.Designer.DesignerShellView(documentController);
+        var picker = Assert.IsType<ComboBox>(shell.FindName("RootTemplateComboBox"));
 
-        var newButton = Assert.IsType<Button>(shell.FindName("NewButton"));
-        var discardButton = Assert.IsType<Button>(shell.FindName("WorkflowPromptSecondaryButton"));
-        var promptBorder = Assert.IsType<Border>(shell.FindName("WorkflowPromptBorder"));
+        var gridTemplate = shell.ViewModel.RootTemplates.Single(template => template.ElementName == "Grid");
+        picker.SelectedItem = gridTemplate;
 
-        Assert.True(CommandSourceExecution.TryExecute(newButton, shell));
-        Assert.Equal(Visibility.Visible, promptBorder.Visibility);
+        Assert.Equal(
+            "<Grid xmlns=\"urn:inkkslinger-ui\"\n" +
+            "             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+            "</Grid>\n",
+            shell.SourceText);
+        Assert.True(shell.DocumentController.IsDirty);
+        Assert.Equal("New root...", shell.ViewModel.SelectedRootTemplate?.DisplayText);
+    }
 
-        Assert.True(CommandSourceExecution.TryExecute(discardButton, shell));
-        Assert.Equal("<UserControl />", shell.SourceText);
-        Assert.False(shell.DocumentController.IsDirty);
+    [Fact]
+    public void ShellView_RootTemplatePicker_DockPanelScaffold_CanRefreshPreview()
+    {
+        var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl><TextBlock Text=\"Debug\" /></UserControl>");
+        var shell = new InkkSlinger.Designer.DesignerShellView(documentController);
+        var picker = Assert.IsType<ComboBox>(shell.FindName("RootTemplateComboBox"));
+
+        var dockPanelTemplate = shell.ViewModel.RootTemplates.Single(template => template.ElementName == "DockPanel");
+        picker.SelectedItem = dockPanelTemplate;
+
+        Assert.True(shell.RefreshPreview());
+        Assert.IsType<DockPanel>(shell.Controller.PreviewRoot);
+        Assert.Equal(InkkSlinger.Designer.DesignerPreviewState.Success, shell.Controller.PreviewState);
+        Assert.Equal(Visibility.Visible, shell.ViewModel.PreviewContentVisibility);
+        Assert.Equal(Visibility.Collapsed, shell.ViewModel.PreviewPlaceholderVisibility);
+        Assert.DoesNotContain(shell.Controller.Diagnostics, diagnostic => diagnostic.Message.Contains("UserControl root", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ShellView_RootTemplatePicker_ClickOpen_ShouldNotEagerlyMaterializeEveryControlItem()
+    {
+        _ = ComboBox.GetTelemetryAndReset();
+
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var picker = Assert.IsType<ComboBox>(shell.FindName("RootTemplateComboBox"));
+        var templateCount = shell.ViewModel.RootTemplates.Count;
+        Assert.True(templateCount > 40, $"Expected a large enough root template list to reproduce the dropdown open cost, got {templateCount}.");
+
+        Click(uiRoot, GetCenter(picker.LayoutSlot));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var snapshot = picker.GetComboBoxSnapshotForDiagnostics();
+        var aggregate = ComboBox.GetTelemetryAndReset();
+        var dropDown = GetComboBoxDropDownList(picker);
+
+        Assert.True(snapshot.HandlePointerDownHitCount > 0, "Expected the root picker click to hit the ComboBox.");
+        Assert.True(snapshot.IsDropDownOpen, "Expected the root picker click to open the dropdown.");
+        Assert.True(
+            snapshot.RefreshDropDownItemsProjectedItemCount >= templateCount,
+            $"Expected root picker telemetry to show at least one full dropdown population. templates={templateCount} projected={snapshot.RefreshDropDownItemsProjectedItemCount}.");
+        Assert.True(
+            aggregate.RefreshDropDownItemsProjectedItemCount >= templateCount,
+            $"Expected aggregate telemetry to show at least one full dropdown population. templates={templateCount} aggregateProjected={aggregate.RefreshDropDownItemsProjectedItemCount}.");
+        Assert.Equal(templateCount, dropDown.Items.Count);
+        Assert.True(
+            snapshot.DropDownItemCount < templateCount,
+            $"Expected opening the root picker to avoid eagerly materializing every control item. " +
+            $"templates={templateCount} dropdownItems={snapshot.DropDownItemCount} " +
+            $"projected={snapshot.RefreshDropDownItemsProjectedItemCount} " +
+            $"openMs={snapshot.OpenDropDownMilliseconds:0.###} refreshMs={snapshot.RefreshDropDownItemsMilliseconds:0.###}.");
     }
 
     private static string FindNodeId(InkkSlinger.Designer.DesignerVisualNode node, string? elementName, string typeName)
@@ -6534,18 +6609,11 @@ public class DesignerControllerTests
 
     private sealed class FakeDocumentFileStore : InkkSlinger.Designer.IDesignerDocumentFileStore
     {
-        public Dictionary<string, string> ReadTexts { get; } = new(StringComparer.Ordinal);
-
         public Dictionary<string, string> WrittenTexts { get; } = new(StringComparer.Ordinal);
 
         public bool Exists(string path)
         {
-            return ReadTexts.ContainsKey(path) || WrittenTexts.ContainsKey(path);
-        }
-
-        public string ReadAllText(string path)
-        {
-            return ReadTexts[path];
+            return WrittenTexts.ContainsKey(path);
         }
 
         public void WriteAllText(string path, string text)

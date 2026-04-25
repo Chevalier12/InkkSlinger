@@ -133,7 +133,7 @@ public sealed class DesignerController
 
     public bool LastRefreshSucceeded => PreviewState == DesignerPreviewState.Success;
 
-    public UserControl? PreviewRoot { get; private set; }
+    public UIElement? PreviewRoot { get; private set; }
 
     public string? PreviewFailureMessage { get; private set; }
 
@@ -154,9 +154,9 @@ public sealed class DesignerController
         {
             using var sink = XamlLoader.PushDiagnosticSink(capturedDiagnostics.Add);
             var loadedRoot = XamlLoader.LoadFromString(SourceText);
-            if (loadedRoot is not UserControl previewRoot)
+            if (loadedRoot is not UIElement previewRoot)
             {
-                throw new InvalidOperationException("Designer preview requires a UserControl root element.");
+                throw new InvalidOperationException("Designer preview requires a UIElement root element.");
             }
 
             _elementsByNodeId.Clear();

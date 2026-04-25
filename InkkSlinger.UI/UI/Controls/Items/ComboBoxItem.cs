@@ -26,6 +26,11 @@ public class ComboBoxItem : ListBoxItem
         set => SetValue(TextProperty, value);
     }
 
+    protected override bool ShouldDeferContentElementBuild(object? content, DataTemplate? selectedTemplate)
+    {
+        return content is not null && content is not UIElement;
+    }
+
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
         base.OnDependencyPropertyChanged(args);

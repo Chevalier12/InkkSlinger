@@ -81,6 +81,8 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     private IReadOnlyList<DesignerVisualTreeNodeViewModel> _visualTreeRoots = Array.Empty<DesignerVisualTreeNodeViewModel>();
     private IReadOnlyList<DesignerInspectorSectionViewModel> _inspectorSections = Array.Empty<DesignerInspectorSectionViewModel>();
     private IReadOnlyList<DesignerDiagnosticEntry> _diagnostics = Array.Empty<DesignerDiagnosticEntry>();
+    private IReadOnlyList<DesignerRootTemplateViewModel> _rootTemplates = Array.Empty<DesignerRootTemplateViewModel>();
+    private DesignerRootTemplateViewModel? _selectedRootTemplate;
     private readonly Dictionary<string, DesignerVisualTreeNodeViewModel> _visualTreeNodesById = new(StringComparer.Ordinal);
     private DesignerVisualTreeNodeViewModel? _selectedVisualTreeNode;
 
@@ -93,17 +95,13 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         DocumentController = documentController ?? new DesignerDocumentController(DefaultSourceText);
         Workflow = workflow ?? new DesignerDocumentWorkflowController(DocumentController);
         _promptPathText = Workflow.Prompt.PathText ?? string.Empty;
+        _rootTemplates = CreateRootTemplates();
+        _selectedRootTemplate = _rootTemplates.FirstOrDefault();
 
         RefreshCommand = new RelayCommand(_ => RefreshPreview());
         NavigateToDiagnosticCommand = new RelayCommand(ExecuteNavigateToDiagnostic);
-        NewCommand = new RelayCommand(_ => ExecuteWorkflowAction(Workflow.BeginNew));
-        OpenCommand = new RelayCommand(_ => ExecuteWorkflowAction(Workflow.BeginOpen));
         SaveCommand = new RelayCommand(_ => ExecuteWorkflowAction(Workflow.Save), _ => CanSaveDocument());
-        SaveAsCommand = new RelayCommand(_ => ExecuteWorkflowAction(Workflow.BeginSaveAs));
         PromptPrimaryCommand = new RelayCommand(_ => ExecutePromptPrimary(), _ => Workflow.Prompt.IsVisible);
-        PromptSecondaryCommand = new RelayCommand(
-            _ => ExecuteWorkflowAction(() => Workflow.ResolveUnsavedChanges(DesignerUnsavedChangesChoice.Discard)),
-            _ => Workflow.Prompt.ShowsDiscardAction);
         PromptCancelCommand = new RelayCommand(_ => ExecuteWorkflowAction(Workflow.CancelPrompt, syncEditorFirst: false), _ => Workflow.Prompt.IsVisible);
         SelectVisualTreeNodeCommand = new RelayCommand(ExecuteSelectVisualTreeNode);
         ToggleVisualTreeNodeExpansionCommand = new RelayCommand(ExecuteToggleVisualTreeNodeExpansion);
@@ -123,13 +121,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
 
     public event Action? DeferredAppExitRequested;
 
-    public RelayCommand NewCommand { get; }
-
-    public RelayCommand OpenCommand { get; }
-
     public RelayCommand SaveCommand { get; }
-
-    public RelayCommand SaveAsCommand { get; }
 
     public RelayCommand RefreshCommand { get; }
 
@@ -137,13 +129,35 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
 
     public RelayCommand PromptPrimaryCommand { get; }
 
-    public RelayCommand PromptSecondaryCommand { get; }
 
     public RelayCommand PromptCancelCommand { get; }
 
     public RelayCommand SelectVisualTreeNodeCommand { get; }
 
     public RelayCommand ToggleVisualTreeNodeExpansionCommand { get; }
+
+    public IReadOnlyList<DesignerRootTemplateViewModel> RootTemplates => _rootTemplates;
+
+    public DesignerRootTemplateViewModel? SelectedRootTemplate
+    {
+        get => _selectedRootTemplate;
+        set
+        {
+            if (ReferenceEquals(_selectedRootTemplate, value) || value == null)
+            {
+                return;
+            }
+
+            _selectedRootTemplate = value;
+            OnPropertyChanged();
+            if (string.IsNullOrWhiteSpace(value.ElementName))
+            {
+                return;
+            }
+
+            ApplyRootTemplate(value);
+        }
+    }
 
     public object? PreviewContent
     {
@@ -247,7 +261,6 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
 
     public Visibility WorkflowPromptPathEditorVisibility => WorkflowPrompt.ShowsPathEditor ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility WorkflowPromptDiscardVisibility => WorkflowPrompt.ShowsDiscardAction ? Visibility.Visible : Visibility.Collapsed;
 
     public int SelectedEditorTabIndex
     {
@@ -312,7 +325,6 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     {
         SaveCommand.RaiseCanExecuteChanged();
         PromptPrimaryCommand.RaiseCanExecuteChanged();
-        PromptSecondaryCommand.RaiseCanExecuteChanged();
         PromptCancelCommand.RaiseCanExecuteChanged();
     }
 
@@ -334,7 +346,6 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     {
         var result = Workflow.Prompt.Kind switch
         {
-            DesignerDocumentPromptKind.UnsavedChanges => Workflow.ResolveUnsavedChanges(DesignerUnsavedChangesChoice.Save),
             DesignerDocumentPromptKind.OverwriteConfirmation => Workflow.ConfirmOverwriteSavePath(),
             _ => Workflow.SubmitPromptPath(PromptPathText)
         };
@@ -376,6 +387,77 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
             SelectedEditorTabIndex = 0;
             SourceNavigationRequest = new DesignerSourceNavigationRequest(diagnostic.Line.Value);
         }
+    }
+
+    private void ApplyRootTemplate(DesignerRootTemplateViewModel template)
+    {
+        SourceText = CreateBarebonesRootSource(template.ElementName);
+        SelectedEditorTabIndex = 0;
+        SourceNavigationRequest = null;
+        SetDocumentStatusOverride(
+            string.Create(CultureInfo.InvariantCulture, $"Created {template.ElementName} root scaffold."),
+            new Color(143, 210, 179));
+        _selectedRootTemplate = _rootTemplates.FirstOrDefault();
+        OnPropertyChanged(nameof(SelectedRootTemplate));
+    }
+
+    private static IReadOnlyList<DesignerRootTemplateViewModel> CreateRootTemplates()
+    {
+        var completionItems = DesignerControlCompletionCatalog.GetAllItems();
+        var templates = new List<DesignerRootTemplateViewModel>
+        {
+            new("New root...", string.Empty, typeof(UIElement))
+        };
+        var includedNames = new HashSet<string>(StringComparer.Ordinal);
+
+        string[] commonRootNames =
+        [
+            "UserControl",
+            "Grid",
+            "Canvas",
+            "StackPanel",
+            "DockPanel",
+            "WrapPanel",
+            "Border",
+            "ContentControl"
+        ];
+
+        foreach (var rootName in commonRootNames)
+        {
+            var item = completionItems.FirstOrDefault(
+                candidate => string.Equals(candidate.ElementName, rootName, StringComparison.Ordinal));
+            if (item.ElementName == null || !includedNames.Add(item.ElementName))
+            {
+                continue;
+            }
+
+            templates.Add(new DesignerRootTemplateViewModel(
+                item.ElementName,
+                item.ElementName,
+                item.ElementType));
+        }
+
+        foreach (var item in completionItems)
+        {
+            if (!includedNames.Add(item.ElementName))
+            {
+                continue;
+            }
+
+            templates.Add(new DesignerRootTemplateViewModel(
+                item.ElementName,
+                item.ElementName,
+                item.ElementType));
+        }
+
+        return templates;
+    }
+
+    private static string CreateBarebonesRootSource(string elementName)
+    {
+        return $"<{elementName} xmlns=\"urn:inkkslinger-ui\"\n" +
+            "             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+            $"</{elementName}>\n";
     }
 
     private void HandleWorkflowResult(DesignerDocumentWorkflowResult result)
@@ -622,7 +704,6 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         WorkflowPrompt = Workflow.Prompt;
         OnPropertyChanged(nameof(WorkflowPromptVisibility));
         OnPropertyChanged(nameof(WorkflowPromptPathEditorVisibility));
-        OnPropertyChanged(nameof(WorkflowPromptDiscardVisibility));
     }
 
     private void RefreshDocumentStatus()

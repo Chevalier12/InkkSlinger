@@ -147,6 +147,10 @@ internal readonly record struct UiTextMetricsCacheKey(
     UiTypography Typography,
     string Text);
 
+internal readonly record struct UiTextInkBoundsCacheKey(
+    UiTypography Typography,
+    string Text);
+
 internal readonly record struct UiShapedTextLayout(
     int[] CodePoints,
     Vector2[] DrawPositions,

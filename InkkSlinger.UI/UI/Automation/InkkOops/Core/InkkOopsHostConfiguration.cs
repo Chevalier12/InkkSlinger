@@ -47,14 +47,14 @@ public sealed class InkkOopsHostConfiguration
 
         var contributors = new List<IInkkOopsDiagnosticsContributor>
         {
-            // Rebuilt from zero for the IDE_Editor Enter-text-input FPS investigation.
+            // Rebuilt from zero for the Designer RootTemplateComboBox dropdown-open FPS investigation.
             new InkkOopsGenericElementDiagnosticsContributor(),
             new InkkOopsFrameworkElementDiagnosticsContributor(),
             new InkkOopsControlDiagnosticsContributor(),
-            new InkkOopsUserControlDiagnosticsContributor(),
-            new InkkOopsIDEEditorDiagnosticsContributor(),
-            new InkkOopsRichTextBoxDiagnosticsContributor(),
+            new InkkOopsContentControlDiagnosticsContributor(),
+            new InkkOopsComboBoxDiagnosticsContributor(),
             new InkkOopsScrollViewerDiagnosticsContributor(),
+            new InkkOopsVirtualizingStackPanelDiagnosticsContributor(),
         };
 
         contributors.Sort(static (left, right) =>

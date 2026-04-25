@@ -30,6 +30,11 @@ internal static class DesignerControlCompletionCatalog
         return matches.Count == 0 ? Array.Empty<DesignerControlCompletionItem>() : matches.ToArray();
     }
 
+    public static IReadOnlyList<DesignerControlCompletionItem> GetAllItems()
+    {
+        return AllItems.Value;
+    }
+
     public static IReadOnlyList<DesignerControlCompletionItem> GetPropertyElementItems(string? prefix)
     {
         var normalizedPrefix = prefix ?? string.Empty;

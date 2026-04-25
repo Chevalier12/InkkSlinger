@@ -17,6 +17,11 @@ public sealed record DesignerInspectorSectionViewModel(
     string Title,
     IReadOnlyList<DesignerInspectorProperty> Properties);
 
+public sealed record DesignerRootTemplateViewModel(
+    string DisplayText,
+    string ElementName,
+    Type ElementType);
+
 public sealed class DesignerSourceLineNumberViewModel : INotifyPropertyChanged
 {
     private string _numberText;

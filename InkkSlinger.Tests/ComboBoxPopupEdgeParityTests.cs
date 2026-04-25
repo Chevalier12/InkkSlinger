@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -19,6 +20,55 @@ public sealed class ComboBoxPopupEdgeParityTests
 
         Assert.True(comboBox.IsDropDownOpen);
         Assert.True(comboBox.IsDropDownPopupOpenForTesting);
+    }
+
+    [Fact]
+    public void CollapsedSelectionText_ShouldCenterVisibleInkVertically()
+    {
+        var catalog = new ComboBoxTextAlignmentFontCatalog();
+        var rasterizer = new ComboBoxTextAlignmentFontRasterizer();
+        UiTextRenderer.ConfigureRuntimeServicesForTests(catalog, rasterizer);
+
+        try
+        {
+            var host = new Canvas
+            {
+                Width = 240f,
+                Height = 120f
+            };
+            var comboBox = new ComboBox
+            {
+                Width = 180f,
+                Height = 36f,
+                FontFamily = "ComboBox Alignment Probe",
+                FontSize = 10f
+            };
+            comboBox.Items.Add("A");
+            comboBox.SelectedIndex = 0;
+            host.AddChild(comboBox);
+            Canvas.SetLeft(comboBox, 24f);
+            Canvas.SetTop(comboBox, 32f);
+
+            var uiRoot = new UiRoot(host);
+            RunLayout(uiRoot);
+
+            var textPosition = comboBox.GetSelectedTextRenderPositionForTests("A");
+            var typography = UiTextRenderer.ResolveTypography(comboBox, comboBox.FontSize);
+            var inkBounds = UiTextRenderer.GetInkBoundsForTests(typography, "A");
+            var inkCenterY = textPosition.Y + inkBounds.Y + (inkBounds.Height / 2f);
+            var comboBoxCenterY = comboBox.LayoutSlot.Y + (comboBox.LayoutSlot.Height / 2f);
+            var lineBoxTextY = comboBox.LayoutSlot.Y + ((comboBox.LayoutSlot.Height - UiTextRenderer.GetLineHeight(comboBox, comboBox.FontSize)) / 2f);
+            var lineBoxInkCenterY = lineBoxTextY + inkBounds.Y + (inkBounds.Height / 2f);
+
+            Assert.Equal(comboBoxCenterY, inkCenterY, 3);
+            Assert.True(
+                MathF.Abs(lineBoxInkCenterY - comboBoxCenterY) > 1f,
+                $"Expected the repro font to prove line-box centering is visibly off. lineBoxInkCenter={lineBoxInkCenterY:0.###} comboCenter={comboBoxCenterY:0.###}.");
+        }
+        finally
+        {
+            UiTextRenderer.ConfigureRuntimeServicesForTests();
+        }
     }
 
     [Fact]
@@ -118,6 +168,146 @@ public sealed class ComboBoxPopupEdgeParityTests
         var hostPanel = FindItemsHostPanel(dropDown!);
         var firstItem = Assert.IsType<ComboBoxItem>(hostPanel.Children[0]);
         Assert.Equal(expectedBackground, firstItem.Background);
+    }
+
+    [Fact]
+    public void DropDown_ShouldApplyItemTemplateToGeneratedComboBoxItemContainers()
+    {
+        var (uiRoot, comboBox) = CreateFixture();
+        var template = new DataTemplate(static item => new TextBlock
+        {
+            Text = item?.ToString() ?? string.Empty,
+            TextWrapping = TextWrapping.Wrap
+        });
+        comboBox.ItemTemplate = template;
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var dropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var hostPanel = FindItemsHostPanel(dropDown);
+        var firstItem = Assert.IsType<ComboBoxItem>(hostPanel.Children[0]);
+        Assert.Same(template, firstItem.ContentTemplate);
+        Assert.Equal("Alpha", firstItem.Content);
+    }
+
+    [Fact]
+    public void DropDown_WithTemplatedItems_ShouldOnlyBuildVisualContentForRealizedContainers()
+    {
+        var host = new Canvas
+        {
+            Width = 360f,
+            Height = 260f
+        };
+        var comboBox = new ComboBox
+        {
+            Width = 190f,
+            Height = 36f,
+            MaxDropDownHeight = 180f,
+            ItemTemplate = new DataTemplate(static item => new TextBlock
+            {
+                Text = item?.ToString() ?? string.Empty,
+                TextWrapping = TextWrapping.Wrap
+            })
+        };
+
+        for (var i = 0; i < 80; i++)
+        {
+            comboBox.Items.Add($"Item {i:00} - Deferred dropdown content realization probe");
+        }
+
+        comboBox.SelectedIndex = 0;
+        host.AddChild(comboBox);
+        Canvas.SetLeft(comboBox, 16f);
+        Canvas.SetTop(comboBox, 16f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var dropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var hostPanel = Assert.IsType<VirtualizingStackPanel>(FindItemsHostPanel(dropDown));
+        var materializedContentCount = hostPanel.Children
+            .OfType<ComboBoxItem>()
+            .Count(item => item.GetVisualChildren().Any());
+
+        Assert.True(hostPanel.RealizedChildrenCount > 0, "Expected dropdown virtualization to realize at least one item.");
+        Assert.Equal(hostPanel.RealizedChildrenCount, materializedContentCount);
+        Assert.True(
+            materializedContentCount < hostPanel.Children.Count,
+            $"Expected offscreen dropdown containers to defer content creation. realized={hostPanel.RealizedChildrenCount} materialized={materializedContentCount} children={hostPanel.Children.Count}.");
+    }
+
+    [Fact]
+    public void DropDown_WhenTemplatedTextWraps_ShouldGiveComboBoxItemEnoughHeight()
+    {
+        var host = new Canvas
+        {
+            Width = 320f,
+            Height = 220f
+        };
+        var comboBox = new ComboBox
+        {
+            Width = 190f,
+            Height = 36f,
+            MaxDropDownHeight = 180f,
+            ItemTemplate = new DataTemplate(static item => new TextBlock
+            {
+                Text = item?.ToString() ?? string.Empty,
+                TextWrapping = TextWrapping.Wrap,
+                FontFamily = "Consolas",
+                FontSize = 12f
+            })
+        };
+        comboBox.Items.Add("HeaderedItemsControl");
+        comboBox.SelectedIndex = 0;
+        host.AddChild(comboBox);
+        Canvas.SetLeft(comboBox, 16f);
+        Canvas.SetTop(comboBox, 16f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var dropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var hostPanel = FindItemsHostPanel(dropDown);
+        var item = Assert.IsType<ComboBoxItem>(Assert.Single(hostPanel.Children));
+        var textBlock = Assert.IsType<TextBlock>(Assert.Single(item.GetVisualChildren()));
+        var innerHeight = item.LayoutSlot.Height - item.Padding.Vertical;
+
+        Assert.True(
+            innerHeight >= textBlock.DesiredSize.Y,
+            $"Expected dropdown item inner height to fit wrapped text. itemHeight={item.LayoutSlot.Height:0.##} innerHeight={innerHeight:0.##} textDesired={textBlock.DesiredSize.Y:0.##} textSlot={textBlock.LayoutSlot.Height:0.##} text='{textBlock.Text}'.");
+    }
+
+    [Fact]
+    public void ComboBoxItem_WhenTemplatedTextWraps_ShouldMeasureContentWithPaddingAdjustedWidth()
+    {
+        var item = new ComboBoxItem
+        {
+            Width = 190f,
+            Padding = new Thickness(8f, 6f, 8f, 6f),
+            Content = "HeaderedItemsControl",
+            ContentTemplate = new DataTemplate(static content => new TextBlock
+            {
+                Text = content?.ToString() ?? string.Empty,
+                TextWrapping = TextWrapping.Wrap,
+                FontFamily = "Consolas",
+                FontSize = 12f
+            })
+        };
+
+        item.Measure(new Vector2(item.Width, 500f));
+        item.Arrange(new LayoutRect(0f, 0f, item.Width, item.DesiredSize.Y));
+
+        var textBlock = Assert.IsType<TextBlock>(Assert.Single(item.GetVisualChildren()));
+        var measuredInnerHeight = item.DesiredSize.Y - item.Padding.Vertical;
+
+        Assert.True(
+            measuredInnerHeight >= textBlock.DesiredSize.Y,
+            $"Expected ComboBoxItem measure to reserve height for wrapped content at padded width. itemDesired={item.DesiredSize.Y:0.##} measuredInner={measuredInnerHeight:0.##} textDesired={textBlock.DesiredSize.Y:0.##}.");
     }
 
     [Fact]
@@ -609,6 +799,45 @@ public sealed class ComboBoxPopupEdgeParityTests
         var uiRoot = new UiRoot(host);
         RunLayout(uiRoot);
         return (uiRoot, comboBox);
+    }
+
+    private sealed class ComboBoxTextAlignmentFontCatalog : IUiFontCatalog
+    {
+        public UiResolvedTypeface Resolve(UiTypography typography)
+        {
+            return new UiResolvedTypeface(typography.Family, typography.Weight, typography.Style, "combobox-alignment-probe.ttf", 400);
+        }
+    }
+
+    private sealed class ComboBoxTextAlignmentFontRasterizer : IUiFontRasterizer
+    {
+        public UiTextMetrics Measure(UiResolvedTypeface typeface, float fontSize, string text, UiTextStyleOverride styleOverride)
+        {
+            _ = typeface;
+            _ = fontSize;
+            _ = styleOverride;
+            return new UiTextMetrics(text.Length * 7f, 8f, 20f, 14f, 6f);
+        }
+
+        public UiGlyphRasterized Rasterize(UiResolvedTypeface typeface, float fontSize, int codePoint, UiTextAntialiasMode antialiasMode)
+        {
+            _ = typeface;
+            _ = fontSize;
+            return new UiGlyphRasterized([], 7, 8, (uint)codePoint, 0f, 12f, 7f, antialiasMode);
+        }
+
+        public float GetKerning(UiResolvedTypeface typeface, float fontSize, uint leftGlyphIndex, uint rightGlyphIndex)
+        {
+            _ = typeface;
+            _ = fontSize;
+            _ = leftGlyphIndex;
+            _ = rightGlyphIndex;
+            return 0f;
+        }
+
+        public void Dispose()
+        {
+        }
     }
 
     private static ComboBox CreateComboBox(float left, float top, IReadOnlyList<string> items)

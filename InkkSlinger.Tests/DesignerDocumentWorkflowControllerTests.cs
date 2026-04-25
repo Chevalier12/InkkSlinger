@@ -7,21 +7,6 @@ public class DesignerDocumentWorkflowControllerTests
     private const string DefaultDocument = "<UserControl />";
 
     [Fact]
-    public void BeginOpen_WhenDocumentIsDirty_ShowsUnsavedChangesPrompt()
-    {
-        var workflow = CreateWorkflow();
-        workflow.DocumentController.UpdateText("<UserControl><Grid /></UserControl>");
-
-        var result = workflow.Workflow.BeginOpen();
-
-        Assert.False(result.ReloadEditor);
-        Assert.True(result.PromptChanged);
-        Assert.Equal(InkkSlinger.Designer.DesignerWorkflowStatusKind.Info, result.StatusKind);
-        Assert.Equal(InkkSlinger.Designer.DesignerDocumentPromptKind.UnsavedChanges, workflow.Workflow.Prompt.Kind);
-        Assert.Equal("Save", workflow.Workflow.Prompt.ConfirmText);
-    }
-
-    [Fact]
     public void BeginClose_WhenDocumentIsClean_AllowsCurrentCloseRequest()
     {
         var workflow = CreateWorkflow();
@@ -29,50 +14,6 @@ public class DesignerDocumentWorkflowControllerTests
         var result = workflow.Workflow.BeginClose();
 
         Assert.Equal(InkkSlinger.Designer.DesignerWorkflowCloseAction.AllowCurrentRequest, result.CloseAction);
-        Assert.Equal(InkkSlinger.Designer.DesignerDocumentPromptKind.None, workflow.Workflow.Prompt.Kind);
-    }
-
-    [Fact]
-    public void ResolveUnsavedChanges_SaveWithoutPath_ShowsSavePromptThenOpenPrompt()
-    {
-        var workflow = CreateWorkflow();
-        workflow.Store.ReadTexts["C:/designer/next.xml"] = "<UserControl><TextBlock Text=\"Opened\" /></UserControl>";
-        workflow.DocumentController.UpdateText("<UserControl><Grid /></UserControl>");
-
-        _ = workflow.Workflow.BeginOpen();
-
-        var saveChoice = workflow.Workflow.ResolveUnsavedChanges(InkkSlinger.Designer.DesignerUnsavedChangesChoice.Save);
-
-        Assert.True(saveChoice.PromptChanged);
-        Assert.Equal(InkkSlinger.Designer.DesignerDocumentPromptKind.SavePath, workflow.Workflow.Prompt.Kind);
-
-        var saveResult = workflow.Workflow.SubmitPromptPath("C:/designer/current.xml");
-
-        Assert.True(saveResult.PromptChanged);
-        Assert.Equal("<UserControl><Grid /></UserControl>", workflow.Store.WrittenTexts["C:/designer/current.xml"]);
-        Assert.Equal(InkkSlinger.Designer.DesignerDocumentPromptKind.OpenPath, workflow.Workflow.Prompt.Kind);
-
-        var openResult = workflow.Workflow.SubmitPromptPath("C:/designer/next.xml");
-
-        Assert.True(openResult.ReloadEditor);
-        Assert.True(openResult.PromptChanged);
-        Assert.Equal("C:/designer/next.xml", workflow.DocumentController.CurrentPath);
-        Assert.Equal("<UserControl><TextBlock Text=\"Opened\" /></UserControl>", workflow.DocumentController.CurrentText);
-    }
-
-    [Fact]
-    public void ResolveUnsavedChanges_DiscardForNew_CreatesNewDocument()
-    {
-        var workflow = CreateWorkflow();
-        workflow.DocumentController.UpdateText("<UserControl><Grid /></UserControl>");
-
-        _ = workflow.Workflow.BeginNew();
-        var result = workflow.Workflow.ResolveUnsavedChanges(InkkSlinger.Designer.DesignerUnsavedChangesChoice.Discard);
-
-        Assert.True(result.ReloadEditor);
-        Assert.True(result.PromptChanged);
-        Assert.Equal(DefaultDocument, workflow.DocumentController.CurrentText);
-        Assert.False(workflow.DocumentController.IsDirty);
         Assert.Equal(InkkSlinger.Designer.DesignerDocumentPromptKind.None, workflow.Workflow.Prompt.Kind);
     }
 
@@ -97,13 +38,13 @@ public class DesignerDocumentWorkflowControllerTests
     }
 
     [Fact]
-    public void BeginSaveAs_WhenTargetExists_ShowsOverwritePrompt_AndCancelReturnsToPathPrompt()
+    public void SaveWithoutPath_WhenTargetExists_ShowsOverwritePrompt_AndCancelReturnsToPathPrompt()
     {
         var workflow = CreateWorkflow();
         workflow.Store.ExistingPaths.Add("C:/designer/existing.xml");
         workflow.DocumentController.UpdateText("<UserControl><TextBlock Text=\"Hello\" /></UserControl>");
 
-        _ = workflow.Workflow.BeginSaveAs();
+        _ = workflow.Workflow.Save();
 
         var submitResult = workflow.Workflow.SubmitPromptPath("C:/designer/existing.xml");
 
@@ -134,18 +75,11 @@ public class DesignerDocumentWorkflowControllerTests
     {
         public HashSet<string> ExistingPaths { get; } = new(StringComparer.Ordinal);
 
-        public Dictionary<string, string> ReadTexts { get; } = new(StringComparer.Ordinal);
-
         public Dictionary<string, string> WrittenTexts { get; } = new(StringComparer.Ordinal);
 
         public bool Exists(string path)
         {
-            return ExistingPaths.Contains(path) || ReadTexts.ContainsKey(path) || WrittenTexts.ContainsKey(path);
-        }
-
-        public string ReadAllText(string path)
-        {
-            return ReadTexts[path];
+            return ExistingPaths.Contains(path) || WrittenTexts.ContainsKey(path);
         }
 
         public void WriteAllText(string path, string text)
