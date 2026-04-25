@@ -4162,6 +4162,213 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditorTypingAtEndOfClosingTagName_ShouldAdvanceCaretWithTypedText()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<TextBlock></TextBlock>"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var closingNameEnd = shell.SourceText.IndexOf("</TextBlock>", StringComparison.Ordinal) + "</TextBlock".Length;
+        sourceEditor.SetFocusedFromInput(true);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Select(closingNameEnd, 0);
+
+        foreach (var character in "Suffix")
+        {
+            Assert.True(sourceEditor.HandleTextInputFromInput(character));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        const string expected = "<TextBlockSuffix></TextBlockSuffix>";
+        var expectedCaret = expected.IndexOf("</TextBlockSuffix>", StringComparison.Ordinal) + "</TextBlockSuffix".Length;
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Equal(expected, NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(expectedCaret, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorTypingPropertyElementInsideTextBlock_ShouldPlaceClosingTagOnNewLine()
+    {
+        var source = NormalizeLineEndings(string.Join('\n',
+            "<Grid>",
+            "  <TextBlock Text=\"Designer Preview\">",
+            "    ",
+            "  </TextBlock>",
+            "</Grid>"));
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var insertionIndex = shell.SourceText.IndexOf("    \n", StringComparison.Ordinal) + "    ".Length;
+        Assert.True(insertionIndex >= "    ".Length);
+        sourceEditor.SetFocusedFromInput(true);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Select(insertionIndex, 0);
+
+        foreach (var character in "<TextBlock.Style>")
+        {
+            Assert.True(sourceEditor.HandleTextInputFromInput(character));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        var expected = NormalizeLineEndings(string.Join('\n',
+            "<Grid>",
+            "  <TextBlock Text=\"Designer Preview\">",
+            "    <TextBlock.Style>",
+            "      ",
+            "    </TextBlock.Style>",
+            "  </TextBlock>",
+            "</Grid>"));
+        var expectedCaret = expected.IndexOf("      \n", StringComparison.Ordinal) + "      ".Length;
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Equal(expected, NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(expectedCaret, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorTypingClosingQuoteInsidePairedAttributeValue_ShouldSkipExistingQuote()
+    {
+        var source = NormalizeLineEndings(
+            """
+            <TextBlock.Style>
+              <Style TargetType=""
+            </TextBlock.Style>
+            """);
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var insertionIndex = shell.SourceText.IndexOf("TargetType=\"\"", StringComparison.Ordinal) + "TargetType=\"".Length;
+        sourceEditor.SetFocusedFromInput(true);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Select(insertionIndex, 0);
+
+        foreach (var character in "TextBlock")
+        {
+            Assert.True(sourceEditor.HandleTextInputFromInput(character));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        Assert.True(sourceEditor.HandleTextInputFromInput('"'));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var expected = NormalizeLineEndings(
+            """
+            <TextBlock.Style>
+              <Style TargetType="TextBlock"
+            </TextBlock.Style>
+            """);
+        var expectedCaret = expected.IndexOf("TargetType=\"TextBlock\"", StringComparison.Ordinal) + "TargetType=\"TextBlock\"".Length;
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Equal(expected, NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(expectedCaret, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorEnterAfterStyleInsidePropertyElement_ShouldAlignCaretWithStyleElement()
+    {
+        var source = NormalizeLineEndings(string.Join('\n',
+            "<TextBlock.Style>",
+            "  <Style TargetType=\"TextBlock\">",
+            "</TextBlock.Style>"));
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var insertionIndex = shell.SourceText.IndexOf("<Style TargetType=\"TextBlock\">", StringComparison.Ordinal) +
+            "<Style TargetType=\"TextBlock\">".Length;
+        sourceEditor.SetFocusedFromInput(true);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Select(insertionIndex, 0);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 2);
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Enter, clickPoint));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var expected = NormalizeLineEndings(string.Join('\n',
+            "<TextBlock.Style>",
+            "  <Style TargetType=\"TextBlock\">",
+            "  ",
+            "</TextBlock.Style>"));
+        var expectedCaret = expected.IndexOf("  \n", StringComparison.Ordinal) + "  ".Length;
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Equal(expected, NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(expectedCaret, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorEnterAfterOpeningTagWithExistingChild_ShouldUseChildIndent()
+    {
+        var source = NormalizeLineEndings(string.Join('\n',
+            "<Border>",
+            "    <StackPanel>",
+            "",
+            "        <TextBlock Text=\"Manual refresh\" />",
+            "    </StackPanel>",
+            "</Border>"));
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var insertionIndex = shell.SourceText.IndexOf("<StackPanel>", StringComparison.Ordinal) + "<StackPanel>".Length;
+        sourceEditor.SetFocusedFromInput(true);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Select(insertionIndex, 0);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 2);
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Enter, clickPoint));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var expected = NormalizeLineEndings(string.Join('\n',
+            "<Border>",
+            "    <StackPanel>",
+            "        ",
+            "",
+            "        <TextBlock Text=\"Manual refresh\" />",
+            "    </StackPanel>",
+            "</Border>"));
+        var expectedCaret = expected.IndexOf("        \n", StringComparison.Ordinal) + "        ".Length;
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Equal(expected, NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(expectedCaret, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
     public void ShellView_SourceEditor_EnterInLargeDocument_PreservesMostHighlightedParagraphs()
     {
         var sourceBuilder = new StringBuilder();

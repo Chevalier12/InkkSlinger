@@ -277,6 +277,7 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
 
         var previousText = SourceText;
         var currentText = DocumentEditing.GetText(SourceEditor.Document);
+        var rawInputText = currentText;
         if (_collapsedXmlFoldRangeKeys.Count > 0)
         {
             return;
@@ -286,6 +287,11 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         if (!_suppressPairedTagRenameSync)
         {
             TrySynchronizePairedTagRename(previousText, ref currentText);
+        }
+
+        if (string.Equals(rawInputText, currentText, StringComparison.Ordinal))
+        {
+            PreserveCaretAfterSourceEditorInsertion(previousText, currentText);
         }
         if (!string.Equals(previousText, currentText, StringComparison.Ordinal))
         {
@@ -364,6 +370,7 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         {
             ApplySourceEditorTextEdit(
                 DesignerXmlEditorLanguageService.ApplySmartEnter(previousText, currentText, insertedIndex, EditorIndentText),
+                keepPendingSelection: true,
                 previousText: previousText);
             currentText = DocumentEditing.GetText(SourceEditor.Document);
             return;
@@ -371,7 +378,7 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
 
         if (DesignerXmlEditorLanguageService.TryHandlePairedCharacter(currentText, insertedIndex, insertedCharacter, out var pairedEdit))
         {
-            ApplySourceEditorTextEdit(pairedEdit);
+            ApplySourceEditorTextEdit(pairedEdit, keepPendingSelection: true);
             currentText = DocumentEditing.GetText(SourceEditor.Document);
             return;
         }
@@ -386,19 +393,51 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
 
             TryAutoInsertSelfClosingBracket(currentText, insertedIndex, out currentText);
         }
+
+        if (!_pendingSourceEditorSelectionStart.HasValue)
+        {
+            _pendingSourceEditorSelectionStart = Math.Clamp(insertedIndex + 1, 0, currentText.Length);
+            _pendingSourceEditorSelectionLength = 0;
+        }
     }
 
-    private void ApplySourceEditorTextEdit(IDEEditorTextEditResult edit, bool dismissCompletionPopup = false, string? previousText = null)
+    private void PreserveCaretAfterSourceEditorInsertion(string previousText, string currentText)
+    {
+        if (_pendingSourceEditorSelectionStart.HasValue ||
+            !TryGetTextInsertion(previousText, currentText, out var insertedIndex, out var insertedLength))
+        {
+            return;
+        }
+
+        _pendingSourceEditorSelectionStart = Math.Clamp(insertedIndex + insertedLength, 0, currentText.Length);
+        _pendingSourceEditorSelectionLength = 0;
+    }
+
+    private void ApplySourceEditorTextEdit(
+        IDEEditorTextEditResult edit,
+        bool dismissCompletionPopup = false,
+        string? previousText = null,
+        bool keepPendingSelection = false)
     {
         var normalizedText = IDEEditorTextCommandService.Normalize(edit.Text);
         _forceFullSourceHighlightRefresh = false;
         RefreshHighlightedSourceDocument(previousText: previousText, currentText: normalizedText, dismissCompletionPopup: dismissCompletionPopup);
-        SourceEditor.Select(
-            Math.Clamp(edit.SelectionStart, 0, normalizedText.Length),
-            Math.Clamp(edit.SelectionLength, 0, normalizedText.Length - Math.Clamp(edit.SelectionStart, 0, normalizedText.Length)));
-        _pendingSourceEditorSelectionStart = Math.Clamp(edit.SelectionStart, 0, normalizedText.Length);
-        _pendingSourceEditorSelectionLength = Math.Clamp(edit.SelectionLength, 0, normalizedText.Length - _pendingSourceEditorSelectionStart.Value);
+        var selectionStart = Math.Clamp(edit.SelectionStart, 0, normalizedText.Length);
+        var selectionLength = Math.Clamp(edit.SelectionLength, 0, normalizedText.Length - selectionStart);
+        SourceEditor.Select(selectionStart, selectionLength);
         SourceText = normalizedText;
+        if (keepPendingSelection ||
+            SourceEditor.SelectionStart != selectionStart ||
+            SourceEditor.SelectionLength != selectionLength)
+        {
+            _pendingSourceEditorSelectionStart = selectionStart;
+            _pendingSourceEditorSelectionLength = selectionLength;
+        }
+        else
+        {
+            _pendingSourceEditorSelectionStart = null;
+            _pendingSourceEditorSelectionLength = 0;
+        }
     }
 
     private void TrySynchronizePairedTagRename(string previousText, ref string currentText)
@@ -409,7 +448,7 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
                 SourceEditor.SelectionStart,
                 out var edit))
         {
-            ApplySourceEditorTextEdit(edit);
+            ApplySourceEditorTextEdit(edit, keepPendingSelection: true);
             currentText = DocumentEditing.GetText(SourceEditor.Document);
         }
     }
@@ -440,16 +479,19 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         }
 
         var closingTag = "</" + tagName + ">";
+        _ = TryCreateMultilinePropertyElementSuffix(
+            currentText,
+            insertedIndex,
+            tagName,
+            closingTag,
+            out var tagSuffix,
+            out var caretOffset);
         _suppressSourceEditorChanges = true;
         try
         {
             SourceEditor.Select(insertedIndex + 1, 0);
-            if (!SourceEditor.HandleTextCompositionFromInput(closingTag))
-            {
-                return;
-            }
-
-            SourceEditor.Select(insertedIndex + 1, 0);
+            DocumentEditing.InsertTextAt(SourceEditor.Document, insertedIndex + 1, tagSuffix);
+            SourceEditor.Select(insertedIndex + 1 + caretOffset, 0);
             updatedText = DocumentEditing.GetText(SourceEditor.Document);
         }
         finally
@@ -1701,9 +1743,98 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         return true;
     }
 
+    private static bool TryGetTextInsertion(
+        string previousText,
+        string currentText,
+        out int insertedIndex,
+        out int insertedLength)
+    {
+        insertedIndex = -1;
+        insertedLength = 0;
+
+        if (currentText.Length <= previousText.Length)
+        {
+            return false;
+        }
+
+        var prefixLength = 0;
+        while (prefixLength < previousText.Length &&
+               previousText[prefixLength] == currentText[prefixLength])
+        {
+            prefixLength++;
+        }
+
+        var previousSuffixIndex = previousText.Length - 1;
+        var currentSuffixIndex = currentText.Length - 1;
+        while (previousSuffixIndex >= prefixLength &&
+               currentSuffixIndex >= prefixLength &&
+               previousText[previousSuffixIndex] == currentText[currentSuffixIndex])
+        {
+            previousSuffixIndex--;
+            currentSuffixIndex--;
+        }
+
+        if (previousSuffixIndex >= prefixLength)
+        {
+            return false;
+        }
+
+        insertedIndex = prefixLength;
+        insertedLength = currentSuffixIndex - prefixLength + 1;
+        return insertedLength > 0;
+    }
+
     private static bool ShouldRefreshHighlightedSourceDocument(string previousText, string currentText)
     {
+        if (TryGetSingleCharacterInsertion(previousText, currentText, out var insertedIndex, out var insertedCharacter) &&
+            IsAttributeValueTextCharacter(insertedCharacter) &&
+            IsInsideQuotedAttributeValue(currentText, insertedIndex))
+        {
+            return false;
+        }
+
         return !IsWhitespaceOnlyEdit(previousText, currentText);
+    }
+
+    private static bool IsAttributeValueTextCharacter(char value)
+    {
+        return char.IsLetterOrDigit(value) || value is '_' or '-' or '.' or ':';
+    }
+
+    private static bool IsInsideQuotedAttributeValue(string text, int index)
+    {
+        var tagStart = text.LastIndexOf('<', Math.Clamp(index, 0, Math.Max(0, text.Length - 1)));
+        if (tagStart < 0)
+        {
+            return false;
+        }
+
+        var previousTagEnd = text.LastIndexOf('>', Math.Clamp(index, 0, Math.Max(0, text.Length - 1)));
+        if (previousTagEnd > tagStart)
+        {
+            return false;
+        }
+
+        var quote = '\0';
+        for (var i = tagStart + 1; i < index; i++)
+        {
+            if (quote == '\0')
+            {
+                if (text[i] is '"' or '\'')
+                {
+                    quote = text[i];
+                }
+
+                continue;
+            }
+
+            if (text[i] == quote)
+            {
+                quote = '\0';
+            }
+        }
+
+        return quote != '\0';
     }
 
     private static DesignerSourceEditorViewTelemetrySnapshot CreateTelemetrySnapshot(bool reset)
@@ -1880,6 +2011,54 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
         }
 
         return sourceText.AsSpan(closingTagStartIndex).StartsWith(("</" + tagName + ">") .AsSpan(), StringComparison.Ordinal);
+    }
+
+    private bool TryCreateMultilinePropertyElementSuffix(
+        string sourceText,
+        int closingBracketIndex,
+        string tagName,
+        string closingTag,
+        out string suffix,
+        out int caretOffset)
+    {
+        suffix = closingTag;
+        caretOffset = 0;
+        if (!tagName.Contains('.', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var lineStartIndex = GetLineStartIndex(sourceText, closingBracketIndex);
+        var indentationLength = 0;
+        while (lineStartIndex + indentationLength < closingBracketIndex &&
+               IsIndentationCharacter(sourceText[lineStartIndex + indentationLength]))
+        {
+            indentationLength++;
+        }
+
+        if (indentationLength == 0)
+        {
+            return false;
+        }
+
+        for (var index = lineStartIndex + indentationLength; index < closingBracketIndex; index++)
+        {
+            if (sourceText[index] == '<')
+            {
+                break;
+            }
+
+            if (!char.IsWhiteSpace(sourceText[index]))
+            {
+                return false;
+            }
+        }
+
+        var indentation = sourceText.Substring(lineStartIndex, indentationLength);
+        var innerIndentation = indentation + EditorIndentText;
+        suffix = "\n" + innerIndentation + "\n" + indentation + closingTag;
+        caretOffset = 1 + innerIndentation.Length;
+        return true;
     }
 
     private static string GetInferredClosingTagIndentation(string sourceText, int targetTagStartIndex, int closingTagOpenIndex)

@@ -636,8 +636,8 @@ public partial class RichTextBox
         var maxY = Math.Max(0f, layout.ContentHeight - textRect.Height);
         if (_contentHost != null && HasUsableContentHostMetrics())
         {
-            maxX = Math.Max(0f, _contentHost.ExtentWidth - _contentHost.ViewportWidth);
-            maxY = Math.Max(0f, _contentHost.ExtentHeight - _contentHost.ViewportHeight);
+            maxX = Math.Max(0f, layout.ContentWidth - _contentHost.ViewportWidth);
+            maxY = Math.Max(0f, layout.ContentHeight - _contentHost.ViewportHeight);
         }
 
         var nextHorizontalOffset = Math.Clamp(GetEffectiveHorizontalOffset(), 0f, maxX);

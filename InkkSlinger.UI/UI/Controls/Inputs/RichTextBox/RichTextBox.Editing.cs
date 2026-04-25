@@ -395,9 +395,9 @@ public partial class RichTextBox
         ExecuteTextMutationBatch(() =>
         {
             session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
+            UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
             session.CommitTransaction();
         });
-        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(commandType);
@@ -440,9 +440,9 @@ public partial class RichTextBox
                     DocumentEditing.GetParagraphText(afterParagraph),
                     beforeParagraph,
                     afterParagraph));
+            UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
             session.CommitTransaction();
         });
-        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(commandType);
@@ -1193,9 +1193,9 @@ public partial class RichTextBox
         ExecuteTextMutationBatch(() =>
         {
             DocumentEditing.ReplaceTextRange(Document, start, length, normalizedReplacement, session);
+            UpdateSelectionState(start + normalizedReplacement.Length, start + normalizedReplacement.Length, ensureCaretVisible: false);
             session.CommitTransaction();
         });
-        UpdateSelectionState(start + normalizedReplacement.Length, start + normalizedReplacement.Length, ensureCaretVisible: false);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(commandType);
@@ -1389,10 +1389,10 @@ public partial class RichTextBox
         ExecuteTextMutationBatch(() =>
         {
             session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
+            UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
             session.CommitTransaction();
         });
 
-        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(commandType);

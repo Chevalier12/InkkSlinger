@@ -39,6 +39,15 @@ internal static class DesignerXmlEditorLanguageService
             return true;
         }
 
+        if (IsQuoteCharacter(insertedCharacter) &&
+            insertedIndex > 0 &&
+            normalized[insertedIndex - 1] == close)
+        {
+            var updatedSkipPrevious = normalized.Remove(insertedIndex, 1);
+            edit = new IDEEditorTextEditResult(updatedSkipPrevious, insertedIndex, 0);
+            return true;
+        }
+
         if (!ShouldAutoPair(normalized, insertedIndex, insertedCharacter))
         {
             return false;
@@ -84,9 +93,12 @@ internal static class DesignerXmlEditorLanguageService
             : baseIndent;
         if (beforeCaretOnPreviousLine.Trim().Length > 0 &&
             IsOpeningElementLine(trimmedPreviousLine) &&
-            !IsSelfClosingElementLine(trimmedPreviousLine))
+            !IsSelfClosingElementLine(trimmedPreviousLine) &&
+            !IsStyleElementLine(trimmedPreviousLine))
         {
-            desiredIndent += indentText;
+            desiredIndent = TryGetNextChildLineIndent(previous, previousLineEnd, baseIndent, out var nextChildIndent)
+                ? nextChildIndent
+                : desiredIndent + indentText;
         }
 
         if (nextChar == '<' && nextText.StartsWith("</", StringComparison.Ordinal))
@@ -366,6 +378,51 @@ internal static class DesignerXmlEditorLanguageService
                trimmedLine.Contains("</", StringComparison.Ordinal);
     }
 
+    private static bool IsStyleElementLine(string trimmedLine)
+    {
+        return trimmedLine.StartsWith("<Style", StringComparison.Ordinal) &&
+               (trimmedLine.Length == "<Style".Length || char.IsWhiteSpace(trimmedLine["<Style".Length]) || trimmedLine["<Style".Length] == '>');
+    }
+
+    private static bool TryGetNextChildLineIndent(string text, int searchStart, string baseIndent, out string childIndent)
+    {
+        childIndent = string.Empty;
+        var index = searchStart;
+        while (index < text.Length)
+        {
+            if (text[index] is '\r' or '\n')
+            {
+                index++;
+                continue;
+            }
+
+            var lineEnd = IDEEditorTextCommandService.GetLineEnd(text, index);
+            var line = text[index..lineEnd];
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0)
+            {
+                index = lineEnd + 1;
+                continue;
+            }
+
+            if (trimmed.StartsWith("</", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var indent = GetLeadingIndent(line);
+            if (indent.Length > baseIndent.Length)
+            {
+                childIndent = indent;
+                return true;
+            }
+
+            return false;
+        }
+
+        return false;
+    }
+
     private static bool StartsWithClosingStructuralToken(string trimmed)
     {
         return trimmed.StartsWith("</", StringComparison.Ordinal) ||
@@ -640,6 +697,11 @@ internal static class DesignerXmlEditorLanguageService
     private static bool IsXmlNameChar(char value)
     {
         return char.IsLetterOrDigit(value) || value is ':' or '_' or '-' or '.';
+    }
+
+    private static bool IsQuoteCharacter(char value)
+    {
+        return value is '"' or '\'';
     }
 
     private static bool IsValidXmlName(string name)
