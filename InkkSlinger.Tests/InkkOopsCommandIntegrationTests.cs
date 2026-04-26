@@ -68,6 +68,31 @@ public sealed class InkkOopsCommandIntegrationTests
     }
 
     [Fact]
+    public async Task Click_Command_Falls_Back_To_Semantic_Invoke_For_Partially_Visible_CheckBox()
+    {
+        var checkBox = new NonHitTestCheckBox
+        {
+            Name = "ClipToBoundsCheckBox",
+            Content = "ClipToBounds = True",
+            Width = 160f,
+            Height = 32f
+        };
+
+        Canvas.SetLeft(checkBox, 80f);
+        Canvas.SetTop(checkBox, 60f);
+        var root = new Canvas { Width = 400f, Height = 240f };
+        root.AddChild(checkBox);
+
+        using var host = new InkkOopsTestHost(root, width: 400, height: 240);
+        using var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "checkbox-semantic-click-fallback");
+        var session = new InkkOopsSession(host, artifacts);
+
+        await new InkkOopsClickTargetCommand(new InkkOopsTargetReference("ClipToBoundsCheckBox")).ExecuteAsync(session);
+
+        Assert.True(checkBox.IsChecked);
+    }
+
+    [Fact]
     public async Task MovePointer_Command_Uses_Smooth_Path_Before_Reaching_Target()
     {
         var button = new Button
@@ -459,5 +484,13 @@ public sealed class InkkOopsCommandIntegrationTests
         Assert.True(viewer.TryGetContentViewportClipRect(out var viewportBounds));
         Assert.True(targetBounds.Y >= viewportBounds.Y - 0.5f);
         Assert.True(targetBounds.Y + targetBounds.Height <= viewportBounds.Y + viewportBounds.Height + 0.5f);
+    }
+}
+
+file sealed class NonHitTestCheckBox : CheckBox
+{
+    public override bool HitTest(Microsoft.Xna.Framework.Vector2 point)
+    {
+        return false;
     }
 }

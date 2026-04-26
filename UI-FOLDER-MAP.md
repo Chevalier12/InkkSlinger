@@ -51,20 +51,14 @@ UI/
         InkkOopsWheelCommand.cs
       Core/
         DefaultInkkOopsArtifactNamingPolicy.cs
-        DefaultInkkOopsDiagnosticsFilterPolicy.cs
-        DefaultInkkOopsDiagnosticsSerializer.cs
         IInkkOopsArtifactNamingPolicy.cs
         IInkkOopsBuiltinScript.cs
         IInkkOopsCommand.cs
-        IInkkOopsDiagnosticsContributor.cs
-        IInkkOopsDiagnosticsFilterPolicy.cs
-        IInkkOopsDiagnosticsSerializer.cs
         IInkkOopsHost.cs
         IInkkOopsScriptCatalog.cs
         IInkkOopsScriptDefinition.cs
         InkkOopsActionLogFormatter.cs
         InkkOopsArtifacts.cs
-        InkkOopsDiagnosticsModels.cs
         InkkOopsExitCodes.cs
         InkkOopsHostConfiguration.cs
         InkkOopsModels.cs
@@ -77,25 +71,7 @@ UI/
         InkkOopsScriptRunner.cs
         InkkOopsSession.cs
         InkkOopsTargetResolution.cs
-        InkkOopsVisualTreeDiagnostics.cs
         ReflectionInkkOopsScriptCatalog.cs
-      Diagnostics/
-        InkkOopsBorderDiagnosticsContributor.cs
-        InkkOopsButtonDiagnosticsContributor.cs
-        InkkOopsCanvasDiagnosticsContributor.cs
-        InkkOopsCanvasViewDiagnosticsContributor.cs
-        InkkOopsCheckBoxDiagnosticsContributor.cs
-        InkkOopsComboBoxDiagnosticsContributor.cs
-        InkkOopsContentTextDiagnosticsContributor.cs
-        InkkOopsExpanderDiagnosticsContributor.cs
-        InkkOopsFrameworkElementDiagnosticsContributor.cs
-        InkkOopsGenericElementDiagnosticsContributor.cs
-        InkkOopsGridDiagnosticsContributor.cs
-        InkkOopsScrollViewerDiagnosticsContributor.cs
-        InkkOopsStackPanelDiagnosticsContributor.cs
-        InkkOopsTextBlockDiagnosticsContributor.cs
-        InkkOopsUserControlDiagnosticsContributor.cs
-        InkkOopsWrapPanelDiagnosticsContributor.cs
       Runtime/
         InkkOopsGameHost.cs
         InkkOopsInteractionRecorder.cs

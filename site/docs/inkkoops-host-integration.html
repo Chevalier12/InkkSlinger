@@ -153,15 +153,10 @@ var runtimeService = new InkkOopsRuntimeService(
     DefaultArtifactRoot = Path.Combine("artifacts", "inkkoops-dev"),
     DefaultRecordingRoot = Path.Combine("artifacts", "inkkoops-dev-recordings"),
     ScriptCatalog = new ReflectionInkkOopsScriptCatalog(typeof(Game1).Assembly),
-    ArtifactNamingPolicy = new DefaultInkkOopsArtifactNamingPolicy(),
-    ReplayPostamblePolicy = new DefaultInkkOopsReplayPostamblePolicy(),
-    DiagnosticsSerializer = new DefaultInkkOopsDiagnosticsSerializer()
+    ArtifactNamingPolicy = new DefaultInkkOopsArtifactNamingPolicy()
 };
-
-configuration.DiagnosticsContributors.Add(new InkkOopsGenericElementDiagnosticsContributor());
-configuration.DiagnosticsContributors.Add(new InkkOopsFrameworkElementDiagnosticsContributor());
-configuration.DiagnosticsContributors.Add(new InkkOopsTextBlockDiagnosticsContributor());</code></pre>
-                    <p>The host can replace any of these services. The runtime will use whatever the host supplies.</p>
+</code></pre>
+                    <p>The host can replace the catalog, naming policy, and default paths. Runtime telemetry capture is built into the host rather than supplied through contributor and serializer services.</p>
                 </section>
 
                 <section class="doc-section">

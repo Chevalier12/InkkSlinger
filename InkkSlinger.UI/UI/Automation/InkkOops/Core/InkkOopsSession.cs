@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading;
@@ -14,26 +12,13 @@ public sealed class InkkOopsSession
     private InkkOopsTargetResolutionReport? _lastResolutionReport;
     private Vector2? _lastActionPoint;
     private int? _currentActionCommandIndex;
-    private readonly HashSet<int> _actionDiagnosticsIndexes;
-    private readonly IReadOnlyList<InkkOopsObjectObserver> _objectObservers;
-    private readonly Dictionary<string, List<string>> _objectObserverArtifactLines = new(StringComparer.OrdinalIgnoreCase);
 
     public InkkOopsSession(
         IInkkOopsHost host,
-        InkkOopsArtifacts artifacts,
-        IEnumerable<int>? actionDiagnosticsIndexes = null,
-        IEnumerable<InkkOopsObjectObserver>? objectObservers = null)
+        InkkOopsArtifacts artifacts)
     {
         Host = host ?? throw new ArgumentNullException(nameof(host));
         Artifacts = artifacts ?? throw new ArgumentNullException(nameof(artifacts));
-        _actionDiagnosticsIndexes = actionDiagnosticsIndexes == null
-            ? []
-            : [.. actionDiagnosticsIndexes.Where(static index => index >= 0)];
-        _objectObservers = objectObservers == null
-            ? []
-            : [.. objectObservers
-                .OrderBy(static observer => observer.Order)
-                .ThenBy(static observer => observer.GetType().FullName, StringComparer.Ordinal)];
         Host.SetArtifactRoot(artifacts.DirectoryPath);
     }
 
@@ -42,8 +27,6 @@ public sealed class InkkOopsSession
     public InkkOopsArtifacts Artifacts { get; }
 
     public UiRoot UiRoot => Host.UiRoot;
-
-    public IReadOnlyCollection<int> ActionDiagnosticsIndexes => new ReadOnlyCollection<int>(_actionDiagnosticsIndexes.OrderBy(static index => index).ToArray());
 
     public InkkOopsTargetResolutionReport ResolveTarget(InkkOopsTargetReference target)
     {
@@ -162,33 +145,9 @@ public sealed class InkkOopsSession
         _currentActionCommandIndex = commandIndex;
     }
 
-    internal Task ResetActionDiagnosticsTelemetryAsync(CancellationToken cancellationToken = default)
-    {
-        return QueryOnUiThreadAsync(
-            () =>
-            {
-                UiRoot.GetTelemetryAndReset();
-                FrameworkElement.GetTelemetryAndReset();
-                Control.GetTelemetryAndReset();
-                UserControl.GetTelemetryAndReset();
-                ScrollViewer.GetTelemetryAndReset();
-                RichTextBox.GetTelemetryAndReset();
-                IDE_Editor.GetTelemetryAndReset();
-                IDEEditorLineNumberPresenter.GetTelemetryAndReset();
-                IDEEditorIndentGuideOverlay.GetTelemetryAndReset();
-                return true;
-            },
-            cancellationToken);
-    }
-
     internal void EndActionCommand()
     {
         _currentActionCommandIndex = null;
-    }
-
-    internal bool ShouldCaptureActionDiagnostics(int actionIndex)
-    {
-        return _actionDiagnosticsIndexes.Contains(actionIndex);
     }
 
     public Task CaptureFrameAsync(string artifactName, CancellationToken cancellationToken = default)
@@ -214,48 +173,6 @@ public sealed class InkkOopsSession
         Artifacts.BufferTextArtifact(fileName, builder.ToString());
     }
 
-    public async Task WriteActionDiagnosticsAsync(int actionIndex, string actionDescription, CancellationToken cancellationToken = default)
-    {
-        var artifactName = $"action[{actionIndex}]";
-        var telemetryText = await Host.CaptureTelemetryAsync(artifactName, cancellationToken).ConfigureAwait(false);
-        var builder = new StringBuilder();
-        builder.AppendLine($"action_index={actionIndex}");
-        builder.AppendLine($"action_description={actionDescription}");
-        builder.Append(telemetryText);
-        if (builder.Length > 0 && builder[^1] != '\n')
-        {
-            builder.AppendLine();
-        }
-
-        builder.AppendLine($"last_resolution={_lastResolutionReport?.Describe() ?? "none"}");
-        builder.AppendLine(_lastActionPoint is Vector2 actionPoint
-            ? $"last_action_point=({actionPoint.X:0.###},{actionPoint.Y:0.###})"
-            : "last_action_point=none");
-        Artifacts.BufferTextArtifact(artifactName + ".txt", builder.ToString());
-    }
-
-    public async Task WriteObjectObserverArtifactsAsync(int actionIndex, string actionDescription, CancellationToken cancellationToken = default)
-    {
-        if (_objectObservers.Count == 0)
-        {
-            return;
-        }
-
-        for (var i = 0; i < _objectObservers.Count; i++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var observer = _objectObservers[i];
-            var context = new InkkOopsObjectObserverContext
-            {
-                Session = this,
-                ActionIndex = actionIndex,
-                ActionDescription = actionDescription
-            };
-            var line = await QueryOnUiThreadAsync(() => observer.CaptureLine(context), cancellationToken).ConfigureAwait(false);
-            AppendObjectObserverLine(observer.DumpFileName, line);
-        }
-    }
-
     public IReadOnlyList<AutomationEventRecord> GetAutomationEventsSnapshot()
     {
         return Host.GetAutomationEventsSnapshot();
@@ -264,18 +181,6 @@ public sealed class InkkOopsSession
     public void ClearAutomationEvents()
     {
         Host.ClearAutomationEvents();
-    }
-
-    private void AppendObjectObserverLine(string fileName, string line)
-    {
-        if (!_objectObserverArtifactLines.TryGetValue(fileName, out var lines))
-        {
-            lines = new List<string>();
-            _objectObserverArtifactLines[fileName] = lines;
-        }
-
-        lines.Add(line);
-        Artifacts.BufferTextArtifact(fileName, string.Join(Environment.NewLine, lines) + Environment.NewLine);
     }
 
     public InkkOopsTargetStateSnapshot EvaluateTargetState(

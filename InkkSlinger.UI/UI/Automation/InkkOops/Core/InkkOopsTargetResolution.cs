@@ -9,7 +9,8 @@ public enum InkkOopsTargetResolutionSource
     None,
     XName,
     AutomationId,
-    AutomationName
+    AutomationName,
+    ContentText
 }
 
 public sealed class InkkOopsTargetResolutionReport
@@ -185,6 +186,17 @@ public static class InkkOopsTargetResolver
         }
 
         notes.Add($"automation name '{identifier}' -> no match");
+
+        var contentMatches = scopedElements
+            .Where(element => string.Equals(GetElementTextForMatching(element), identifier, StringComparison.Ordinal))
+            .ToArray();
+        if (contentMatches.Length > 0)
+        {
+            notes.Add($"content text '{identifier}' -> {contentMatches.Length} match(es)");
+            return FinalizeMatches(selector, InkkOopsTargetResolutionSource.ContentText, contentMatches, allPeers, index, notes, candidates);
+        }
+
+        notes.Add($"content text '{identifier}' -> no match");
         candidates.AddRange(allPeers
             .Where(peer => scopeSet.Contains(peer.Owner))
             .Select(DescribePeer)
@@ -209,6 +221,8 @@ public static class InkkOopsTargetResolver
         List<string> notes,
         List<string> candidates)
     {
+        matches = CollapseLogicalMatches(matches, notes);
+
         if (requestedIndex is int index)
         {
             if (index >= 0 && index < matches.Count)
@@ -261,6 +275,64 @@ public static class InkkOopsTargetResolver
             null,
             notes,
             candidates);
+    }
+
+    private static IReadOnlyList<UIElement> CollapseLogicalMatches(IReadOnlyList<UIElement> matches, List<string> notes)
+    {
+        if (matches.Count <= 1)
+        {
+            return matches;
+        }
+
+        var collapsed = matches
+            .Where(candidate => !matches.Any(other => !ReferenceEquals(other, candidate) && IsAncestorOf(other, candidate)))
+            .ToArray();
+
+        if (collapsed.Length > 0 && collapsed.Length < matches.Count)
+        {
+            notes.Add($"collapsed nested matches {matches.Count} -> {collapsed.Length}");
+            return collapsed;
+        }
+
+        return matches;
+    }
+
+    private static bool IsAncestorOf(UIElement ancestor, UIElement descendant)
+    {
+        for (var current = descendant.VisualParent ?? descendant.LogicalParent;
+             current != null;
+             current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string GetElementTextForMatching(UIElement element)
+    {
+        var contentProperty = element.GetType().GetProperty("Content");
+        if (contentProperty?.CanRead == true && contentProperty.GetIndexParameters().Length == 0)
+        {
+            if (contentProperty.GetValue(element) is string contentText && !string.IsNullOrWhiteSpace(contentText))
+            {
+                return contentText;
+            }
+        }
+
+        var textProperty = element.GetType().GetProperty("Text");
+        if (textProperty?.CanRead == true && textProperty.GetIndexParameters().Length == 0)
+        {
+            if (textProperty.GetValue(element) is string text && !string.IsNullOrWhiteSpace(text))
+            {
+                return text;
+            }
+        }
+
+        return string.Empty;
     }
 
     private static AutomationPeer? FindPeer(IReadOnlyList<AutomationPeer> peers, UIElement element)

@@ -16,7 +16,7 @@ public static class InkkOopsRecordedSessionLoader
     public static InkkOopsScript LoadFromJson(string recordingPath)
     {
         var (fullPath, session) = LoadDocument(recordingPath);
-        var builder = new InkkOopsScriptBuilder("recording-playback", session.ActionDiagnosticsIndexes);
+        var builder = new InkkOopsScriptBuilder("recording-playback");
 
         foreach (var action in session.Actions)
         {
@@ -120,8 +120,6 @@ public static class InkkOopsRecordedSessionLoader
 
     private sealed class RecordedSessionDocument
     {
-        public int[] ActionDiagnosticsIndexes { get; set; } = [];
-
         public string RecordedProjectPath { get; set; } = string.Empty;
 
         public List<InkkOopsInteractionRecorder.RecordedAction> Actions { get; set; } = new();

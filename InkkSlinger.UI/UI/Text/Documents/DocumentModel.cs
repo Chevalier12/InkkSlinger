@@ -706,6 +706,31 @@ public sealed class TextElementCollection<TParent, TChild> : IList<TChild>, ILis
         _onChanged();
     }
 
+    internal void ReplaceAll(IEnumerable<TChild> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        var replacements = items.ToArray();
+        for (var i = 0; i < replacements.Length; i++)
+        {
+            ArgumentNullException.ThrowIfNull(replacements[i]);
+            EnsureCanAttach(replacements[i]);
+        }
+
+        for (var i = 0; i < _items.Count; i++)
+        {
+            Detach(_items[i]);
+        }
+
+        _items.Clear();
+        for (var i = 0; i < replacements.Length; i++)
+        {
+            _items.Add(replacements[i]);
+            replacements[i].SetParent(_parent);
+        }
+
+        _onChanged();
+    }
+
     public bool Contains(TChild item)
     {
         return _items.Contains(item);
@@ -852,19 +877,22 @@ public static class FlowDocumentPlainText
         var normalized = (text ?? string.Empty)
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n');
-        document.Blocks.Clear();
         var paragraphs = normalized.Split('\n');
         if (paragraphs.Length == 0)
         {
+            document.Blocks.ReplaceAll(Array.Empty<Block>());
             return;
         }
 
-        foreach (var paragraphText in paragraphs)
+        var blocks = new Block[paragraphs.Length];
+        for (var index = 0; index < paragraphs.Length; index++)
         {
             var paragraph = new Paragraph();
-            paragraph.Inlines.Add(new Run(paragraphText));
-            document.Blocks.Add(paragraph);
+            paragraph.Inlines.Add(new Run(paragraphs[index]));
+            blocks[index] = paragraph;
         }
+
+        document.Blocks.ReplaceAll(blocks);
     }
 
     internal static IEnumerable<Paragraph> EnumerateParagraphs(FlowDocument document)

@@ -58,36 +58,8 @@ public sealed class InkkOopsAbstractionTests
     }
 
     [Fact]
-    public void DiagnosticsPipeline_WorksWith_GenericContributor_Only()
+    public async Task TelemetryCapture_Writes_Runtime_Summary_Without_VisualTree_Diagnostics()
     {
-        var root = new Canvas { Name = "Root" };
-        root.AddChild(new Button { Name = "Child", Content = "Click me" });
-        using var host = new InkkOopsTestHost(root);
-        var diagnostics = new InkkOopsVisualTreeDiagnostics([new InkkOopsGenericElementDiagnosticsContributor()]);
-        var snapshot = diagnostics.Capture(
-            root,
-            new InkkOopsDiagnosticsContext
-            {
-                UiRoot = host.UiRoot,
-                Viewport = host.GetViewportBounds(),
-                HoveredElement = null,
-                FocusedElement = null,
-                ArtifactName = "generic"
-            });
-        var serializer = new DefaultInkkOopsDiagnosticsSerializer();
-        var text = serializer.SerializeVisualTree(snapshot);
-
-        Assert.Contains("Canvas#Root hovered=False focused=False", text);
-        Assert.Contains("Button#Child hovered=False focused=False", text);
-        Assert.DoesNotContain("slot=", text, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void DiagnosticsPipeline_Emits_ButtonContributorFacts()
-    {
-        _ = FrameworkElement.GetTelemetryAndReset();
-        _ = Button.GetTelemetryAndReset();
-
         var button = new Button
         {
             Name = "Child",
@@ -101,101 +73,26 @@ public sealed class InkkOopsAbstractionTests
         root.AddChild(button);
 
         using var host = new InkkOopsTestHost(root);
+        host.UiRoot.GetTelemetryAndReset();
+        _ = FrameworkElement.GetTelemetryAndReset();
+        _ = Button.GetTelemetryAndReset();
+        await host.AdvanceFrameAsync(1);
 
         button.Measure(new Vector2(120f, 40f));
         button.Arrange(new LayoutRect(0f, 0f, 120f, 40f));
         _ = button.PrepareTextRenderPlanForTests(new LayoutRect(0f, 0f, 120f, 40f));
         _ = button.PrepareTextRenderPlanForTests(new LayoutRect(0f, 0f, 120f, 40f));
-        button.SetMouseOverFromInput(true);
-        button.SetPressedFromInput(true);
 
-        var diagnostics = new InkkOopsVisualTreeDiagnostics(
-        [
-            new InkkOopsGenericElementDiagnosticsContributor(),
-            new InkkOopsFrameworkElementDiagnosticsContributor(),
-            new InkkOopsButtonDiagnosticsContributor()
-        ]);
+        var text = await host.CaptureTelemetryAsync("button");
 
-        var snapshot = diagnostics.Capture(
-            root,
-            new InkkOopsDiagnosticsContext
-            {
-                UiRoot = host.UiRoot,
-                Viewport = host.GetViewportBounds(),
-                HoveredElement = button,
-                FocusedElement = null,
-                ArtifactName = "button"
-            });
-        var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
-
-        Assert.Contains("Button#Child", text);
-        Assert.Contains("buttonDisplayText=Click me", text);
-        Assert.Contains("buttonHasTextLayoutCache=", text);
-        Assert.Contains("buttonIsMouseOver=True", text);
-        Assert.Contains("buttonIsPressed=True", text);
-        Assert.Contains("buttonRuntimeTextLayoutCacheHits=", text);
-        Assert.Contains("buttonTextLayoutCacheHits=", text);
-        Assert.Contains("buttonTextRenderPlanCacheHits=", text);
-        Assert.Contains("frameworkGlobalMeasureCalls=", text);
-        Assert.Contains("frameworkGlobalArrangeCalls=", text);
-        Assert.Contains("frameworkMeasureMs=", text);
-        Assert.Contains("frameworkStylePropertyChanged=", text);
-    }
-
-    [Fact]
-    public void DiagnosticsPipeline_Emits_CheckBoxContributorFacts()
-    {
-        _ = CheckBox.GetTelemetryAndReset();
-
-        var checkBox = new CheckBox
-        {
-            Name = "AcceptTerms",
-            Content = "Accept terms",
-            Width = 160f,
-            Height = 32f,
-            Padding = new Thickness(2f),
-            IsChecked = null,
-            IsThreeState = true
-        };
-        var root = new Canvas { Name = "Root" };
-        root.AddChild(checkBox);
-
-        using var host = new InkkOopsTestHost(root);
-
-        checkBox.Measure(new Vector2(160f, 32f));
-        checkBox.Arrange(new LayoutRect(0f, 0f, 160f, 32f));
-
-        var getFallbackStyle = typeof(CheckBox).GetMethod("GetFallbackStyle", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        Assert.NotNull(getFallbackStyle);
-        Assert.NotNull((Style?)getFallbackStyle!.Invoke(checkBox, null));
-
-        var diagnostics = new InkkOopsVisualTreeDiagnostics(
-        [
-            new InkkOopsGenericElementDiagnosticsContributor(),
-            new InkkOopsFrameworkElementDiagnosticsContributor(),
-            new InkkOopsCheckBoxDiagnosticsContributor()
-        ]);
-
-        var snapshot = diagnostics.Capture(
-            root,
-            new InkkOopsDiagnosticsContext
-            {
-                UiRoot = host.UiRoot,
-                Viewport = host.GetViewportBounds(),
-                HoveredElement = null,
-                FocusedElement = null,
-                ArtifactName = "checkbox"
-            });
-        var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
-
-        Assert.Contains("CheckBox#AcceptTerms", text);
-        Assert.Contains("checkBoxDisplayText=Accept terms", text);
-        Assert.Contains("checkBoxIsChecked=null", text);
-        Assert.Contains("checkBoxIsThreeState=True", text);
-        Assert.Contains("checkBoxRuntimeMeasureOverrideCalls=", text);
-        Assert.Contains("checkBoxRuntimeMeasureTextLayoutCalls=", text);
-        Assert.Contains("checkBoxMeasureOverrideCalls=", text);
-        Assert.Contains("checkBoxGetFallbackStyleCalls=", text);
+        Assert.Contains("hovered=", text, StringComparison.Ordinal);
+        Assert.Contains("focused=", text, StringComparison.Ordinal);
+        Assert.Contains("dirty_regions=", text, StringComparison.Ordinal);
+        Assert.Contains("uiRootLayoutExecutedFrameCount=", text, StringComparison.Ordinal);
+        Assert.Contains("frameworkMeasureCallCount=", text, StringComparison.Ordinal);
+        Assert.Contains("buttonRenderCallCount=", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("visual_tree_begin", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Button#Child", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -264,154 +161,6 @@ public sealed class InkkOopsAbstractionTests
         Assert.Equal(0, cleared.RaiseLoadedCallCount);
     }
 
-    [Fact]
-    public void DiagnosticsPipeline_UsesContributorOrder_Deterministically()
-    {
-        var root = new Canvas { Name = "Root" };
-        using var host = new InkkOopsTestHost(root);
-        var diagnostics = new InkkOopsVisualTreeDiagnostics(
-        [
-            new OrderedContributor(20, "late", "2"),
-            new OrderedContributor(10, "early", "1")
-        ]);
-
-        var snapshot = diagnostics.Capture(
-            root,
-            new InkkOopsDiagnosticsContext
-            {
-                UiRoot = host.UiRoot,
-                Viewport = host.GetViewportBounds(),
-                HoveredElement = null,
-                FocusedElement = null,
-                ArtifactName = "ordered"
-            });
-        var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
-
-        Assert.Contains("Canvas#Root early=1 late=2", text);
-    }
-
-    [Fact]
-    public async Task DiagnosticsPipeline_Includes_GridContributorFacts()
-    {
-        var root = new Canvas { Name = "Root", Width = 400f, Height = 240f };
-        var grid = new Grid { Name = "LayoutGrid", Width = 220f, Height = 120f };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, SharedSizeGroup = "SharedColumn" });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
-
-        var child = new Border { Width = 48f, Height = 32f, Name = "Child" };
-        Grid.SetColumn(child, 0);
-        Grid.SetRow(child, 0);
-        grid.AddChild(child);
-        root.AddChild(grid);
-
-        using var host = new InkkOopsTestHost(root);
-        await host.AdvanceFrameAsync(1);
-
-        var diagnostics = new InkkOopsVisualTreeDiagnostics([
-            new InkkOopsGenericElementDiagnosticsContributor(),
-            new InkkOopsFrameworkElementDiagnosticsContributor(),
-            new InkkOopsGridDiagnosticsContributor()
-        ]);
-
-        var snapshot = diagnostics.Capture(
-            root,
-            new InkkOopsDiagnosticsContext
-            {
-                UiRoot = host.UiRoot,
-                Viewport = host.GetViewportBounds(),
-                HoveredElement = null,
-                FocusedElement = null,
-                ArtifactName = "grid-diagnostics"
-            });
-        var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
-
-        Assert.Contains("Grid#LayoutGrid", text);
-        Assert.Contains("gridRuntimeColumnDefinitions=", text);
-        Assert.Contains("gridRuntimeSharedScopeAttached=", text);
-        Assert.Contains("gridGlobalMeasureCalls=", text);
-        Assert.Contains("gridGlobalPrepareMetadataCalls=", text);
-        Assert.Contains("gridGlobalApplySharedSizesCalls=", text);
-        Assert.Contains("columns=", text);
-        Assert.Contains("children=", text);
-    }
-
-    [Fact]
-    public void DiagnosticsSerializer_Prunes_To_Filtered_Matches_And_Ancestors()
-    {
-        var snapshot = new InkkOopsVisualTreeSnapshot
-        {
-            IsFiltered = true,
-            NodeRetention = InkkOopsDiagnosticsNodeRetention.MatchedNodesAndAncestors,
-            Nodes =
-            [
-                new InkkOopsVisualTreeNodeSnapshot
-                {
-                    Depth = 0,
-                    DisplayName = "Canvas#Root",
-                    Facts = Array.Empty<KeyValuePair<string, string>>(),
-                    MatchedFilter = false
-                },
-                new InkkOopsVisualTreeNodeSnapshot
-                {
-                    Depth = 1,
-                    DisplayName = "StackPanel#Branch",
-                    Facts = Array.Empty<KeyValuePair<string, string>>(),
-                    MatchedFilter = false
-                },
-                new InkkOopsVisualTreeNodeSnapshot
-                {
-                    Depth = 2,
-                    DisplayName = "TextBlock#Hotspot",
-                    Facts = [new KeyValuePair<string, string>("measureInvalidations", "3")],
-                    MatchedFilter = true
-                },
-                new InkkOopsVisualTreeNodeSnapshot
-                {
-                    Depth = 1,
-                    DisplayName = "Button#ColdLeaf",
-                    Facts = Array.Empty<KeyValuePair<string, string>>(),
-                    MatchedFilter = false
-                }
-            ]
-        };
-
-        var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
-
-        Assert.Contains("Canvas#Root", text);
-        Assert.Contains("  StackPanel#Branch", text);
-        Assert.Contains("    TextBlock#Hotspot measureInvalidations=3", text);
-        Assert.DoesNotContain("Button#ColdLeaf", text, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void DiagnosticsBuilder_Filters_Facts_Using_Rules()
-    {
-        var filter = new InkkOopsDiagnosticsFilter
-        {
-            NodeRetention = InkkOopsDiagnosticsNodeRetention.MatchedNodesAndAncestors,
-            Rules =
-            [
-                new InkkOopsDiagnosticsFactRule
-                {
-                    Key = "measureWork",
-                    Comparison = InkkOopsDiagnosticsComparison.GreaterThan,
-                    Value = 1
-                }
-            ]
-        };
-
-        var builder = new InkkOopsElementDiagnosticsBuilder("Grid#Workbench", "Grid", filter);
-        builder.Add("desired", "100,200");
-        builder.Add("measureWork", 1);
-        builder.Add("measureWork", 3);
-
-        Assert.True(builder.MatchedFilter);
-        Assert.Single(builder.Facts);
-        Assert.Equal("measureWork", builder.Facts[0].Key);
-        Assert.Equal("3", builder.Facts[0].Value);
-    }
 
     [Fact]
     public void LaunchTargetResolver_UsesExplicitProjectPath_WhenProvided()
@@ -457,26 +206,6 @@ public sealed class InkkOopsAbstractionTests
         public string GetTelemetryFileName(string artifactName) => $"telemetry-{artifactName}.txt";
 
         public string SanitizePathSegment(string value, string fallbackValue) => string.IsNullOrWhiteSpace(value) ? fallbackValue : value;
-    }
-
-    private sealed class OrderedContributor : IInkkOopsDiagnosticsContributor
-    {
-        private readonly string _key;
-        private readonly string _value;
-
-        public OrderedContributor(int order, string key, string value)
-        {
-            Order = order;
-            _key = key;
-            _value = value;
-        }
-
-        public int Order { get; }
-
-        public void Contribute(InkkOopsDiagnosticsContext context, UIElement element, InkkOopsElementDiagnosticsBuilder builder)
-        {
-            builder.Add(_key, _value);
-        }
     }
 
     private sealed class ProbeFrameworkElement : FrameworkElement

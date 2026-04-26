@@ -1141,6 +1141,7 @@ public partial class RichTextBox
 
     private void ReplaceSelection(string replacement, string commandType, GroupingPolicy policy)
     {
+        const int BulkReplacementEventDeferralThreshold = 256;
         if (ShouldGuardRichFallback(commandType))
         {
             if (TryReplaceSelectionWithinParagraphPreservingInlineStyles(replacement ?? string.Empty, commandType, policy))
@@ -1177,6 +1178,7 @@ public partial class RichTextBox
         var selectionStartBefore = start;
         var selectionLengthBefore = length;
         var normalizedReplacement = replacement ?? string.Empty;
+        var deferEventFlush = normalizedReplacement.Length >= BulkReplacementEventDeferralThreshold;
         var caretAfter = start + normalizedReplacement.Length;
         var session = new DocumentEditSession(Document, _undoManager);
         session.BeginTransaction(
@@ -1195,7 +1197,7 @@ public partial class RichTextBox
             DocumentEditing.ReplaceTextRange(Document, start, length, normalizedReplacement, session);
             UpdateSelectionState(start + normalizedReplacement.Length, start + normalizedReplacement.Length, ensureCaretVisible: false);
             session.CommitTransaction();
-        });
+        }, deferEventFlush);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(commandType);

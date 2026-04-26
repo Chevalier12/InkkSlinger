@@ -22,6 +22,12 @@ public enum DesignerDiagnosticLevel
     Error
 }
 
+public enum DesignerDiagnosticSource
+{
+    Source,
+    AppResources
+}
+
 public sealed record DesignerDiagnosticEntry(
     DesignerDiagnosticLevel Level,
     XamlDiagnosticCode Code,
@@ -32,6 +38,8 @@ public sealed record DesignerDiagnosticEntry(
     int? Position,
     string? Hint)
 {
+    public DesignerDiagnosticSource Source { get; init; } = DesignerDiagnosticSource.Source;
+
     public string TargetDescription => string.IsNullOrWhiteSpace(ElementName)
         ? (string.IsNullOrWhiteSpace(PropertyName) ? "Document" : PropertyName!)
         : (string.IsNullOrWhiteSpace(PropertyName)
@@ -147,23 +155,50 @@ public sealed class DesignerController
 
     public bool Refresh(string rawXml)
     {
+        return Refresh(rawXml, appResourcesXml: null);
+    }
+
+    public bool Refresh(string rawXml, string? appResourcesXml)
+    {
         SourceText = rawXml ?? string.Empty;
 
-        var capturedDiagnostics = new List<XamlDiagnostic>();
+        var appResourceDiagnostics = new List<XamlDiagnostic>();
+        var sourceDiagnostics = new List<XamlDiagnostic>();
+        var activeDiagnosticSource = DesignerDiagnosticSource.Source;
+        ResourceDictionary? appResources = null;
         try
         {
-            using var sink = XamlLoader.PushDiagnosticSink(capturedDiagnostics.Add);
-            var loadedRoot = XamlLoader.LoadFromString(SourceText);
+            if (!string.IsNullOrWhiteSpace(appResourcesXml))
+            {
+                activeDiagnosticSource = DesignerDiagnosticSource.AppResources;
+                using var appResourceSink = XamlLoader.PushDiagnosticSink(appResourceDiagnostics.Add);
+                appResources = XamlLoader.LoadApplicationResourceDictionaryFromString(appResourcesXml);
+            }
+
+            activeDiagnosticSource = DesignerDiagnosticSource.Source;
+            UIElement loadedRoot;
+            using (XamlLoader.PushDiagnosticSink(sourceDiagnostics.Add))
+            {
+                loadedRoot = LoadPreviewRootWithAppResources(SourceText, appResources);
+            }
+
             if (loadedRoot is not UIElement previewRoot)
             {
                 throw new InvalidOperationException("Designer preview requires a UIElement root element.");
+            }
+
+            if (appResources != null && previewRoot is FrameworkElement frameworkRoot)
+            {
+                frameworkRoot.Resources.AddMergedDictionary(appResources);
             }
 
             _elementsByNodeId.Clear();
             PreviewRoot = previewRoot;
             PreviewFailureMessage = null;
             PreviewState = DesignerPreviewState.Success;
-            Diagnostics = MapDiagnostics(capturedDiagnostics);
+            Diagnostics = MapDiagnostics(appResourceDiagnostics, DesignerDiagnosticSource.AppResources)
+                .Concat(MapDiagnostics(sourceDiagnostics, DesignerDiagnosticSource.Source))
+                .ToArray();
             VisualTreeRoot = BuildVisualTree(previewRoot, "0");
 
             if (VisualTreeRoot != null)
@@ -190,7 +225,11 @@ public sealed class DesignerController
             _elementsByNodeId.Clear();
 
             var mappedDiagnostics = EnrichDiagnosticsWithExceptionLocation(
-                new List<DesignerDiagnosticEntry>(MapDiagnostics(capturedDiagnostics)),
+                new List<DesignerDiagnosticEntry>(MapDiagnostics(
+                    activeDiagnosticSource == DesignerDiagnosticSource.AppResources
+                        ? appResourceDiagnostics
+                        : sourceDiagnostics,
+                    activeDiagnosticSource)),
                 ex,
                 exceptionLocation.Line,
                 exceptionLocation.Position);
@@ -205,11 +244,35 @@ public sealed class DesignerController
                         null,
                         exceptionLocation.Line,
                         exceptionLocation.Position,
-                        null));
+                        null)
+                    {
+                        Source = activeDiagnosticSource
+                    });
             }
 
             Diagnostics = mappedDiagnostics;
             return false;
+        }
+    }
+
+    private static UIElement LoadPreviewRootWithAppResources(string sourceText, ResourceDictionary? appResources)
+    {
+        if (appResources == null)
+        {
+            return XamlLoader.LoadFromString(sourceText);
+        }
+
+        var applicationResources = UiApplication.Current.Resources;
+        var previousEntries = applicationResources.ToArray();
+        var previousMergedDictionaries = applicationResources.MergedDictionaries.ToArray();
+        try
+        {
+            applicationResources.ReplaceContents(appResources.ToArray(), appResources.MergedDictionaries, notifyChanged: false);
+            return XamlLoader.LoadFromString(sourceText);
+        }
+        finally
+        {
+            applicationResources.ReplaceContents(previousEntries, previousMergedDictionaries, notifyChanged: false);
         }
     }
 
@@ -276,7 +339,9 @@ public sealed class DesignerController
         return new DesignerInspectorModel(BuildNodeLabel(typeName, elementName == "(unnamed)" ? null : elementName), properties);
     }
 
-    private static IReadOnlyList<DesignerDiagnosticEntry> MapDiagnostics(IEnumerable<XamlDiagnostic> diagnostics)
+    private static IReadOnlyList<DesignerDiagnosticEntry> MapDiagnostics(
+        IEnumerable<XamlDiagnostic> diagnostics,
+        DesignerDiagnosticSource source)
     {
         return diagnostics
             .Select(
@@ -288,7 +353,10 @@ public sealed class DesignerController
                     diagnostic.PropertyName,
                     diagnostic.Line,
                     diagnostic.Position,
-                    diagnostic.Hint))
+                    diagnostic.Hint)
+                {
+                    Source = source
+                })
                     .Distinct()
                     .OrderBy(static diagnostic => diagnostic.Line ?? int.MaxValue)
                     .ThenBy(static diagnostic => diagnostic.Position ?? int.MaxValue)

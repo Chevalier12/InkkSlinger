@@ -8,9 +8,9 @@ public sealed class InkkOopsScriptBuilder
 {
     private readonly InkkOopsScript _script;
 
-    public InkkOopsScriptBuilder(string name, IEnumerable<int>? actionDiagnosticsIndexes = null)
+    public InkkOopsScriptBuilder(string name)
     {
-        _script = new InkkOopsScript(name, actionDiagnosticsIndexes);
+        _script = new InkkOopsScript(name);
     }
 
     public InkkOopsScriptBuilder Add(IInkkOopsCommand command)
@@ -285,6 +285,11 @@ public sealed class InkkOopsScriptBuilder
     public InkkOopsScriptBuilder TextInput(char character)
     {
         return Add(new InkkOopsTextInputCommand(character));
+    }
+
+    public InkkOopsScriptBuilder SetClipboardText(string text)
+    {
+        return Add(new InkkOopsSetClipboardTextCommand(text));
     }
 
     public InkkOopsScriptBuilder Drag(string targetName, float deltaX, float deltaY)

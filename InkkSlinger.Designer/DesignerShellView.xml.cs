@@ -36,7 +36,11 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
 
     public DesignerSourceEditorView SourceEditorView => (DesignerSourceEditorView)SourceEditorPane;
 
+    public DesignerSourceEditorView AppResourcesEditorView => (DesignerSourceEditorView)AppResourcesEditorPane;
+
     public IDE_Editor SourceEditorControl => SourceEditorView.Editor;
+
+    public IDE_Editor AppResourcesEditorControl => AppResourcesEditorView.Editor;
 
     public Border SourceLineNumberBorderControl => SourceEditorView.LineNumberBorder;
 
@@ -46,6 +50,12 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
     {
         get => _viewModel.SourceText;
         set => _viewModel.SourceText = value;
+    }
+
+    public string AppResourcesText
+    {
+        get => _viewModel.AppResourcesText;
+        set => _viewModel.AppResourcesText = value;
     }
 
     public bool RefreshPreview()

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
@@ -20,6 +21,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
     private readonly Action<InkkOopsRunResult>? _requestAppExit;
     private readonly object _sync = new();
     private readonly Task _pipeServerTask;
+    private readonly InkkOopsLiveRequestDispatcher _liveRequestDispatcher;
     private PendingRunRequest? _pendingRequest;
     private bool _runActive;
     private bool _startupRequestQueued;
@@ -36,6 +38,11 @@ public sealed class InkkOopsRuntimeService : IDisposable
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _requestAppExit = requestAppExit;
         _scriptCatalog = _hostConfiguration.ScriptCatalog;
+        _liveRequestDispatcher = new InkkOopsLiveRequestDispatcher(
+            _host,
+            _scriptCatalog,
+            ResolveArtifactRoot(),
+            _hostConfiguration.ArtifactNamingPolicy);
         _pipeServerTask = Task.Run(RunPipeServerLoopAsync);
     }
 
@@ -88,7 +95,6 @@ public sealed class InkkOopsRuntimeService : IDisposable
             _pendingRequest = new PendingRunRequest(
                 request.ScriptName,
                 RecordingPath: string.Empty,
-                ActionDiagnosticsIndexes: request.ActionDiagnosticsIndexes ?? [],
                 ArtifactRoot: string.IsNullOrWhiteSpace(request.ArtifactRootOverride) ? ResolveArtifactRoot() : request.ArtifactRootOverride,
                 Completion: completion);
         }
@@ -127,6 +133,35 @@ public sealed class InkkOopsRuntimeService : IDisposable
         }
     }
 
+    public Task<InkkOopsPipeResponse> SubmitRequestAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var kind = string.IsNullOrWhiteSpace(request.RequestKind)
+            ? InkkOopsPipeRequestKinds.RunScript
+            : request.RequestKind.Trim();
+        if (string.Equals(kind, InkkOopsPipeRequestKinds.RunScript, StringComparison.Ordinal))
+        {
+            return SubmitRunAsync(request, cancellationToken);
+        }
+
+        lock (_sync)
+        {
+            if (_runActive || _pendingRequest != null)
+            {
+                return Task.FromResult(new InkkOopsPipeResponse
+                {
+                    Status = InkkOopsRunStatus.Busy.ToString(),
+                    RequestKind = kind,
+                    ScriptName = request.ScriptName,
+                    Message = "An InkkOops script is already queued or running."
+                });
+            }
+        }
+
+        return _liveRequestDispatcher.SubmitAsync(request, cancellationToken);
+    }
+
     public void Dispose()
     {
         _shutdown.Cancel();
@@ -139,6 +174,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
             // best effort shutdown
         }
 
+        _liveRequestDispatcher.Dispose();
         _host.Dispose();
         _shutdown.Dispose();
     }
@@ -172,7 +208,6 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 _pendingRequest = new PendingRunRequest(
                     _options.StartupScriptName,
                     _options.StartupRecordingPath,
-                    _options.ActionDiagnosticsIndexes,
                     ResolveArtifactRoot(),
                     Completion: null);
                 _startupRequestQueued = true;
@@ -211,7 +246,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 _host.SetArtifactRoot(artifacts.DirectoryPath);
                 _host.ClearAutomationEvents();
                 var script = InkkOopsRecordedSessionLoader.LoadFromJson(request.RecordingPath);
-                var session = new InkkOopsSession(_host, artifacts, GetEffectiveActionDiagnosticsIndexes(request.ActionDiagnosticsIndexes, script), _options.ObjectObservers);
+                var session = new InkkOopsSession(_host, artifacts);
                 result = await _runner.RunAsync(script, session, _shutdown.Token).ConfigureAwait(false);
                 artifacts.WriteResult(result);
                 WritePlaybackActionLogMirror(request.RecordingPath, artifacts.GetActionLogPath());
@@ -232,7 +267,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 _host.SetArtifactRoot(artifacts.DirectoryPath);
                 _host.ClearAutomationEvents();
                 var script = scriptDefinition.CreateScript();
-                var session = new InkkOopsSession(_host, artifacts, GetEffectiveActionDiagnosticsIndexes(request.ActionDiagnosticsIndexes, script), _options.ObjectObservers);
+                var session = new InkkOopsSession(_host, artifacts);
                 result = await _runner.RunAsync(script, session, _shutdown.Token).ConfigureAwait(false);
                 artifacts.WriteResult(result);
             }
@@ -286,31 +321,69 @@ public sealed class InkkOopsRuntimeService : IDisposable
                     PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous);
                 await pipe.WaitForConnectionAsync(_shutdown.Token).ConfigureAwait(false);
-                using var reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
-                using var writer = new StreamWriter(pipe, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
-                var payload = await reader.ReadLineAsync().ConfigureAwait(false);
+                var payload = await ReadPipeMessageAsync(pipe).ConfigureAwait(false);
                 var request = string.IsNullOrWhiteSpace(payload)
                     ? new InkkOopsPipeRequest()
                     : JsonSerializer.Deserialize<InkkOopsPipeRequest>(payload) ?? new InkkOopsPipeRequest();
-                var response = await SubmitRunAsync(request, _shutdown.Token).ConfigureAwait(false);
-                var json = JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-                await writer.WriteLineAsync(json).ConfigureAwait(false);
+                var response = await SubmitRequestAsync(request, _shutdown.Token).ConfigureAwait(false);
+                var json = JsonSerializer.Serialize(response);
+                await WritePipeMessageAsync(pipe, json).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
                 break;
             }
-            catch
+            catch (Exception ex)
             {
+                _ = ex;
                 await Task.Delay(100, _shutdown.Token).ConfigureAwait(false);
             }
+        }
+    }
+
+    private static async Task WritePipeMessageAsync(Stream stream, string payload)
+    {
+        var bytes = Encoding.UTF8.GetBytes(payload ?? string.Empty);
+        var lengthPrefix = new byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(lengthPrefix, bytes.Length);
+        await stream.WriteAsync(lengthPrefix).ConfigureAwait(false);
+        await stream.WriteAsync(bytes).ConfigureAwait(false);
+        await stream.FlushAsync().ConfigureAwait(false);
+    }
+
+    private static async Task<string> ReadPipeMessageAsync(Stream stream)
+    {
+        var lengthPrefix = new byte[sizeof(int)];
+        await ReadExactlyAsync(stream, lengthPrefix).ConfigureAwait(false);
+        var length = BinaryPrimitives.ReadInt32LittleEndian(lengthPrefix);
+        if (length <= 0)
+        {
+            return string.Empty;
+        }
+
+        var payload = new byte[length];
+        await ReadExactlyAsync(stream, payload).ConfigureAwait(false);
+        return Encoding.UTF8.GetString(payload);
+    }
+
+    private static async Task ReadExactlyAsync(Stream stream, byte[] buffer)
+    {
+        var offset = 0;
+        while (offset < buffer.Length)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(offset, buffer.Length - offset)).ConfigureAwait(false);
+            if (read <= 0)
+            {
+                throw new EndOfStreamException("The pipe closed before the full message was received.");
+            }
+
+            offset += read;
         }
     }
 
     private readonly record struct PendingRunRequest(
         string ScriptName,
         string RecordingPath,
-        int[] ActionDiagnosticsIndexes,
         string ArtifactRoot,
         TaskCompletionSource<InkkOopsRunResult>? Completion);
 
@@ -319,13 +392,6 @@ public sealed class InkkOopsRuntimeService : IDisposable
         return string.IsNullOrWhiteSpace(_options.ArtifactRoot)
             ? _hostConfiguration.DefaultArtifactRoot
             : _options.ArtifactRoot;
-    }
-
-    private static IReadOnlyList<int> GetEffectiveActionDiagnosticsIndexes(int[] requestIndexes, InkkOopsScript script)
-    {
-        return requestIndexes.Length > 0
-            ? requestIndexes
-            : script.ActionDiagnosticsIndexes;
     }
 
     private string ResolveNamedPipeName()

@@ -76,6 +76,7 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
             Width = 120f,
             Height = 32f
         };
+
         var root = new Canvas();
         root.AddChild(button);
 
@@ -145,262 +146,13 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
     }
 
     [Fact]
-    public async Task Runner_Writes_Filtered_PerAction_Diagnostics_File()
-    {
-        var button = new Button
-        {
-            Name = "PlaygroundButton",
-            Content = "Playground",
-            Width = 120f,
-            Height = 32f
-        };
-        var root = new Canvas { Name = "RootCanvas" };
-        root.AddChild(button);
-
-        using var host = new InkkOopsTestHost(root);
-        string actionDiagnosticsPath;
-
-        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-action-diagnostics"))
-        {
-            var session = new InkkOopsSession(host, artifacts, [0]);
-            var script = new InkkOopsScript("runner-action-diagnostics")
-                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference("PlaygroundButton")));
-
-            var runner = new InkkOopsScriptRunner();
-            var result = await runner.RunAsync(script, session, CancellationToken.None);
-
-            Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
-            actionDiagnosticsPath = artifacts.GetPath("action[0].txt");
-            Assert.False(File.Exists(actionDiagnosticsPath));
-        }
-
-        var diagnosticsText = File.ReadAllText(actionDiagnosticsPath);
-
-        Assert.Contains("action_index=0", diagnosticsText, StringComparison.Ordinal);
-        Assert.Contains("action_description=Hover(Name('PlaygroundButton'), anchor:", diagnosticsText, StringComparison.Ordinal);
-        Assert.Contains("visual_tree_begin", diagnosticsText, StringComparison.Ordinal);
-        Assert.Contains("Canvas#RootCanvas", diagnosticsText, StringComparison.Ordinal);
-        Assert.Contains("Button#PlaygroundButton", diagnosticsText, StringComparison.Ordinal);
-        Assert.Contains("buttonDisplayText=Playground", diagnosticsText, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task Runner_Skips_PerAction_Diagnostics_When_Action_Index_Is_Not_Selected()
-    {
-        var button = new Button
-        {
-            Name = "PlaygroundButton",
-            Content = "Playground",
-            Width = 120f,
-            Height = 32f
-        };
-        var root = new Canvas { Name = "RootCanvas" };
-        root.AddChild(button);
-
-        using var host = new InkkOopsTestHost(root);
-        string actionDiagnosticsPath;
-
-        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-action-diagnostics-threshold"))
-        {
-            var session = new InkkOopsSession(host, artifacts);
-            var script = new InkkOopsScript("runner-action-diagnostics-threshold")
-                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference("PlaygroundButton")));
-
-            var runner = new InkkOopsScriptRunner();
-            var result = await runner.RunAsync(script, session, CancellationToken.None);
-
-            Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
-            actionDiagnosticsPath = artifacts.GetPath("action[0].txt");
-            Assert.False(File.Exists(actionDiagnosticsPath));
-        }
-
-        Assert.False(File.Exists(actionDiagnosticsPath));
-    }
-
-    [Fact]
-    public async Task Runner_Captures_Only_Selected_Action_Diagnostics()
-    {
-        var firstButton = new Button
-        {
-            Name = "FirstButton",
-            Content = "First",
-            Width = 120f,
-            Height = 32f
-        };
-        var secondButton = new Button
-        {
-            Name = "SecondButton",
-            Content = "Second",
-            Width = 120f,
-            Height = 32f
-        };
-        var root = new Canvas { Name = "RootCanvas" };
-        root.AddChild(firstButton);
-        root.AddChild(secondButton);
-
-        using var host = new InkkOopsTestHost(root);
-        string firstActionDiagnosticsPath;
-        string secondActionDiagnosticsPath;
-
-        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-action-diagnostics-selected-indexes"))
-        {
-            var session = new InkkOopsSession(host, artifacts, [1]);
-            var script = new InkkOopsScript("runner-action-diagnostics-selected-indexes")
-                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference("FirstButton")))
-                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference("SecondButton")));
-
-            var runner = new InkkOopsScriptRunner();
-            var result = await runner.RunAsync(script, session, CancellationToken.None);
-
-            Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
-            firstActionDiagnosticsPath = artifacts.GetPath("action[0].txt");
-            secondActionDiagnosticsPath = artifacts.GetPath("action[1].txt");
-            Assert.False(File.Exists(firstActionDiagnosticsPath));
-            Assert.False(File.Exists(secondActionDiagnosticsPath));
-        }
-
-        Assert.False(File.Exists(firstActionDiagnosticsPath));
-        Assert.True(File.Exists(secondActionDiagnosticsPath));
-    }
-
-    [Fact]
-    public async Task Runner_Writes_ObjectObserver_Dump_Per_Action()
-    {
-        var button = new Button
-        {
-            Name = "PlaygroundButton",
-            Content = "Playground",
-            Width = 120f,
-            Height = 32f
-        };
-        var root = new Canvas { Name = "RootCanvas" };
-        root.AddChild(button);
-
-        using var host = new InkkOopsTestHost(root);
-        string observerDumpPath;
-
-        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-object-observer"))
-        {
-            var session = new InkkOopsSession(host, artifacts, objectObservers: [new TestSizeObserver("PlaygroundButton")]);
-            var script = new InkkOopsScript("runner-object-observer")
-                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference("PlaygroundButton")))
-                .Add(new InkkOopsClickTargetCommand(new InkkOopsTargetReference("PlaygroundButton")));
-
-            var runner = new InkkOopsScriptRunner();
-            var result = await runner.RunAsync(script, session, CancellationToken.None);
-
-            Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
-            observerDumpPath = artifacts.GetPath("PlaygroundButtonObserverDump.txt");
-            Assert.False(File.Exists(observerDumpPath));
-        }
-
-        var dumpLines = File.ReadAllLines(observerDumpPath);
-        Assert.Equal(2, dumpLines.Length);
-        Assert.Contains("action[0] PlaygroundButton", dumpLines[0], StringComparison.Ordinal);
-        Assert.Contains("status=\"resolved\"", dumpLines[0], StringComparison.Ordinal);
-        Assert.Contains("width=120", dumpLines[0], StringComparison.Ordinal);
-        Assert.Contains("height=32", dumpLines[0], StringComparison.Ordinal);
-        Assert.Contains("action[1] PlaygroundButton", dumpLines[1], StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task Runner_Writes_Unresolved_ObjectObserver_Dump_When_Target_Is_Missing()
-    {
-        using var host = new InkkOopsTestHost(new Canvas { Name = "RootCanvas" });
-        string observerDumpPath;
-
-        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-object-observer-missing"))
-        {
-            var session = new InkkOopsSession(host, artifacts, objectObservers: [new TestSizeObserver("MissingButton")]);
-            var script = new InkkOopsScript("runner-object-observer-missing")
-                .Add(new TestCommand("noop"));
-
-            var runner = new InkkOopsScriptRunner();
-            var result = await runner.RunAsync(script, session, CancellationToken.None);
-
-            Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
-            observerDumpPath = artifacts.GetPath("MissingButtonObserverDump.txt");
-            Assert.False(File.Exists(observerDumpPath));
-        }
-
-        var dumpText = File.ReadAllText(observerDumpPath);
-        Assert.Contains("action[0] MissingButton", dumpText, StringComparison.Ordinal);
-        Assert.Contains("status=\"unresolved\"", dumpText, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task Runner_Writes_SourceEditor_GutterObserver_Dump_With_Editor_And_Gutter_Metrics()
-    {
-        var editor = new IDE_Editor
-        {
-            Name = "SourceEditor",
-            Width = 320f,
-            Height = 160f,
-            FontSize = 16f,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top
-        };
-        DocumentEditing.ReplaceAllText(editor.Document, string.Join("\n", Enumerable.Range(1, 40).Select(static index => $"Line {index:000}")));
-
-        var root = new Canvas { Name = "RootCanvas" };
-        root.AddChild(editor);
-
-        using var host = new InkkOopsTestHost(root, width: 480, height: 260);
-        string observerDumpPath;
-
-        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-source-editor-observer"))
-        {
-            var session = new InkkOopsSession(host, artifacts, objectObservers: [new SourceEditorGutterObjectObserver()]);
-            var script = new InkkOopsScript("runner-source-editor-observer")
-                .Add(new InkkOopsScrollToCommand(new InkkOopsTargetReference("SourceEditor"), 0f, 60f))
-                .Add(new TestCommand("noop"));
-
-            var runner = new InkkOopsScriptRunner();
-            var result = await runner.RunAsync(script, session, CancellationToken.None);
-
-            Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
-            observerDumpPath = artifacts.GetPath("SourceEditorObserverDump.txt");
-            Assert.False(File.Exists(observerDumpPath));
-        }
-
-        var dumpLines = File.ReadAllLines(observerDumpPath);
-        Assert.Equal(2, dumpLines.Length);
-        Assert.Contains("action[0] SourceEditor", dumpLines[0], StringComparison.Ordinal);
-        Assert.Contains("elementType=\"IDE_Editor\"", dumpLines[0], StringComparison.Ordinal);
-        Assert.Contains("estimatedLineHeight=", dumpLines[0], StringComparison.Ordinal);
-        Assert.Contains("gutterLineHeight=", dumpLines[0], StringComparison.Ordinal);
-        Assert.Contains("gutterVerticalLineOffset=", dumpLines[0], StringComparison.Ordinal);
-        Assert.Contains("gutterFirstVisibleLine=", dumpLines[0], StringComparison.Ordinal);
-        Assert.Contains("extentHeightPerLine=", dumpLines[0], StringComparison.Ordinal);
-        Assert.Contains("hasCaretBounds=", dumpLines[0], StringComparison.Ordinal);
-        Assert.Contains("action[1] SourceEditor", dumpLines[1], StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ObjectObserverParser_Resolves_SourceEditorGutter_Alias()
-    {
-        var observer = Assert.Single(InkkOopsObjectObserverParser.Parse("source-editor-gutter"));
-
-        var typedObserver = Assert.IsType<SourceEditorGutterObjectObserver>(observer);
-        Assert.Equal("SourceEditor", typedObserver.TargetName);
-    }
-
-    [Fact]
-    public void ObjectObserverParser_Rejects_Unknown_Observer_Name()
-    {
-        var exception = Assert.Throws<ArgumentException>(() => InkkOopsObjectObserverParser.Parse("missing-observer"));
-
-        Assert.Contains("Unknown InkkOops object observer", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("source-editor-gutter", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task PipeMessages_RoundTrip_Through_Json()
     {
         var request = new InkkOopsPipeRequest
         {
+            RequestKind = InkkOopsPipeRequestKinds.RunScript,
             ScriptName = "buttons-resize-hover-repro",
-            ActionDiagnosticsIndexes = [1, 3, 5],
+            ScopeTargetName = "CatalogSidebarScrollViewer",
             TimeoutMilliseconds = 5000,
             ArtifactRootOverride = "artifacts/custom"
         };
@@ -409,7 +161,8 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
             Status = InkkOopsRunStatus.Completed.ToString(),
             ScriptName = request.ScriptName,
             ArtifactDirectory = "artifacts/inkkoops/run-1",
-            Message = string.Empty
+            Message = string.Empty,
+            Value = "ok"
         };
 
         var requestJson = System.Text.Json.JsonSerializer.Serialize(request);
@@ -419,9 +172,362 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
 
         Assert.NotNull(roundTripRequest);
         Assert.NotNull(roundTripResponse);
+        Assert.Equal(InkkOopsPipeRequestKinds.RunScript, roundTripRequest!.RequestKind);
         Assert.Equal(request.ScriptName, roundTripRequest!.ScriptName);
-        Assert.Equal(request.ActionDiagnosticsIndexes, roundTripRequest.ActionDiagnosticsIndexes);
+        Assert.Equal(request.ScopeTargetName, roundTripRequest.ScopeTargetName);
         Assert.Equal(response.ArtifactDirectory, roundTripResponse!.ArtifactDirectory);
+        Assert.Equal(response.Value, roundTripResponse.Value);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_GetHostInfo_Returns_Reconnect_Metadata()
+    {
+        using var host = new InkkOopsTestHost(new Canvas());
+        var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.GetHostInfo
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.Contains("default_pipe=InkkOops", response.Value);
+        Assert.Contains("artifact_root=", response.Value);
+        Assert.Contains("script_count=", response.Value);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_GetProperty_Returns_Value_From_Running_Host()
+    {
+        var button = new Button
+        {
+            Name = "LiveButton",
+            Content = "Push Me",
+            Width = 120f,
+            Height = 32f
+        };
+        var root = new Canvas();
+        root.AddChild(button);
+        using var host = new InkkOopsTestHost(root);
+        var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.GetProperty,
+                TargetName = "LiveButton",
+                PropertyName = "Content"
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.Equal("Push Me", response.Value);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_Hover_Then_GetProperty_Uses_Live_App_State()
+    {
+        var button = new Button
+        {
+            Name = "HoverButton",
+            Content = "Hover Me",
+            Width = 120f,
+            Height = 32f
+        };
+        Canvas.SetLeft(button, 640f);
+        Canvas.SetTop(button, 480f);
+        var root = new Canvas { Width = 800f, Height = 600f };
+        root.AddChild(button);
+        using var host = new InkkOopsTestHost(root);
+        var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var hoverResponse = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.HoverTarget,
+                TargetName = "HoverButton"
+            },
+            CancellationToken.None);
+        var propertyResponse = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.GetProperty,
+                TargetName = "HoverButton",
+                PropertyName = "IsMouseOver"
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), hoverResponse.Status);
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), propertyResponse.Status);
+        Assert.Equal("True", propertyResponse.Value);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_GetProperty_Uses_Scope_To_Resolve_Owning_Button_By_Text()
+    {
+        var sidebarButton = new Button
+        {
+            Name = "SidebarBorderButton",
+            Content = "Border",
+            Width = 120f,
+            Height = 32f
+        };
+        var sidebarHost = new StackPanel
+        {
+            Name = "SidebarHost"
+        };
+        sidebarHost.AddChild(sidebarButton);
+
+        var outsideButton = new Button
+        {
+            Name = "MainBorderButton",
+            Content = "Border",
+            Width = 120f,
+            Height = 32f
+        };
+
+        var root = new Grid();
+        root.AddChild(sidebarHost);
+        root.AddChild(outsideButton);
+
+        using var host = new InkkOopsTestHost(root);
+        var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.GetProperty,
+                ScopeTargetName = "SidebarHost",
+                TargetName = "Border",
+                PropertyName = nameof(FrameworkElement.Name)
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.Equal("SidebarBorderButton", response.Value);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_Invoke_Uses_Scope_To_Trigger_Button()
+    {
+        var invoked = false;
+        var button = new Button
+        {
+            Name = "SidebarBorderButton",
+            Content = "Border",
+            Width = 120f,
+            Height = 32f
+        };
+        button.Click += (_, _) => invoked = true;
+
+        var sidebarHost = new StackPanel
+        {
+            Name = "SidebarHost"
+        };
+        sidebarHost.AddChild(button);
+
+        var root = new Grid();
+        root.AddChild(sidebarHost);
+
+        using var host = new InkkOopsTestHost(root);
+        var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.InvokeTarget,
+                ScopeTargetName = "SidebarHost",
+                TargetName = "Border"
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.True(invoked);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_ScrollIntoView_Brings_Target_Into_Viewport()
+    {
+        var root = new ScrollViewer
+        {
+            Name = "OwnerScrollViewer",
+            Width = 320f,
+            Height = 140f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+
+        var stack = new StackPanel();
+        for (var i = 0; i < 8; i++)
+        {
+            stack.AddChild(new Border
+            {
+                Height = 50f,
+                Margin = new Thickness(0, 0, 0, 6)
+            });
+        }
+
+        var target = new CheckBox
+        {
+            Name = "ClipToBoundsCheckBox",
+            Content = "ClipToBounds = True",
+            Height = 32f
+        };
+        stack.AddChild(target);
+        root.Content = stack;
+
+        using var host = new InkkOopsTestHost(root);
+        var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.ScrollIntoView,
+                OwnerTargetName = "OwnerScrollViewer",
+                TargetName = "ClipToBoundsCheckBox",
+                Padding = 8f
+            },
+            CancellationToken.None);
+
+        var stateResponse = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.WaitForInViewport,
+                TargetName = "ClipToBoundsCheckBox",
+                FrameCount = 1
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), stateResponse.Status);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_ScrollIntoView_Infers_Nearest_ScrollViewer_When_Owner_Is_Omitted()
+    {
+        var root = new ScrollViewer
+        {
+            Name = "OwnerScrollViewer",
+            Width = 320f,
+            Height = 140f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+
+        var stack = new StackPanel();
+        for (var i = 0; i < 8; i++)
+        {
+            stack.AddChild(new Border
+            {
+                Height = 50f,
+                Margin = new Thickness(0, 0, 0, 6)
+            });
+        }
+
+        var target = new CheckBox
+        {
+            Name = "ClipToBoundsCheckBox",
+            Content = "ClipToBounds = True",
+            Height = 32f
+        };
+        stack.AddChild(target);
+        root.Content = stack;
+
+        using var host = new InkkOopsTestHost(root);
+        var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.ScrollIntoView,
+                TargetName = "ClipToBoundsCheckBox",
+                Padding = 8f
+            },
+            CancellationToken.None);
+
+        var stateResponse = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.WaitForInViewport,
+                TargetName = "ClipToBoundsCheckBox",
+                FrameCount = 1
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), stateResponse.Status);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_GetTargetDiagnostics_Returns_Target_State_And_Runtime_Snapshots()
+    {
+        var checkBox = new CheckBox
+        {
+            Name = "DiagCheckBox",
+            Content = "Diag",
+            Width = 120f,
+            Height = 32f,
+            IsChecked = true
+        };
+
+        var root = new Canvas();
+        root.AddChild(checkBox);
+
+        using var host = new InkkOopsTestHost(root);
+        var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.GetTargetDiagnostics,
+                TargetName = "DiagCheckBox"
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.Contains("resolution.status=Resolved", response.Value);
+        Assert.Contains("element=CheckBox#DiagCheckBox", response.Value);
+        Assert.Contains("CheckBoxRuntimeDiagnosticsSnapshot.IsChecked=True", response.Value);
+        Assert.Contains("CheckBoxRuntimeDiagnosticsSnapshot.RenderCallCount=", response.Value);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_GetTargetDiagnostics_Compact_Returns_Requested_Counters_Only()
+    {
+        var checkBox = new CheckBox
+        {
+            Name = "DiagCheckBox",
+            Content = "Diag",
+            Width = 120f,
+            Height = 32f,
+            IsChecked = true
+        };
+
+        var root = new Canvas();
+        root.AddChild(checkBox);
+
+        using var host = new InkkOopsTestHost(root);
+        var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.GetTargetDiagnostics,
+                TargetName = "DiagCheckBox",
+                Compact = true,
+                CounterNames = "IsChecked,MeasureOverrideCallCount,RenderCallCount,DrawTextCallCount"
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.Contains("resolution.status=Resolved", response.Value);
+        Assert.Contains("element=CheckBox#DiagCheckBox", response.Value);
+        Assert.Contains("CheckBoxRuntimeDiagnosticsSnapshot.IsChecked=True", response.Value);
+        Assert.Contains("CheckBoxRuntimeDiagnosticsSnapshot.MeasureOverrideCallCount=", response.Value);
+        Assert.Contains("CheckBoxRuntimeDiagnosticsSnapshot.RenderCallCount=", response.Value);
+        Assert.Contains("CheckBoxRuntimeDiagnosticsSnapshot.DrawTextCallCount=", response.Value);
+        Assert.DoesNotContain("CheckBoxRuntimeDiagnosticsSnapshot.GetFallbackStyleCallCount=", response.Value);
+        Assert.DoesNotContain("ButtonRuntimeDiagnosticsSnapshot.DependencyPropertyChangedCallCount=", response.Value);
     }
 
     [Theory]
@@ -495,28 +601,6 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
         public Task ExecuteAsync(InkkOopsSession session, CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException(_message);
-        }
-    }
-
-    private sealed class TestSizeObserver : InkkOopsObjectObserver
-    {
-        public TestSizeObserver(string targetName)
-            : base(targetName)
-        {
-        }
-
-        protected override void Observe(InkkOopsObjectObserverContext context, UIElement element, InkkOopsObjectObserverDumpBuilder builder)
-        {
-            _ = context;
-            if (element is not FrameworkElement frameworkElement)
-            {
-                builder.Add("elementType", element.GetType().Name);
-                return;
-            }
-
-            builder.Add("width", frameworkElement.Width);
-            builder.Add("height", frameworkElement.Height);
-            builder.Add("isVisible", frameworkElement.IsVisible);
         }
     }
 }

@@ -17,6 +17,7 @@ namespace InkkSlinger;
 [TemplatePart("PART_IndentGuideOverlay", typeof(IDEEditorIndentGuideOverlay))]
 public sealed class IDE_Editor : Control, ITextInputControl
 {
+    private const int DeferredBulkEditPresentationThreshold = 256;
     private static readonly Lazy<Style> DefaultStyle = new(BuildDefaultStyle);
     private static int _diagUpdateLineNumberGutterCallCount;
     private static int _diagUpdateLineNumberGutterForcedCount;
@@ -248,6 +249,8 @@ public sealed class IDE_Editor : Control, ITextInputControl
     private int _runtimeBuildIndentGuideSnapshotSuccessCount;
     private int _runtimeBuildIndentGuideSnapshotSegmentTotal;
     private long _runtimeBuildIndentGuideSnapshotElapsedTicks;
+    private int _deferredPresentationRefreshVersion;
+    private bool _hasDeferredPresentationRefreshPending;
 
     public IDE_Editor()
     {
@@ -801,20 +804,37 @@ public sealed class IDE_Editor : Control, ITextInputControl
         var lineNumberBefore = CaptureLineNumberPresenterRuntimeSnapshot();
 
         var cachedLineCountStartTicks = Stopwatch.GetTimestamp();
-        UpdateCachedDocumentSnapshot(Document);
+        var previousText = _cachedDocumentText;
+        var currentText = DocumentEditing.GetText(Document);
+        UpdateCachedDocumentSnapshot(currentText);
         var cachedLineCountElapsedTicks = Stopwatch.GetTimestamp() - cachedLineCountStartTicks;
 
-        var updateLineNumberGutterStartTicks = Stopwatch.GetTimestamp();
-        UpdateLineNumberGutter(force: true);
-        var updateLineNumberGutterElapsedTicks = Stopwatch.GetTimestamp() - updateLineNumberGutterStartTicks;
+        var deferPresentationRefresh = _hasDeferredPresentationRefreshPending ||
+            ShouldDeferEditorPresentationRefresh(previousText, currentText);
+        long updateLineNumberGutterElapsedTicks = 0;
+        if (deferPresentationRefresh)
+        {
+            ScheduleDeferredPresentationRefresh();
+        }
+        else
+        {
+            var updateLineNumberGutterStartTicks = Stopwatch.GetTimestamp();
+            UpdateLineNumberGutter(force: true);
+            updateLineNumberGutterElapsedTicks = Stopwatch.GetTimestamp() - updateLineNumberGutterStartTicks;
+        }
+
         var lineNumberAfter = CaptureLineNumberPresenterRuntimeSnapshot();
         var lineNumberUpdateDeltaMs = Math.Max(0d, lineNumberAfter.UpdateVisibleRangeMilliseconds - lineNumberBefore.UpdateVisibleRangeMilliseconds);
         var lineNumberMeasureDeltaMs = Math.Max(0d, lineNumberAfter.MeasureOverrideMilliseconds - lineNumberBefore.MeasureOverrideMilliseconds);
         var lineNumberArrangeDeltaMs = Math.Max(0d, lineNumberAfter.ArrangeOverrideMilliseconds - lineNumberBefore.ArrangeOverrideMilliseconds);
 
-        var indentInvalidateStartTicks = Stopwatch.GetTimestamp();
-        InvalidateIndentGuideOverlay();
-        var indentInvalidateElapsedTicks = Stopwatch.GetTimestamp() - indentInvalidateStartTicks;
+        long indentInvalidateElapsedTicks = 0;
+        if (!deferPresentationRefresh)
+        {
+            var indentInvalidateStartTicks = Stopwatch.GetTimestamp();
+            InvalidateIndentGuideOverlay();
+            indentInvalidateElapsedTicks = Stopwatch.GetTimestamp() - indentInvalidateStartTicks;
+        }
 
         var subscriberStartTicks = Stopwatch.GetTimestamp();
         TextChanged?.Invoke(this, args);
@@ -856,7 +876,15 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _diagEditorDocumentChangedCallCount++;
         _runtimeEditorDocumentChangedCallCount++;
         SyncDocumentFromEditor();
-        UpdateCachedDocumentSnapshot(Document);
+        var previousText = _cachedDocumentText;
+        var currentText = DocumentEditing.GetText(Document);
+        UpdateCachedDocumentSnapshot(currentText);
+        if (ShouldDeferEditorPresentationRefresh(previousText, currentText))
+        {
+            ScheduleDeferredPresentationRefresh();
+            return;
+        }
+
         UpdateLineNumberGutter(force: true);
         InvalidateIndentGuideOverlay();
     }
@@ -1015,6 +1043,92 @@ public sealed class IDE_Editor : Control, ITextInputControl
     {
         UpdateCachedLineCount(document);
         _cachedDocumentText = document == null ? string.Empty : DocumentEditing.GetText(document);
+    }
+
+    private void UpdateCachedDocumentSnapshot(string text)
+    {
+        _cachedDocumentText = text ?? string.Empty;
+        _cachedLineCount = CountLines(_cachedDocumentText);
+    }
+
+    private static int CountLines(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return 1;
+        }
+
+        var lineCount = 1;
+        for (var index = 0; index < text.Length; index++)
+        {
+            if (text[index] == '\n')
+            {
+                lineCount++;
+            }
+        }
+
+        return lineCount;
+    }
+
+    private static bool ShouldDeferEditorPresentationRefresh(string previousText, string currentText)
+    {
+        return TryGetInsertedTextLength(previousText, currentText, out var insertedLength) &&
+            insertedLength >= DeferredBulkEditPresentationThreshold;
+    }
+
+    private static bool TryGetInsertedTextLength(string previousText, string currentText, out int insertedLength)
+    {
+        previousText ??= string.Empty;
+        currentText ??= string.Empty;
+        insertedLength = 0;
+        if (currentText.Length <= previousText.Length)
+        {
+            return false;
+        }
+
+        var prefixLength = 0;
+        var maxPrefixLength = Math.Min(previousText.Length, currentText.Length);
+        while (prefixLength < maxPrefixLength &&
+               previousText[prefixLength] == currentText[prefixLength])
+        {
+            prefixLength++;
+        }
+
+        var previousSuffixIndex = previousText.Length - 1;
+        var currentSuffixIndex = currentText.Length - 1;
+        while (previousSuffixIndex >= prefixLength &&
+               currentSuffixIndex >= prefixLength &&
+               previousText[previousSuffixIndex] == currentText[currentSuffixIndex])
+        {
+            previousSuffixIndex--;
+            currentSuffixIndex--;
+        }
+
+        if (previousSuffixIndex >= prefixLength)
+        {
+            return false;
+        }
+
+        insertedLength = currentSuffixIndex - prefixLength + 1;
+        return insertedLength > 0;
+    }
+
+    private void ScheduleDeferredPresentationRefresh()
+    {
+        var refreshVersion = ++_deferredPresentationRefreshVersion;
+        _hasDeferredPresentationRefreshPending = true;
+        Dispatcher.EnqueueDeferred(
+            () =>
+            {
+                if (refreshVersion != _deferredPresentationRefreshVersion)
+                {
+                    return;
+                }
+
+                _hasDeferredPresentationRefreshPending = false;
+                UpdateLineNumberGutter(force: true);
+                InvalidateIndentGuideOverlay();
+            });
     }
 
     private void RefreshViewportDependentPresentationIfNeeded()

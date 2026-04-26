@@ -332,6 +332,62 @@ public sealed class ComboBoxPopupEdgeParityTests
     }
 
     [Fact]
+    public void ClickOpen_WithLargeChoiceSet_ShouldBuildDropDownShellsOnlyOncePerOpen()
+    {
+        _ = ComboBox.GetTelemetryAndReset();
+
+        var host = new Canvas
+        {
+            Width = 420f,
+            Height = 300f
+        };
+        var comboBox = new ComboBox
+        {
+            Width = 220f,
+            Height = 36f,
+            MaxDropDownHeight = 180f
+        };
+
+        for (var i = 0; i < 96; i++)
+        {
+            comboBox.Items.Add($"Choice {i:00} - shared ComboBox open churn probe");
+        }
+
+        comboBox.SelectedIndex = 0;
+        host.AddChild(comboBox);
+        Canvas.SetLeft(comboBox, 96f);
+        Canvas.SetTop(comboBox, 48f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        var clickPoint = new Vector2(
+            comboBox.LayoutSlot.X + (comboBox.LayoutSlot.Width / 2f),
+            comboBox.LayoutSlot.Y + (comboBox.LayoutSlot.Height / 2f));
+        Click(uiRoot, clickPoint);
+        RunLayout(uiRoot);
+
+        var snapshot = comboBox.GetComboBoxSnapshotForDiagnostics();
+        var aggregate = ComboBox.GetTelemetryAndReset();
+
+        Assert.True(snapshot.IsDropDownOpen, "Expected the ComboBox click to open the dropdown.");
+        Assert.Equal(96, snapshot.ItemContainerCount);
+        Assert.Equal(
+            snapshot.ItemContainerCount,
+            snapshot.BuildDropDownContainerCallCount);
+        Assert.True(
+            snapshot.DropDownItemCount < snapshot.ItemContainerCount,
+            $"Expected virtualization to limit the visible dropdown slice after reusing the owner containers. items={snapshot.ItemContainerCount} visible={snapshot.DropDownItemCount} refreshCalls={snapshot.RefreshDropDownItemsCallCount}.");
+        Assert.InRange(
+            snapshot.RefreshDropDownItemsProjectedItemCount,
+            snapshot.ItemContainerCount,
+            snapshot.ItemContainerCount * 2);
+        Assert.True(
+            aggregate.RefreshDropDownItemsCallCount >= snapshot.RefreshDropDownItemsCallCount,
+            $"Expected aggregate telemetry to retain the repeated refresh evidence. snapshotRefreshCalls={snapshot.RefreshDropDownItemsCallCount} aggregateRefreshCalls={aggregate.RefreshDropDownItemsCallCount}.");
+    }
+
+    [Fact]
     public void OpenDropDown_WithRawCursorAndFontWeightChoiceSets_HitsSameFrameworkViewportCap()
     {
         var host = new Canvas
@@ -459,6 +515,176 @@ public sealed class ComboBoxPopupEdgeParityTests
         Assert.True(
             IsDescendantOrSelf(lastItem, hit),
             $"Expected the viewport-bottom hit to land on the last dropdown item after scrolling to the end. hit={hit.GetType().Name}, lastItem={lastItem.GetType().Name}, probe={probe}, Offset={scrollViewer.VerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+    }
+
+    [Fact]
+    public void OpenDropDown_WithLargeChoiceSet_ScrollingToBottom_ShouldNotLeaveBlankSpaceAfterLastItem()
+    {
+        var host = new Canvas
+        {
+            Width = 360f,
+            Height = 420f
+        };
+
+        var comboBox = new ComboBox
+        {
+            Width = 220f,
+            Height = 36f,
+            MaxDropDownHeight = 260f
+        };
+
+        for (var i = 0; i < 96; i++)
+        {
+            comboBox.Items.Add($"Choice {i:00} - Root template style bottom-scroll blank-space repro");
+        }
+
+        comboBox.SelectedIndex = 0;
+        host.AddChild(comboBox);
+        Canvas.SetLeft(comboBox, 40f);
+        Canvas.SetTop(comboBox, 40f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var dropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var scrollViewer = FindScrollViewer(dropDown);
+        scrollViewer.ScrollToVerticalOffset(10000f);
+        RunLayout(uiRoot);
+
+        var lastItem = GetLastVisibleItem(dropDown);
+        var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+        var probe = new Vector2(
+            scrollViewer.LayoutSlot.X + 24f,
+            (scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight) - 2f);
+        var hit = Assert.IsAssignableFrom<FrameworkElement>(VisualTreeHelper.HitTest(host, probe));
+
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f,
+            $"Expected bottom-clamped vertical offset. Offset={scrollViewer.VerticalOffset:0.##}, Max={maxVerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+        Assert.True(
+            IsDescendantOrSelf(lastItem, hit),
+            $"Expected the viewport-bottom hit to land on the last large-choice dropdown item after scrolling to the end. hit={hit.GetType().Name}, lastItem={lastItem.GetType().Name}, probe={probe}, Offset={scrollViewer.VerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+    }
+
+    [Fact]
+    public void OpenDropDown_WithLargeTemplatedObjectChoiceSet_ScrollingToBottom_ShouldNotLeaveBlankSpaceAfterLastItem()
+    {
+        var host = new Canvas
+        {
+            Width = 360f,
+            Height = 420f
+        };
+
+        var comboBox = new ComboBox
+        {
+            Width = 220f,
+            Height = 36f,
+            MaxDropDownHeight = 260f,
+            ItemTemplate = new DataTemplate(static item => new TextBlock
+            {
+                Text = item is ComboBoxTemplateOption option ? option.DisplayText : string.Empty,
+                TextWrapping = TextWrapping.Wrap,
+                FontFamily = "Consolas",
+                FontSize = 12f
+            })
+        };
+
+        for (var i = 0; i < 96; i++)
+        {
+            comboBox.Items.Add(new ComboBoxTemplateOption($"Choice {i:00} - Root template style bottom-scroll blank-space repro"));
+        }
+
+        comboBox.SelectedIndex = 0;
+        host.AddChild(comboBox);
+        Canvas.SetLeft(comboBox, 40f);
+        Canvas.SetTop(comboBox, 40f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var dropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var scrollViewer = FindScrollViewer(dropDown);
+        scrollViewer.ScrollToVerticalOffset(10000f);
+        RunLayout(uiRoot);
+
+        var lastItem = GetLastVisibleItem(dropDown);
+        var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+        var probe = new Vector2(
+            scrollViewer.LayoutSlot.X + 24f,
+            (scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight) - 2f);
+        var hit = Assert.IsAssignableFrom<FrameworkElement>(VisualTreeHelper.HitTest(host, probe));
+
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f,
+            $"Expected bottom-clamped vertical offset. Offset={scrollViewer.VerticalOffset:0.##}, Max={maxVerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+        Assert.True(
+            IsDescendantOrSelf(lastItem, hit),
+            $"Expected the viewport-bottom hit to land on the last large templated dropdown item after scrolling to the end. hit={hit.GetType().Name}, lastItem={lastItem.GetType().Name}, probe={probe}, Offset={scrollViewer.VerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+    }
+
+    [Fact]
+    public void OpenDropDown_WithLargeTemplatedObjectChoiceSet_ScrollingToBottom_ShouldFullyRevealLastLogicalItem()
+    {
+        var host = new Canvas
+        {
+            Width = 360f,
+            Height = 420f
+        };
+
+        var comboBox = new ComboBox
+        {
+            Width = 220f,
+            Height = 36f,
+            MaxDropDownHeight = 260f,
+            ItemTemplate = new DataTemplate(static item => new TextBlock
+            {
+                Text = item is ComboBoxTemplateOption option ? option.DisplayText : string.Empty,
+                TextWrapping = TextWrapping.Wrap,
+                FontFamily = "Consolas",
+                FontSize = 12f
+            })
+        };
+
+        for (var i = 0; i < 96; i++)
+        {
+            comboBox.Items.Add(new ComboBoxTemplateOption($"Choice {i:00} - Root template style bottom-scroll partial-last-item repro"));
+        }
+
+        comboBox.SelectedIndex = 0;
+        host.AddChild(comboBox);
+        Canvas.SetLeft(comboBox, 40f);
+        Canvas.SetTop(comboBox, 40f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var dropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var scrollViewer = FindScrollViewer(dropDown);
+        scrollViewer.ScrollToVerticalOffset(10000f);
+        RunLayout(uiRoot);
+
+        var lastRealized = GetHighestRealizedIndexItem(dropDown);
+        var viewportBottom = scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight;
+        var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f,
+            $"Expected bottom-clamped vertical offset. Offset={scrollViewer.VerticalOffset:0.##}, Max={maxVerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+        Assert.Equal(
+            dropDown.Items.Count - 1,
+            lastRealized.Index);
+        Assert.True(
+            lastRealized.Element.LayoutSlot.Y + lastRealized.Element.LayoutSlot.Height <= viewportBottom + 0.5f,
+            $"Expected the last logical dropdown item to be fully visible after scrolling to the end. index={lastRealized.Index} itemBottom={lastRealized.Element.LayoutSlot.Y + lastRealized.Element.LayoutSlot.Height:0.##} viewportBottom={viewportBottom:0.##} itemTop={lastRealized.Element.LayoutSlot.Y:0.##} itemHeight={lastRealized.Element.LayoutSlot.Height:0.##} Offset={scrollViewer.VerticalOffset:0.##} Extent={scrollViewer.ExtentHeight:0.##} Viewport={scrollViewer.ViewportHeight:0.##}.");
     }
 
     [Fact]
@@ -840,6 +1066,8 @@ public sealed class ComboBoxPopupEdgeParityTests
         }
     }
 
+    private sealed record ComboBoxTemplateOption(string DisplayText);
+
     private static ComboBox CreateComboBox(float left, float top, IReadOnlyList<string> items)
     {
         var comboBox = new ComboBox
@@ -986,6 +1214,36 @@ public sealed class ComboBoxPopupEdgeParityTests
         }
 
         throw new InvalidOperationException("Expected ListBox items host to contain at least one visible item container.");
+    }
+
+    private static (FrameworkElement Element, int Index) GetHighestRealizedIndexItem(ListBox listBox)
+    {
+        var hostPanel = FindItemsHostPanel(listBox);
+        FrameworkElement? bestElement = null;
+        var bestIndex = -1;
+
+        for (var i = 0; i < hostPanel.Children.Count; i++)
+        {
+            if (hostPanel.Children[i] is not FrameworkElement element)
+            {
+                continue;
+            }
+
+            if (!listBox.TryGetGeneratedItemInfo(element, out _, out var index))
+            {
+                continue;
+            }
+
+            if (index > bestIndex)
+            {
+                bestIndex = index;
+                bestElement = element;
+            }
+        }
+
+        return bestElement != null
+            ? (bestElement, bestIndex)
+            : throw new InvalidOperationException("Expected ListBox items host to contain at least one realized item container with generated item info.");
     }
 
     private static void Click(UiRoot uiRoot, Vector2 pointer)

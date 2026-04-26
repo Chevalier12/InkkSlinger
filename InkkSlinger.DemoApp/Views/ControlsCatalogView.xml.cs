@@ -52,6 +52,7 @@ public partial class ControlsCatalogView : UserControl
             var capture = name;
             var button = new Button
             {
+                Name = CreateCatalogButtonName(name),
                 Content = GetDisplayName(name),
                 Margin = new Thickness(0, 0, 0, 4)
             };
@@ -88,6 +89,26 @@ public partial class ControlsCatalogView : UserControl
         return string.Equals(controlName, "CatchMe", StringComparison.Ordinal)
             ? "Catch Me!"
             : controlName;
+    }
+
+    private static string CreateCatalogButtonName(string controlName)
+    {
+        var builder = new System.Text.StringBuilder(controlName.Length + "CatalogButton".Length);
+        foreach (var character in controlName)
+        {
+            if (char.IsLetterOrDigit(character) || character == '_')
+            {
+                builder.Append(character);
+            }
+        }
+
+        if (builder.Length == 0 || !char.IsLetter(builder[0]) && builder[0] != '_')
+        {
+            builder.Insert(0, '_');
+        }
+
+        builder.Append("CatalogButton");
+        return builder.ToString();
     }
 
     private static void HarmonizePreviewChrome(UserControl view)

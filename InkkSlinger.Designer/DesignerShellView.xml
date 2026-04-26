@@ -633,6 +633,13 @@
                                       NavigationRequest="{Binding SourceNavigationRequest}" />
           </TabItem>
 
+          <TabItem x:Name="AppResourcesTab"
+                   Header="App Resources">
+            <DesignerSourceEditorView x:Name="AppResourcesEditorPane"
+                                      SourceText="{Binding AppResourcesText}"
+                                      NavigationRequest="{Binding AppResourcesNavigationRequest}" />
+          </TabItem>
+
           <TabItem x:Name="DiagnosticsTab"
                    Header="{Binding DiagnosticsTabHeader}">
             <Grid>

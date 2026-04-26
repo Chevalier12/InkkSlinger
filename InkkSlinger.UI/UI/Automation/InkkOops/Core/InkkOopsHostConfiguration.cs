@@ -6,15 +6,11 @@ namespace InkkSlinger;
 
 public sealed class InkkOopsHostConfiguration
 {
+    public const string BuiltInDefaultNamedPipeName = "InkkOops";
+
     public required IInkkOopsScriptCatalog ScriptCatalog { get; init; }
 
     public required IInkkOopsArtifactNamingPolicy ArtifactNamingPolicy { get; init; }
-
-    public required IInkkOopsDiagnosticsSerializer DiagnosticsSerializer { get; init; }
-
-    public required IInkkOopsDiagnosticsFilterPolicy DiagnosticsFilterPolicy { get; init; }
-
-    public required IReadOnlyList<IInkkOopsDiagnosticsContributor> DiagnosticsContributors { get; init; }
 
     public string DefaultNamedPipeName { get; init; } = string.Empty;
 
@@ -32,39 +28,10 @@ public sealed class InkkOopsHostConfiguration
         {
             ScriptCatalog = new ReflectionInkkOopsScriptCatalog(assemblies),
             ArtifactNamingPolicy = namingPolicy,
-            DiagnosticsSerializer = new DefaultInkkOopsDiagnosticsSerializer(),
-            DiagnosticsFilterPolicy = new DefaultInkkOopsDiagnosticsFilterPolicy(),
-            DiagnosticsContributors = CreateDefaultDiagnosticsContributors(assemblies),
-            DefaultNamedPipeName = "InkkOops",
+            DefaultNamedPipeName = BuiltInDefaultNamedPipeName,
             DefaultArtifactRoot = "artifacts/inkkoops",
             DefaultRecordingRoot = "artifacts/inkkoops-recordings"
         };
-    }
-
-    private static IReadOnlyList<IInkkOopsDiagnosticsContributor> CreateDefaultDiagnosticsContributors(IReadOnlyList<Assembly> assemblies)
-    {
-        _ = assemblies;
-
-        var contributors = new List<IInkkOopsDiagnosticsContributor>
-        {
-            // Rebuilt from zero for the Designer RootTemplateComboBox dropdown-open FPS investigation.
-            new InkkOopsGenericElementDiagnosticsContributor(),
-            new InkkOopsFrameworkElementDiagnosticsContributor(),
-            new InkkOopsControlDiagnosticsContributor(),
-            new InkkOopsContentControlDiagnosticsContributor(),
-            new InkkOopsComboBoxDiagnosticsContributor(),
-            new InkkOopsScrollViewerDiagnosticsContributor(),
-            new InkkOopsVirtualizingStackPanelDiagnosticsContributor(),
-        };
-
-        contributors.Sort(static (left, right) =>
-        {
-            var orderComparison = left.Order.CompareTo(right.Order);
-            return orderComparison != 0
-                ? orderComparison
-                : StringComparer.Ordinal.Compare(left.GetType().FullName, right.GetType().FullName);
-        });
-        return contributors;
     }
 
     private static IReadOnlyList<Assembly> CreateDefaultAssemblies(Assembly scriptAssembly, IEnumerable<string>? additionalScriptAssemblyPaths)

@@ -93,6 +93,20 @@ public partial class RichTextBox
         }
     }
 
+    private void ExecuteTextMutationBatch(Action action, bool deferEventFlush)
+    {
+        var previous = _deferDocumentChangeBatchFlush;
+        _deferDocumentChangeBatchFlush = deferEventFlush;
+        try
+        {
+            ExecuteTextMutationBatch(action);
+        }
+        finally
+        {
+            _deferDocumentChangeBatchFlush = previous;
+        }
+    }
+
     private T ExecuteTextMutationBatch<T>(Func<T> action)
     {
         var previous = _suppressMeasureInvalidationForDocumentBatch;
@@ -122,8 +136,34 @@ public partial class RichTextBox
         _documentChangeBatchDepth--;
         if (_documentChangeBatchDepth == 0)
         {
+            if (_deferDocumentChangeBatchFlush)
+            {
+                ScheduleDeferredDocumentChangeFlush();
+                return;
+            }
+
             FlushPendingDocumentChangeEvents();
         }
+    }
+
+    private void ScheduleDeferredDocumentChangeFlush()
+    {
+        if (!_hasPendingDocumentChangedEvent && !_hasPendingTextChangedEvent)
+        {
+            return;
+        }
+
+        var flushVersion = ++_deferredDocumentChangeFlushVersion;
+        Dispatcher.EnqueueDeferred(
+            () =>
+            {
+                if (flushVersion != _deferredDocumentChangeFlushVersion)
+                {
+                    return;
+                }
+
+                FlushPendingDocumentChangeEvents();
+            });
     }
 
     private void FlushPendingDocumentChangeEvents()

@@ -99,6 +99,7 @@ public class VirtualizingStackPanel : Panel
 
     private readonly List<float> _primarySizes = new();
     private readonly List<float> _secondarySizes = new();
+    private readonly List<bool> _hasMeasuredPrimarySizes = new();
     private readonly List<float> _startOffsets = new();
 
     private float _averagePrimarySize = 28f;
@@ -1061,6 +1062,7 @@ public class VirtualizingStackPanel : Panel
         _childOrderVersion++;
         _primarySizes.Clear();
         _secondarySizes.Clear();
+        _hasMeasuredPrimarySizes.Clear();
         _startOffsets.Clear();
         _averagePrimarySize = 28f;
         _maxSecondarySize = 0f;
@@ -1132,7 +1134,7 @@ public class VirtualizingStackPanel : Panel
 
             if (measuredPrimaryCount > 0)
             {
-                _averagePrimarySize = MathF.Max(1f, measuredPrimaryTotal / measuredPrimaryCount);
+                UpdateAveragePrimarySize(MathF.Max(1f, measuredPrimaryTotal / measuredPrimaryCount));
             }
 
             _maxSecondarySize = desiredSecondary;
@@ -1238,7 +1240,7 @@ public class VirtualizingStackPanel : Panel
 
             if (measuredPrimaryCount > 0)
             {
-                _averagePrimarySize = MathF.Max(1f, measuredPrimaryTotal / measuredPrimaryCount);
+                UpdateAveragePrimarySize(MathF.Max(1f, measuredPrimaryTotal / measuredPrimaryCount));
             }
 
             _maxSecondarySize = MathF.Max(measuredSecondaryMax, GetCachedSecondaryMax());
@@ -1418,6 +1420,75 @@ public class VirtualizingStackPanel : Panel
             : ViewerOwnedOffsetChangeHandling.ArrangeOnly;
     }
 
+    internal bool TryRefreshForViewerOwnedOffsetCandidate(float horizontalOffset, float verticalOffset)
+    {
+        if (!_isVirtualizationActive || Children.Count == 0)
+        {
+            return false;
+        }
+
+        var viewportPrimary = Orientation == Orientation.Vertical ? _viewportHeight : _viewportWidth;
+        if (!IsFinitePositive(viewportPrimary))
+        {
+            return false;
+        }
+
+        var offsetPrimary = Orientation == Orientation.Vertical ? verticalOffset : horizontalOffset;
+        var context = CreateViewportContext(viewportPrimary, MathF.Max(0f, offsetPrimary));
+        return TryRefreshForViewerOwnedOffsetChange(context);
+    }
+
+    internal bool TryAlignViewerOwnedVerticalWheelOffset(
+        float proposedVerticalOffset,
+        float viewportHeight,
+        bool scrollingDown,
+        out float alignedVerticalOffset)
+    {
+        alignedVerticalOffset = proposedVerticalOffset;
+        if (Orientation != Orientation.Vertical ||
+            Children.Count == 0 ||
+            !IsFinitePositive(viewportHeight))
+        {
+            return false;
+        }
+
+        EnsureStartOffsets();
+        if (_startOffsets.Count == 0 || _primarySizes.Count == 0)
+        {
+            return false;
+        }
+
+        var maxOffset = MathF.Max(0f, GetTotalPrimarySize() - viewportHeight);
+        if (maxOffset <= 0f)
+        {
+            return false;
+        }
+
+        var clampedOffset = MathF.Max(0f, MathF.Min(maxOffset, proposedVerticalOffset));
+        var edgeOffset = scrollingDown
+            ? clampedOffset + viewportHeight - 0.001f
+            : clampedOffset;
+        var edgeIndex = ResolveStartIndex(edgeOffset);
+        if (edgeIndex < 0 || edgeIndex >= _startOffsets.Count || edgeIndex >= _primarySizes.Count)
+        {
+            return false;
+        }
+
+        var itemStart = _startOffsets[edgeIndex];
+        var itemEnd = itemStart + _primarySizes[edgeIndex];
+        var alignedOffset = scrollingDown
+            ? itemEnd - viewportHeight
+            : itemStart;
+        alignedOffset = MathF.Max(0f, MathF.Min(maxOffset, alignedOffset));
+        if (AreClose(alignedOffset, clampedOffset))
+        {
+            return false;
+        }
+
+        alignedVerticalOffset = alignedOffset;
+        return true;
+    }
+
     private Vector2 GetChildConstraint(Vector2 availableSize)
     {
         if (Orientation == Orientation.Vertical)
@@ -1447,6 +1518,7 @@ public class VirtualizingStackPanel : Panel
         {
             _primarySizes.Add(_averagePrimarySize);
             _secondarySizes.Add(0f);
+            _hasMeasuredPrimarySizes.Add(false);
             _startOffsets.Add(0f);
             _startOffsetsDirty = true;
             _startOffsetsDirtyIndex = 0;
@@ -1459,6 +1531,7 @@ public class VirtualizingStackPanel : Panel
 
         _primarySizes.RemoveRange(count, _primarySizes.Count - count);
         _secondarySizes.RemoveRange(count, _secondarySizes.Count - count);
+        _hasMeasuredPrimarySizes.RemoveRange(count, _hasMeasuredPrimarySizes.Count - count);
         _startOffsets.RemoveRange(count, _startOffsets.Count - count);
         _startOffsetsDirty = true;
         _startOffsetsDirtyIndex = 0;
@@ -1496,10 +1569,47 @@ public class VirtualizingStackPanel : Panel
 
         if (countPrimary > 0)
         {
-            _averagePrimarySize = MathF.Max(1f, totalPrimary / countPrimary);
+            UpdateAveragePrimarySize(MathF.Max(1f, totalPrimary / countPrimary));
         }
 
         _maxSecondarySize = maxSecondary;
+    }
+
+    private void UpdateAveragePrimarySize(float nextAveragePrimarySize)
+    {
+        var normalized = MathF.Max(1f, nextAveragePrimarySize);
+        if (AreClose(_averagePrimarySize, normalized))
+        {
+            return;
+        }
+
+        _averagePrimarySize = normalized;
+        RefreshEstimatedPrimarySizes();
+    }
+
+    private void RefreshEstimatedPrimarySizes()
+    {
+        var firstChangedIndex = -1;
+        for (var i = 0; i < _primarySizes.Count; i++)
+        {
+            if (_hasMeasuredPrimarySizes[i] || AreClose(_primarySizes[i], _averagePrimarySize))
+            {
+                continue;
+            }
+
+            _primarySizes[i] = _averagePrimarySize;
+            firstChangedIndex = firstChangedIndex < 0 ? i : Math.Min(firstChangedIndex, i);
+        }
+
+        if (firstChangedIndex < 0)
+        {
+            return;
+        }
+
+        _startOffsetsDirty = true;
+        _startOffsetsDirtyIndex = _startOffsetsDirtyIndex < 0
+            ? firstChangedIndex
+            : Math.Min(_startOffsetsDirtyIndex, firstChangedIndex);
     }
 
     private float GetCachedSecondaryMax()
@@ -1524,6 +1634,7 @@ public class VirtualizingStackPanel : Panel
             return;
         }
 
+        _hasMeasuredPrimarySizes[index] = true;
         if (!AreClose(_primarySizes[index], primary))
         {
             _primarySizes[index] = primary;

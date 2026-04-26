@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Buffers.Binary;
+using System.Globalization;
 using System.IO.Pipes;
 using System.Reflection;
 using System.Text;
@@ -10,10 +12,11 @@ static int PrintUsage()
 {
     Console.Error.WriteLine("Usage:");
     Console.Error.WriteLine("  inkkoops list");
-    Console.Error.WriteLine("  inkkoops run --script <name> --launch [--project <path>] [--pipe <name>] [--artifacts <path>] [--object-observer <name[,name]>]");
+    Console.Error.WriteLine("  inkkoops run --script <name> --launch [--project <path>] [--pipe <name>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops run --script <name> --attach [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
+    Console.Error.WriteLine("  inkkoops live --attach --command <ping|get-host-info|get-property|assert-property|assert-exists|assert-not-exists|hover|click|invoke|wait-frames|wait-for-element|wait-for-visible|wait-for-enabled|wait-for-in-viewport|wait-for-interactive|wait-for-idle|wheel|scroll-to|scroll-by|scroll-into-view|get-telemetry|get-target-diagnostics> [--scope <name>] [--owner <name>] [--target <name>] [--property <name>] [--expected <value>] [--frames <count>] [--delta <value>] [--horizontal <percent>] [--vertical <percent>] [--padding <value>] [--artifact <name>] [--compact] [--counters <names>] [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops record --launch [--project <path>] [--artifacts <path>]");
-    Console.Error.WriteLine("  inkkoops <recording-path> [--project <path>] [--artifacts <path>] [--object-observer <name[,name]>]");
+    Console.Error.WriteLine("  inkkoops <recording-path> [--project <path>] [--artifacts <path>]");
     return 1;
 }
 
@@ -38,26 +41,6 @@ static Dictionary<string, string> ParseOptions(string[] args, int startIndex)
     return options;
 }
 
-static int[] ParseActionDiagnosticsIndexes(Dictionary<string, string> options)
-{
-    if (!options.TryGetValue("action-diagnostics", out var text) || string.IsNullOrWhiteSpace(text))
-    {
-        return [];
-    }
-
-    var parts = text.Split([','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-    var values = new List<int>(parts.Length);
-    for (var i = 0; i < parts.Length; i++)
-    {
-        if (int.TryParse(parts[i], out var value) && value >= 0)
-        {
-            values.Add(value);
-        }
-    }
-
-    return [.. values];
-}
-
 static string ResolvePipeName(Dictionary<string, string> options, InkkOopsHostConfiguration hostConfiguration)
 {
     return options.TryGetValue("pipe", out var pipe) && !string.IsNullOrWhiteSpace(pipe)
@@ -67,11 +50,6 @@ static string ResolvePipeName(Dictionary<string, string> options, InkkOopsHostCo
 
 static async Task<int> RunAttachAsync(Dictionary<string, string> options, InkkOopsHostConfiguration hostConfiguration)
 {
-    if (!options.TryGetValue("script", out var scriptName) || string.IsNullOrWhiteSpace(scriptName))
-    {
-        return PrintUsage();
-    }
-
     var pipeName = ResolvePipeName(options, hostConfiguration);
     var timeoutMilliseconds = options.TryGetValue("timeout", out var timeoutText) && int.TryParse(timeoutText, out var timeout)
         ? timeout
@@ -79,18 +57,15 @@ static async Task<int> RunAttachAsync(Dictionary<string, string> options, InkkOo
 
     using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
     await client.ConnectAsync(timeoutMilliseconds).ConfigureAwait(false);
-    using var writer = new StreamWriter(client, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
-    using var reader = new StreamReader(client, Encoding.UTF8, leaveOpen: true);
-    var request = new InkkOopsPipeRequest
+    var request = BuildAttachRequest(options, timeoutMilliseconds);
+    if (request == null)
     {
-        ScriptName = scriptName,
-        ActionDiagnosticsIndexes = ParseActionDiagnosticsIndexes(options),
-        TimeoutMilliseconds = timeoutMilliseconds,
-        ArtifactRootOverride = options.TryGetValue("artifacts", out var artifacts) ? artifacts : string.Empty
-    };
-    var requestJson = JsonSerializer.Serialize(request, new JsonSerializerOptions { WriteIndented = true });
-    await writer.WriteLineAsync(requestJson).ConfigureAwait(false);
-    var responseJson = await reader.ReadLineAsync().ConfigureAwait(false);
+        return PrintUsage();
+    }
+
+    var requestJson = JsonSerializer.Serialize(request);
+    await WritePipeMessageAsync(client, requestJson).ConfigureAwait(false);
+    var responseJson = await ReadPipeMessageAsync(client).ConfigureAwait(false);
     Console.WriteLine(responseJson);
     if (string.IsNullOrWhiteSpace(responseJson))
     {
@@ -99,6 +74,129 @@ static async Task<int> RunAttachAsync(Dictionary<string, string> options, InkkOo
 
     var response = JsonSerializer.Deserialize<InkkOopsPipeResponse>(responseJson);
     return InkkOopsExitCodes.FromStatus(response?.Status);
+}
+
+static async Task WritePipeMessageAsync(Stream stream, string payload)
+{
+    var bytes = Encoding.UTF8.GetBytes(payload ?? string.Empty);
+    var lengthPrefix = new byte[sizeof(int)];
+    BinaryPrimitives.WriteInt32LittleEndian(lengthPrefix, bytes.Length);
+    await stream.WriteAsync(lengthPrefix).ConfigureAwait(false);
+    await stream.WriteAsync(bytes).ConfigureAwait(false);
+    await stream.FlushAsync().ConfigureAwait(false);
+}
+
+static async Task<string> ReadPipeMessageAsync(Stream stream)
+{
+    var lengthPrefix = new byte[sizeof(int)];
+    await ReadExactlyAsync(stream, lengthPrefix).ConfigureAwait(false);
+    var length = BinaryPrimitives.ReadInt32LittleEndian(lengthPrefix);
+    if (length <= 0)
+    {
+        return string.Empty;
+    }
+
+    var payload = new byte[length];
+    await ReadExactlyAsync(stream, payload).ConfigureAwait(false);
+    return Encoding.UTF8.GetString(payload);
+}
+
+static async Task ReadExactlyAsync(Stream stream, byte[] buffer)
+{
+    var offset = 0;
+    while (offset < buffer.Length)
+    {
+        var read = await stream.ReadAsync(buffer.AsMemory(offset, buffer.Length - offset)).ConfigureAwait(false);
+        if (read <= 0)
+        {
+            throw new EndOfStreamException("The pipe closed before the full message was received.");
+        }
+
+        offset += read;
+    }
+}
+
+static InkkOopsPipeRequest? BuildAttachRequest(Dictionary<string, string> options, int timeoutMilliseconds)
+{
+    if (options.TryGetValue("script", out var scriptName) && !string.IsNullOrWhiteSpace(scriptName))
+    {
+        return new InkkOopsPipeRequest
+        {
+            RequestKind = InkkOopsPipeRequestKinds.RunScript,
+            ScriptName = scriptName,
+            TimeoutMilliseconds = timeoutMilliseconds,
+            ArtifactRootOverride = options.TryGetValue("artifacts", out var scriptArtifacts) ? scriptArtifacts : string.Empty
+        };
+    }
+
+    if (!options.TryGetValue("command", out var commandText) || string.IsNullOrWhiteSpace(commandText))
+    {
+        return null;
+    }
+
+    var requestKind = commandText.Trim().ToLowerInvariant() switch
+    {
+        "ping" => InkkOopsPipeRequestKinds.Ping,
+        "get-host-info" => InkkOopsPipeRequestKinds.GetHostInfo,
+        "host-info" => InkkOopsPipeRequestKinds.GetHostInfo,
+        "get-property" => InkkOopsPipeRequestKinds.GetProperty,
+        "assert-property" => InkkOopsPipeRequestKinds.AssertProperty,
+        "assert-exists" => InkkOopsPipeRequestKinds.AssertExists,
+        "assert-not-exists" => InkkOopsPipeRequestKinds.AssertNotExists,
+        "hover" => InkkOopsPipeRequestKinds.HoverTarget,
+        "click" => InkkOopsPipeRequestKinds.ClickTarget,
+        "invoke" => InkkOopsPipeRequestKinds.InvokeTarget,
+        "activate" => InkkOopsPipeRequestKinds.InvokeTarget,
+        "wait-frames" => InkkOopsPipeRequestKinds.WaitFrames,
+        "wait-for-element" => InkkOopsPipeRequestKinds.WaitForElement,
+        "wait-for-visible" => InkkOopsPipeRequestKinds.WaitForVisible,
+        "wait-for-enabled" => InkkOopsPipeRequestKinds.WaitForEnabled,
+        "wait-for-in-viewport" => InkkOopsPipeRequestKinds.WaitForInViewport,
+        "wait-for-interactive" => InkkOopsPipeRequestKinds.WaitForInteractive,
+        "wait-for-idle" => InkkOopsPipeRequestKinds.WaitForIdle,
+        "wheel" => InkkOopsPipeRequestKinds.Wheel,
+        "scroll-to" => InkkOopsPipeRequestKinds.ScrollTo,
+        "scroll-by" => InkkOopsPipeRequestKinds.ScrollBy,
+        "scroll-into-view" => InkkOopsPipeRequestKinds.ScrollIntoView,
+        "get-telemetry" => InkkOopsPipeRequestKinds.GetTelemetry,
+        "get-target-diagnostics" => InkkOopsPipeRequestKinds.GetTargetDiagnostics,
+        _ => string.Empty
+    };
+
+    if (string.IsNullOrWhiteSpace(requestKind))
+    {
+        return null;
+    }
+
+    return new InkkOopsPipeRequest
+    {
+        RequestKind = requestKind,
+        TimeoutMilliseconds = timeoutMilliseconds,
+        ArtifactRootOverride = options.TryGetValue("artifacts", out var liveArtifacts) ? liveArtifacts : string.Empty,
+        ScopeTargetName = options.TryGetValue("scope", out var scopeTargetName) ? scopeTargetName : string.Empty,
+        OwnerTargetName = options.TryGetValue("owner", out var ownerTargetName) ? ownerTargetName : string.Empty,
+        TargetName = options.TryGetValue("target", out var targetName) ? targetName : string.Empty,
+        PropertyName = options.TryGetValue("property", out var propertyName) ? propertyName : string.Empty,
+        ExpectedValue = options.TryGetValue("expected", out var expectedValue) ? expectedValue : string.Empty,
+        ArtifactName = options.TryGetValue("artifact", out var artifactName) ? artifactName : string.Empty,
+        Compact = options.ContainsKey("compact"),
+        CounterNames = options.TryGetValue("counters", out var counterNames) ? counterNames : string.Empty,
+        WheelDelta = options.TryGetValue("delta", out var deltaText) && int.TryParse(deltaText, out var wheelDelta)
+            ? wheelDelta
+            : 0,
+        HorizontalPercent = options.TryGetValue("horizontal", out var horizontalText) && float.TryParse(horizontalText, NumberStyles.Float, CultureInfo.InvariantCulture, out var horizontalPercent)
+            ? horizontalPercent
+            : 0f,
+        VerticalPercent = options.TryGetValue("vertical", out var verticalText) && float.TryParse(verticalText, NumberStyles.Float, CultureInfo.InvariantCulture, out var verticalPercent)
+            ? verticalPercent
+            : 0f,
+        Padding = options.TryGetValue("padding", out var paddingText) && float.TryParse(paddingText, NumberStyles.Float, CultureInfo.InvariantCulture, out var padding)
+            ? padding
+            : 0f,
+        FrameCount = options.TryGetValue("frames", out var framesText) && int.TryParse(framesText, out var frameCount)
+            ? frameCount
+            : 0
+    };
 }
 
 static int RunLaunch(Dictionary<string, string> options, InkkOopsHostConfiguration hostConfiguration, IInkkOopsLaunchTargetResolver launchTargetResolver)
@@ -120,16 +218,6 @@ static int RunLaunch(Dictionary<string, string> options, InkkOopsHostConfigurati
     if (options.TryGetValue("artifacts", out var artifacts))
     {
         arguments.Append("--inkkoops-artifacts \"").Append(artifacts).Append("\" ");
-    }
-
-    if (options.TryGetValue("action-diagnostics", out var actionDiagnostics))
-    {
-        arguments.Append("--inkkoops-action-diagnostics \"").Append(actionDiagnostics).Append("\" ");
-    }
-
-    if (options.TryGetValue("object-observer", out var objectObserver))
-    {
-        arguments.Append("--inkkoops-object-observer \"").Append(objectObserver).Append("\" ");
     }
 
     using var process = Process.Start(new ProcessStartInfo
@@ -203,11 +291,6 @@ static int RunRecordingAutoLaunch(string recordingPath, Dictionary<string, strin
         arguments.Append("--inkkoops-artifacts \"").Append(artifacts).Append("\" ");
     }
 
-    if (options.TryGetValue("object-observer", out var objectObserver))
-    {
-        arguments.Append("--inkkoops-object-observer \"").Append(objectObserver).Append("\" ");
-    }
-
     using var process = Process.Start(new ProcessStartInfo
     {
         FileName = "dotnet",
@@ -224,7 +307,8 @@ var launchTargetResolver = new DefaultInkkOopsLaunchTargetResolver();
 if (args.Length >= 1 &&
     !string.Equals(args[0], "list", StringComparison.Ordinal) &&
     !string.Equals(args[0], "run", StringComparison.Ordinal) &&
-    !string.Equals(args[0], "record", StringComparison.Ordinal))
+    !string.Equals(args[0], "record", StringComparison.Ordinal) &&
+    !string.Equals(args[0], "live", StringComparison.Ordinal))
 {
     var options = ParseOptions(args, 1);
     return RunRecordingAutoLaunch(args[0], options, launchTargetResolver);
@@ -256,6 +340,15 @@ if (args.Length >= 2 && string.Equals(args[0], "run", StringComparison.Ordinal))
     if (options.ContainsKey("launch"))
     {
         return RunLaunch(options, hostConfiguration, launchTargetResolver);
+    }
+}
+
+if (args.Length >= 2 && string.Equals(args[0], "live", StringComparison.Ordinal))
+{
+    var options = ParseOptions(args, 1);
+    if (options.ContainsKey("attach"))
+    {
+        return await RunAttachAsync(options, hostConfiguration).ConfigureAwait(false);
     }
 }
 

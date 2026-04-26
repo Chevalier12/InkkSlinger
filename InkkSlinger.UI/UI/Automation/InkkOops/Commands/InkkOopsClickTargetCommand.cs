@@ -33,9 +33,27 @@ public sealed class InkkOopsClickTargetCommand : IInkkOopsCommand
     {
         ArgumentNullException.ThrowIfNull(session);
 
-        var point = session.ResolveRequiredActionPoint(Target, Anchor);
-        await session.MovePointerAsync(point, Motion, cancellationToken).ConfigureAwait(false);
-        await session.PressPointerAsync(point, Button, cancellationToken).ConfigureAwait(false);
-        await session.ReleasePointerAsync(point, Button, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var point = session.ResolveRequiredActionPoint(Target, Anchor);
+            await session.MovePointerAsync(point, Motion, cancellationToken).ConfigureAwait(false);
+            await session.PressPointerAsync(point, Button, cancellationToken).ConfigureAwait(false);
+            await session.ReleasePointerAsync(point, Button, cancellationToken).ConfigureAwait(false);
+        }
+        catch (InkkOopsCommandException ex) when (ShouldFallbackToInvoke(session, ex))
+        {
+            await new InkkOopsInvokeTargetCommand(Target).ExecuteAsync(session, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private bool ShouldFallbackToInvoke(InkkOopsSession session, InkkOopsCommandException ex)
+    {
+        if (Button != MouseButton.Left || ex.Category != InkkOopsFailureCategory.Clipped)
+        {
+            return false;
+        }
+
+        var resolved = session.ResolveRequiredTarget(Target);
+        return resolved is Button;
     }
 }

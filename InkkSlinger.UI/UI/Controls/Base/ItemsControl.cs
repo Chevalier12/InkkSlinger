@@ -85,7 +85,7 @@ public class ItemsControl : Control
     private UIElement? _activeItemsHost;
     private ICollectionView? _itemsSourceView;
     private CollectionViewSource? _itemsSourceReference;
-    private bool _suspendRegeneration;
+    private int _suspendRegenerationDepth;
     private bool _isApplyingGroupProjection;
     private bool _skipNextGroupsRegeneration;
 
@@ -170,20 +170,31 @@ public class ItemsControl : Control
 
     public void AddItems(IEnumerable<object> items)
     {
-        _suspendRegeneration = true;
-        try
+        ExecuteWithSuspendedRegeneration(() =>
         {
             foreach (var item in items)
             {
                 _items.Add(item);
             }
+        });
+    }
+
+    internal void ExecuteWithSuspendedRegeneration(Action action)
+    {
+        _suspendRegenerationDepth++;
+        try
+        {
+            action();
         }
         finally
         {
-            _suspendRegeneration = false;
+            _suspendRegenerationDepth--;
         }
 
-        RegenerateChildren();
+        if (_suspendRegenerationDepth == 0)
+        {
+            RegenerateChildren();
+        }
     }
 
     internal void AttachItemsHost(UIElement host)
@@ -461,7 +472,7 @@ public class ItemsControl : Control
 
     private void RegenerateChildren()
     {
-        if (_suspendRegeneration)
+        if (_suspendRegenerationDepth > 0)
         {
             return;
         }
@@ -642,7 +653,7 @@ public class ItemsControl : Control
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         _ = sender;
-        if (_suspendRegeneration)
+        if (_suspendRegenerationDepth > 0)
         {
             return;
         }
@@ -1036,7 +1047,7 @@ public class ItemsControl : Control
 
     private bool TryReconcileProjectedContainers()
     {
-        if (_suspendRegeneration || _itemsSourceView == null)
+        if (_suspendRegenerationDepth > 0 || _itemsSourceView == null)
         {
             return false;
         }

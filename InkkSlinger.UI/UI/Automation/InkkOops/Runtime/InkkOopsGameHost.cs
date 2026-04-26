@@ -17,7 +17,6 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
 
     private readonly InkkOopsHostConfiguration _hostConfiguration;
     private readonly IInkkOopsArtifactNamingPolicy _artifactNamingPolicy;
-    private readonly InkkOopsVisualTreeDiagnostics _visualTreeDiagnostics;
     private readonly Window _window;
     private readonly Func<Viewport> _viewportAccessor;
     private readonly Func<RenderTarget2D?> _renderTargetAccessor;
@@ -50,7 +49,6 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
         _displayedFpsAccessor = displayedFpsAccessor ?? throw new ArgumentNullException(nameof(displayedFpsAccessor));
         _hostConfiguration = hostConfiguration ?? throw new ArgumentNullException(nameof(hostConfiguration));
         _artifactNamingPolicy = _hostConfiguration.ArtifactNamingPolicy;
-        _visualTreeDiagnostics = new InkkOopsVisualTreeDiagnostics(_hostConfiguration.DiagnosticsContributors);
         _artifactRoot = artifactRoot ?? string.Empty;
         UiRoot.Automation.AutomationEventRaised += OnAutomationEventRaised;
     }
@@ -289,17 +287,15 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
                 var viewport = _viewportAccessor();
                 var hovered = UiRoot.GetHoveredElementForDiagnostics();
                 var focused = FocusManager.GetFocusedElement();
-                var diagnosticsContext = new InkkOopsDiagnosticsContext
-                {
-                    UiRoot = UiRoot,
-                    Viewport = new LayoutRect(0f, 0f, viewport.Width, viewport.Height),
-                    HoveredElement = hovered,
-                    FocusedElement = focused,
-                    ArtifactName = artifactName,
-                    Filter = _hostConfiguration.DiagnosticsFilterPolicy.CreateFilter(artifactName)
-                };
-                var visualTree = _visualTreeDiagnostics.Capture(UiRoot.VisualRoot, diagnosticsContext);
+                var uiRootTelemetry = UiRoot.GetUiRootTelemetrySnapshot();
+                var frameworkTelemetry = FrameworkElement.GetAggregateTelemetrySnapshotForDiagnostics();
+                var controlTelemetry = Control.GetAggregateTelemetrySnapshotForDiagnostics();
+                var buttonTelemetry = Button.GetAggregateTelemetrySnapshotForDiagnostics();
+                var scrollViewerTelemetry = ScrollViewer.GetAggregateTelemetrySnapshotForDiagnostics();
+                var richTextBoxTelemetry = RichTextBox.GetAggregateTelemetrySnapshotForDiagnostics();
+                var editorTelemetry = IDE_Editor.GetAggregateTelemetrySnapshotForDiagnostics();
                 var builder = new StringBuilder();
+                builder.AppendLine($"artifact_name={artifactName}");
                 builder.AppendLine($"timestamp_utc={DateTime.UtcNow:O}");
                 builder.AppendLine($"hovered={DescribeElement(hovered)}");
                 builder.AppendLine($"focused={DescribeElement(focused)}");
@@ -307,12 +303,25 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
                 builder.AppendLine($"synced_dirty_roots={UiRoot.GetLastSynchronizedDirtyRootSummaryForTests()}");
                 builder.AppendLine($"retained_nodes={UiRoot.RetainedRenderNodeCount}");
                 builder.AppendLine($"retained_tree_validation={UiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests()}");
+                builder.AppendLine($"uiRootLayoutExecutedFrameCount={UiRoot.LayoutExecutedFrameCount}");
+                builder.AppendLine($"uiRootUpdateCallCount={uiRootTelemetry.UpdateCallCount}");
+                builder.AppendLine($"uiRootUpdateElapsedMs={uiRootTelemetry.UpdateElapsedMs:0.###}");
+                builder.AppendLine($"uiRootForceFullRedrawForDiagnosticsCaptureCallCount={uiRootTelemetry.ForceFullRedrawForDiagnosticsCaptureCallCount}");
+                builder.AppendLine($"frameworkMeasureCallCount={frameworkTelemetry.MeasureCallCount}");
+                builder.AppendLine($"frameworkMeasureMilliseconds={frameworkTelemetry.MeasureMilliseconds:0.###}");
+                builder.AppendLine($"frameworkArrangeCallCount={frameworkTelemetry.ArrangeCallCount}");
+                builder.AppendLine($"frameworkArrangeMilliseconds={frameworkTelemetry.ArrangeMilliseconds:0.###}");
+                builder.AppendLine($"frameworkInvalidateMeasureCallCount={frameworkTelemetry.InvalidateMeasureCallCount}");
+                builder.AppendLine($"controlDependencyPropertyChangedCallCount={controlTelemetry.DependencyPropertyChangedCallCount}");
+                builder.AppendLine($"buttonRenderCallCount={buttonTelemetry.RenderCallCount}");
+                builder.AppendLine($"buttonRenderMilliseconds={buttonTelemetry.RenderMilliseconds:0.###}");
+                builder.AppendLine($"buttonTextLayoutCacheHitCount={buttonTelemetry.TextLayoutCacheHitCount}");
+                builder.AppendLine($"scrollViewerArrangeOverrideCallCount={scrollViewerTelemetry.ArrangeOverrideCallCount}");
+                builder.AppendLine($"richTextBoxHostedRootRenderCallCount={richTextBoxTelemetry.HostedRootRenderCallCount}");
+                builder.AppendLine($"ideEditorLayoutUpdatedCallCount={editorTelemetry.EditorLayoutUpdatedCallCount}");
                 builder.AppendLine($"window_client={_window.ClientSize.X}x{_window.ClientSize.Y}");
                 builder.AppendLine($"window_backbuffer={_window.BackBufferSize.X}x{_window.BackBufferSize.Y}");
                 builder.AppendLine($"viewport={viewport.Width}x{viewport.Height}");
-                builder.AppendLine("visual_tree_begin");
-                builder.Append(_hostConfiguration.DiagnosticsSerializer.SerializeVisualTree(visualTree));
-                builder.AppendLine("visual_tree_end");
                 return builder.ToString();
             },
             cancellationToken);

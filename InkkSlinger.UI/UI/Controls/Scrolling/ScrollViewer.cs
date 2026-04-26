@@ -1847,6 +1847,7 @@ public class ScrollViewer : ContentControl
         var beforeVertical = VerticalOffset;
         var amount = DefaultLineScrollStep;
         var direction = delta > 0 ? -1f : 1f;
+
         BeginInputScrollMutation();
         try
         {
@@ -1902,10 +1903,34 @@ public class ScrollViewer : ContentControl
         }
         var beforeHorizontal = previousHorizontalOverride ?? HorizontalOffset;
         var beforeVertical = previousVerticalOverride ?? VerticalOffset;
+        var requestedHorizontal = horizontal;
+        var requestedVertical = vertical;
         var maxHorizontal = MathF.Max(0f, ExtentWidth - ViewportWidth);
         var maxVertical = MathF.Max(0f, ExtentHeight - ViewportHeight);
-        var nextHorizontal = ClampOffsetCandidate(horizontal, maxHorizontal, beforeHorizontal);
-        var nextVertical = ClampOffsetCandidate(vertical, maxVertical, beforeVertical);
+        var candidateVirtualizingStackPanel = ContentElement as VirtualizingStackPanel;
+        if (candidateVirtualizingStackPanel != null &&
+            (horizontal > maxHorizontal + 0.001f || vertical > maxVertical + 0.001f) &&
+            candidateVirtualizingStackPanel.TryRefreshForViewerOwnedOffsetCandidate(horizontal, vertical))
+        {
+            SyncViewerOwnedVirtualizingScrollMetrics(candidateVirtualizingStackPanel);
+            maxHorizontal = MathF.Max(0f, ExtentWidth - ViewportWidth);
+            maxVertical = MathF.Max(0f, ExtentHeight - ViewportHeight);
+        }
+
+        if (_inputScrollMutationDepth > 0 &&
+            candidateVirtualizingStackPanel != null &&
+            !AreClose(requestedVertical, beforeVertical) &&
+            candidateVirtualizingStackPanel.TryAlignViewerOwnedVerticalWheelOffset(
+                requestedVertical,
+                ViewportHeight,
+                requestedVertical > beforeVertical,
+                out var alignedVertical))
+        {
+            requestedVertical = alignedVertical;
+        }
+
+        var nextHorizontal = ClampOffsetCandidate(requestedHorizontal, maxHorizontal, beforeHorizontal);
+        var nextVertical = ClampOffsetCandidate(requestedVertical, maxVertical, beforeVertical);
         var horizontalDelta = MathF.Abs(beforeHorizontal - nextHorizontal);
         var verticalDelta = MathF.Abs(beforeVertical - nextVertical);
 
@@ -1947,6 +1972,7 @@ public class ScrollViewer : ContentControl
             {
                 if (virtualizingStackPanel.TryHandleViewerOwnedOffsetChange(beforeHorizontal, nextHorizontal, beforeVertical, nextVertical, out var requiresMeasure))
                 {
+                    SyncViewerOwnedVirtualizingScrollMetrics(virtualizingStackPanel);
                     _diagSetOffsetsVirtualizingArrangeOnlyPathCount++;
                     _runtimeSetOffsetsVirtualizingArrangeOnlyPathCount++;
                     virtualizingStackPanel.InvalidateArrange();
@@ -1960,6 +1986,7 @@ public class ScrollViewer : ContentControl
                 }
                 else
                 {
+                    SyncViewerOwnedVirtualizingScrollMetrics(virtualizingStackPanel);
                     _diagSetOffsetsVirtualizingArrangeOnlyPathCount++;
                     _runtimeSetOffsetsVirtualizingArrangeOnlyPathCount++;
                     virtualizingStackPanel.InvalidateArrange();
@@ -2008,6 +2035,16 @@ public class ScrollViewer : ContentControl
         _runtimePopupCloseCallCount++;
         _diagSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         _runtimeSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+    }
+
+    private void SyncViewerOwnedVirtualizingScrollMetrics(VirtualizingStackPanel virtualizingStackPanel)
+    {
+        _ = ApplyScrollMetrics(
+            virtualizingStackPanel.ExtentWidth,
+            virtualizingStackPanel.ExtentHeight,
+            ViewportWidth,
+            ViewportHeight,
+            publishViewportMetrics: true);
     }
 
     private void BeginInputScrollMutation()

@@ -484,11 +484,12 @@ public static class DocumentEditing
         var operation = new ReplaceTextOperation(clampedStart, removedText, insertText);
         if (session == null)
         {
-            operation.Apply(document);
+            ApplyTextReplacement(document, clampedStart, clampedLength, insertText, content);
             return;
         }
 
-        session.ApplyOperation(operation);
+        ApplyTextReplacement(document, clampedStart, clampedLength, insertText, content);
+        session.AddOperation(operation);
     }
 
     public static void InsertTextAt(FlowDocument document, int offset, string? text, DocumentUndoManager? undoManager = null)
@@ -560,6 +561,13 @@ public static class DocumentEditing
     {
         ArgumentNullException.ThrowIfNull(document);
         var content = GetText(document);
+        ApplyTextReplacement(document, start, length, replacement, content);
+    }
+
+    private static void ApplyTextReplacement(FlowDocument document, int start, int length, string? replacement, string content)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        content ??= string.Empty;
         var clampedStart = Math.Clamp(start, 0, content.Length);
         var clampedLength = Math.Clamp(length, 0, content.Length - clampedStart);
         var next = content.Remove(clampedStart, clampedLength).Insert(clampedStart, NormalizeLogicalNewlines(replacement));

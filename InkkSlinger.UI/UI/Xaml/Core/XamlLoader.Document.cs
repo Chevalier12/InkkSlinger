@@ -86,6 +86,17 @@ public static partial class XamlLoader
         LoadApplicationResourcesFromDocument(document, clearExisting);
     }
 
+    public static ResourceDictionary LoadApplicationResourceDictionaryFromString(string xaml)
+    {
+        var document = ParseDocument(xaml, "Failed to parse application XML document.");
+        if (document.Root == null)
+        {
+            throw CreateXamlException("Application XML document has no root element.", document);
+        }
+
+        return ParseApplicationResourcesDocument(document.Root);
+    }
+
     public static void LoadIntoFromString(UserControl target, string xaml, object? codeBehind = null)
     {
         var document = ParseDocument(xaml, "Failed to parse XAML document.");
@@ -164,8 +175,12 @@ public static partial class XamlLoader
         var root = document.Root;
         var previousLoadCodeBehind = CurrentLoadCodeBehind;
         var previousRootScope = CurrentLoadRootScope;
+        var previousConstructionScopes = CurrentConstructionScopes;
+        var previousConstructionRootScope = CurrentConstructionRootScope;
         CurrentLoadCodeBehind = codeBehind;
         CurrentLoadRootScope = target;
+        CurrentConstructionScopes = null;
+        CurrentConstructionRootScope = null;
         try
         {
             var rootType = ResolveElementType(root.Name.LocalName);
@@ -188,6 +203,8 @@ public static partial class XamlLoader
         {
             CurrentLoadRootScope = previousRootScope;
             CurrentLoadCodeBehind = previousLoadCodeBehind;
+            CurrentConstructionScopes = previousConstructionScopes;
+            CurrentConstructionRootScope = previousConstructionRootScope;
         }
     }
 

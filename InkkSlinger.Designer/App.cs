@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using InkkSlinger;
 
 namespace InkkSlinger.Designer;
@@ -30,9 +29,6 @@ internal static class App
                 case "--inkkoops-artifacts" when i + 1 < args.Length:
                     options = CopyOptions(options, artifactRoot: args[++i]);
                     break;
-                case "--inkkoops-action-diagnostics" when i + 1 < args.Length:
-                    options = CopyOptions(options, actionDiagnosticsIndexes: ParseActionDiagnosticsIndexes(args[++i]));
-                    break;
                 case "--inkkoops-record":
                     options = CopyOptions(options, recordUserSession: true);
                     break;
@@ -44,11 +40,6 @@ internal static class App
                     break;
                 case "--inkkoops-recording" when i + 1 < args.Length:
                     options = CopyOptions(options, startupRecordingPath: args[++i]);
-                    break;
-                case "--inkkoops-object-observer" when i + 1 < args.Length:
-                    options = CopyOptions(
-                        options,
-                        objectObservers: AppendObjectObservers(options.ObjectObservers, InkkOopsObjectObserverParser.Parse(args[++i])));
                     break;
                 case "--inkkoops-disable-retained":
                     options = CopyOptions(options, disableRetainedRenderList: true);
@@ -62,26 +53,6 @@ internal static class App
         return options;
     }
 
-    private static int[] ParseActionDiagnosticsIndexes(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return [];
-        }
-
-        var parts = text.Split([','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var values = new List<int>(parts.Length);
-        for (var i = 0; i < parts.Length; i++)
-        {
-            if (int.TryParse(parts[i], out var value) && value >= 0)
-            {
-                values.Add(value);
-            }
-        }
-
-        return [.. values];
-    }
-
     private static string[] AppendScriptAssemblyPath(string[] existing, string assemblyPath)
     {
         if (string.IsNullOrWhiteSpace(assemblyPath))
@@ -91,25 +62,10 @@ internal static class App
 
         return [.. existing, assemblyPath];
     }
-
-    private static InkkOopsObjectObserver[] AppendObjectObservers(
-        InkkOopsObjectObserver[] existing,
-        InkkOopsObjectObserver[] appended)
-    {
-        if (appended.Length == 0)
-        {
-            return existing;
-        }
-
-        return [.. existing, .. appended];
-    }
-
     private static InkkOopsRuntimeOptions CopyOptions(
         InkkOopsRuntimeOptions options,
         string? startupScriptName = null,
         string[]? additionalScriptAssemblyPaths = null,
-        InkkOopsObjectObserver[]? objectObservers = null,
-        int[]? actionDiagnosticsIndexes = null,
         string? namedPipeName = null,
         string? artifactRoot = null,
         bool? recordUserSession = null,
@@ -123,8 +79,6 @@ internal static class App
         {
             StartupScriptName = startupScriptName ?? options.StartupScriptName,
             AdditionalScriptAssemblyPaths = additionalScriptAssemblyPaths ?? options.AdditionalScriptAssemblyPaths,
-            ObjectObservers = objectObservers ?? options.ObjectObservers,
-            ActionDiagnosticsIndexes = actionDiagnosticsIndexes ?? options.ActionDiagnosticsIndexes,
             NamedPipeName = namedPipeName ?? options.NamedPipeName,
             ArtifactRoot = artifactRoot ?? options.ArtifactRoot,
             RecordUserSession = recordUserSession ?? options.RecordUserSession,

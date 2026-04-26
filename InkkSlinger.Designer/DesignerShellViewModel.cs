@@ -11,6 +11,10 @@ namespace InkkSlinger.Designer;
 
 public sealed class DesignerShellViewModel : INotifyPropertyChanged
 {
+    private const int SourceEditorTabIndex = 0;
+    private const int AppResourcesEditorTabIndex = 1;
+    private const int DiagnosticsEditorTabIndex = 2;
+
     private static readonly HashSet<string> InspectorIdentityPropertyNames =
         new(StringComparer.Ordinal)
         {
@@ -59,7 +63,17 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         "    </Grid>\n" +
         "</UserControl>\n";
 
+    private const string DefaultAppResourcesText =
+        "<Application xmlns=\"urn:inkkslinger-ui\"\n" +
+        "             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+        "    <Application.Resources>\n" +
+        "        <ResourceDictionary>\n" +
+        "        </ResourceDictionary>\n" +
+        "    </Application.Resources>\n" +
+        "</Application>\n";
+
     private string _promptPathText = string.Empty;
+    private string _appResourcesText = DefaultAppResourcesText;
     private object? _previewContent;
     private DesignerPreviewPlaceholderModel? _previewPlaceholder;
     private Visibility _previewContentVisibility = Visibility.Collapsed;
@@ -76,6 +90,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     private Color? _documentStatusOverrideColor;
     private int _selectedEditorTabIndex;
     private DesignerSourceNavigationRequest? _sourceNavigationRequest;
+    private DesignerSourceNavigationRequest? _appResourcesNavigationRequest;
     private DesignerDocumentPromptState _workflowPrompt = DesignerDocumentPromptState.None;
     private IReadOnlyList<DesignerVisualTreeNodeViewModel> _visualTreeNodes = Array.Empty<DesignerVisualTreeNodeViewModel>();
     private IReadOnlyList<DesignerVisualTreeNodeViewModel> _visualTreeRoots = Array.Empty<DesignerVisualTreeNodeViewModel>();
@@ -274,6 +289,12 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         private set => SetField(ref _sourceNavigationRequest, value);
     }
 
+    public DesignerSourceNavigationRequest? AppResourcesNavigationRequest
+    {
+        get => _appResourcesNavigationRequest;
+        private set => SetField(ref _appResourcesNavigationRequest, value);
+    }
+
     public string SourceText
     {
         get => DocumentController.CurrentText;
@@ -285,6 +306,23 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
             }
 
             DocumentController.UpdateText(value);
+            OnPropertyChanged();
+            RefreshCommandStates();
+        }
+    }
+
+    public string AppResourcesText
+    {
+        get => _appResourcesText;
+        set
+        {
+            var normalized = NormalizeLineEndings(value);
+            if (string.Equals(_appResourcesText, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _appResourcesText = normalized;
             OnPropertyChanged();
             RefreshCommandStates();
         }
@@ -308,7 +346,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
 
     public bool RefreshPreview()
     {
-        var succeeded = Controller.Refresh(DocumentController.CurrentText);
+        var succeeded = Controller.Refresh(DocumentController.CurrentText, AppResourcesText);
         RefreshPresentationState(selectDiagnosticsOnError: true);
         RefreshCommandStates();
         return succeeded;
@@ -384,7 +422,14 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     {
         if (parameter is DesignerDiagnosticEntry diagnostic && diagnostic.Line.HasValue)
         {
-            SelectedEditorTabIndex = 0;
+            if (diagnostic.Source == DesignerDiagnosticSource.AppResources)
+            {
+                SelectedEditorTabIndex = AppResourcesEditorTabIndex;
+                AppResourcesNavigationRequest = new DesignerSourceNavigationRequest(diagnostic.Line.Value);
+                return;
+            }
+
+            SelectedEditorTabIndex = SourceEditorTabIndex;
             SourceNavigationRequest = new DesignerSourceNavigationRequest(diagnostic.Line.Value);
         }
     }
@@ -392,7 +437,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     private void ApplyRootTemplate(DesignerRootTemplateViewModel template)
     {
         SourceText = CreateBarebonesRootSource(template.ElementName);
-        SelectedEditorTabIndex = 0;
+        SelectedEditorTabIndex = SourceEditorTabIndex;
         SourceNavigationRequest = null;
         SetDocumentStatusOverride(
             string.Create(CultureInfo.InvariantCulture, $"Created {template.ElementName} root scaffold."),
@@ -695,8 +740,15 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
 
         if (selectDiagnosticsOnError && Controller.PreviewState == DesignerPreviewState.Error && errorCount > 0)
         {
-            SelectedEditorTabIndex = 1;
+            SelectedEditorTabIndex = DiagnosticsEditorTabIndex;
         }
+    }
+
+    private static string NormalizeLineEndings(string? text)
+    {
+        return (text ?? string.Empty)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n');
     }
 
     private void RefreshWorkflowPromptState()

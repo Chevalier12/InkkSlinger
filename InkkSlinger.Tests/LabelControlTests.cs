@@ -318,6 +318,7 @@ public sealed class LabelControlTests
 
             var host = Assert.IsType<StackPanel>(catalog.FindName("ControlButtonsHost"));
             var button = Assert.IsType<Button>(host.Children[0]);
+            Assert.EndsWith("CatalogButton", button.Name, StringComparison.Ordinal);
             var border = Assert.IsType<Border>(Assert.Single(button.GetVisualChildren()));
             Assert.NotNull(border.Child);
             var presenter = Assert.IsType<ContentPresenter>(FindDescendant<ContentPresenter>(button));
@@ -325,6 +326,27 @@ public sealed class LabelControlTests
             var nestedPresenter = Assert.IsType<ContentPresenter>(FindDescendant<ContentPresenter>(fallbackLabel));
             var nestedText = Assert.IsType<AccessText>(Assert.Single(nestedPresenter.GetVisualChildren()));
             Assert.True(nestedText.DesiredSize.X > 0f);
+        }
+        finally
+        {
+            RestoreApplicationResources(snapshot);
+        }
+    }
+
+    [Fact]
+    public void ControlsCatalog_Assigns_Stable_Automation_Names_To_Dynamic_Buttons()
+    {
+        var snapshot = SnapshotApplicationResources();
+        try
+        {
+            var appPath = TestApplicationResources.GetDemoAppAppXmlPath();
+            XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
+
+            var catalog = new ControlsCatalogView();
+            var button = Assert.IsType<Button>(catalog.FindName("BorderCatalogButton"));
+
+            Assert.Equal("Border", button.Content);
+            Assert.Equal("BorderCatalogButton", button.Name);
         }
         finally
         {

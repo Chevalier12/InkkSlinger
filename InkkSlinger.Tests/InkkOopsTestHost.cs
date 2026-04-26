@@ -16,9 +16,6 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
 
     private readonly UIElement _visualRoot;
     private readonly List<AutomationEventRecord> _automationEvents = new();
-    private readonly InkkOopsVisualTreeDiagnostics _visualTreeDiagnostics;
-    private readonly IInkkOopsDiagnosticsSerializer _diagnosticsSerializer;
-    private readonly IInkkOopsDiagnosticsFilterPolicy _diagnosticsFilterPolicy;
     private readonly string _displayedFps;
     private readonly List<Vector2> _pointerTrace = new();
     private readonly HashSet<Keys> _automationHeldKeys = new();
@@ -31,30 +28,11 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
         UIElement visualRoot,
         int width = 800,
         int height = 600,
-        string displayedFps = "60.0",
-        IReadOnlyList<IInkkOopsDiagnosticsContributor>? diagnosticsContributors = null,
-        IInkkOopsDiagnosticsSerializer? diagnosticsSerializer = null,
-        IInkkOopsDiagnosticsFilterPolicy? diagnosticsFilterPolicy = null)
+        string displayedFps = "60.0")
     {
         Dispatcher.ResetForTests();
         Dispatcher.InitializeForCurrentThread();
         _visualRoot = visualRoot;
-        _visualTreeDiagnostics = new InkkOopsVisualTreeDiagnostics(diagnosticsContributors ??
-        [
-            new InkkOopsGenericElementDiagnosticsContributor(),
-            new InkkOopsFrameworkElementDiagnosticsContributor(),
-            new InkkOopsControlDiagnosticsContributor(),
-            new InkkOopsContentControlDiagnosticsContributor(),
-            new InkkOopsContentPresenterDiagnosticsContributor(),
-            new InkkOopsScrollBarDiagnosticsContributor(),
-            new InkkOopsTrackDiagnosticsContributor(),
-            new InkkOopsTextBlockDiagnosticsContributor(),
-            new InkkOopsButtonDiagnosticsContributor(),
-            new InkkOopsExpanderDiagnosticsContributor(),
-            new InkkOopsScrollViewerDiagnosticsContributor()
-        ]);
-        _diagnosticsSerializer = diagnosticsSerializer ?? new DefaultInkkOopsDiagnosticsSerializer();
-        _diagnosticsFilterPolicy = diagnosticsFilterPolicy ?? new DefaultInkkOopsDiagnosticsFilterPolicy();
         _displayedFps = displayedFps;
         _width = width;
         _height = height;
@@ -218,23 +196,31 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
     {
         var hovered = UiRoot.GetHoveredElementForDiagnostics();
         var focused = FocusManager.GetFocusedElement();
-        var diagnosticsContext = new InkkOopsDiagnosticsContext
-        {
-            UiRoot = UiRoot,
-            Viewport = new LayoutRect(0f, 0f, _width, _height),
-            HoveredElement = hovered,
-            FocusedElement = focused,
-            ArtifactName = artifactName,
-            Filter = _diagnosticsFilterPolicy.CreateFilter(artifactName)
-        };
-        var visualTree = _visualTreeDiagnostics.Capture(UiRoot.VisualRoot, diagnosticsContext);
+        var uiRootTelemetry = UiRoot.GetUiRootTelemetrySnapshot();
+        var frameworkTelemetry = FrameworkElement.GetAggregateTelemetrySnapshotForDiagnostics();
+        var controlTelemetry = Control.GetAggregateTelemetrySnapshotForDiagnostics();
+        var buttonTelemetry = Button.GetAggregateTelemetrySnapshotForDiagnostics();
+        var scrollViewerTelemetry = ScrollViewer.GetAggregateTelemetrySnapshotForDiagnostics();
+        var richTextBoxTelemetry = RichTextBox.GetAggregateTelemetrySnapshotForDiagnostics();
+        var editorTelemetry = IDE_Editor.GetAggregateTelemetrySnapshotForDiagnostics();
         var builder = new StringBuilder();
+        builder.AppendLine($"artifact_name={artifactName}");
         builder.AppendLine($"hovered={InkkOopsTargetResolver.DescribeElement(hovered)}");
         builder.AppendLine($"focused={InkkOopsTargetResolver.DescribeElement(focused)}");
         builder.AppendLine($"dirty_regions={UiRoot.GetDirtyRegionSummaryForTests()}");
-        builder.AppendLine("visual_tree_begin");
-        builder.Append(_diagnosticsSerializer.SerializeVisualTree(visualTree));
-        builder.AppendLine("visual_tree_end");
+        builder.AppendLine($"uiRootLayoutExecutedFrameCount={UiRoot.LayoutExecutedFrameCount}");
+        builder.AppendLine($"uiRootUpdateCallCount={uiRootTelemetry.UpdateCallCount}");
+        builder.AppendLine($"uiRootUpdateElapsedMs={uiRootTelemetry.UpdateElapsedMs:0.###}");
+        builder.AppendLine($"frameworkMeasureCallCount={frameworkTelemetry.MeasureCallCount}");
+        builder.AppendLine($"frameworkMeasureMilliseconds={frameworkTelemetry.MeasureMilliseconds:0.###}");
+        builder.AppendLine($"frameworkArrangeCallCount={frameworkTelemetry.ArrangeCallCount}");
+        builder.AppendLine($"controlDependencyPropertyChangedCallCount={controlTelemetry.DependencyPropertyChangedCallCount}");
+        builder.AppendLine($"buttonRenderCallCount={buttonTelemetry.RenderCallCount}");
+        builder.AppendLine($"buttonRenderMilliseconds={buttonTelemetry.RenderMilliseconds:0.###}");
+        builder.AppendLine($"buttonTextLayoutCacheHitCount={buttonTelemetry.TextLayoutCacheHitCount}");
+        builder.AppendLine($"scrollViewerArrangeOverrideCallCount={scrollViewerTelemetry.ArrangeOverrideCallCount}");
+        builder.AppendLine($"richTextBoxHostedRootRenderCallCount={richTextBoxTelemetry.HostedRootRenderCallCount}");
+        builder.AppendLine($"ideEditorLayoutUpdatedCallCount={editorTelemetry.EditorLayoutUpdatedCallCount}");
         return Task.FromResult(builder.ToString());
     }
 

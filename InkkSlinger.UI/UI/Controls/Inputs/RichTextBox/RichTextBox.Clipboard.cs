@@ -182,58 +182,66 @@ public partial class RichTextBox
     {
         stats = default;
         var hadSelection = SelectionLength > 0;
-        if (SelectionLength > 0 &&
-            !TryDeleteSelectionPreservingStructure("PasteDeleteSelection", GroupingPolicy.StructuralAtomic))
+        var result = false;
+        var pasteStats = default(PasteStructuredStats);
+        ExecuteTextMutationBatch(() =>
         {
-            return false;
-        }
-
-        stats = stats with { DeleteSelectionApplied = hadSelection };
-
-        var index = 0;
-        while (index < text.Length)
-        {
-            var ch = text[index];
-            if (ch == '\r')
+            if (SelectionLength > 0 &&
+                !TryDeleteSelectionPreservingStructure("PasteDeleteSelection", GroupingPolicy.StructuralAtomic))
             {
-                index++;
-                continue;
+                return;
             }
 
-            if (ch == '\n')
+            pasteStats = pasteStats with { DeleteSelectionApplied = hadSelection };
+
+            var index = 0;
+            while (index < text.Length)
             {
-                if (!TryInsertParagraphBreakWithinStructuredParagraph("PasteStructuredEnter", GroupingPolicy.StructuralAtomic))
+                var ch = text[index];
+                if (ch == '\r')
                 {
-                    return false;
+                    index++;
+                    continue;
                 }
 
-                stats = stats with { EnterCount = stats.EnterCount + 1 };
-                index++;
-                continue;
+                if (ch == '\n')
+                {
+                    if (!TryInsertParagraphBreakWithinStructuredParagraph("PasteStructuredEnter", GroupingPolicy.StructuralAtomic))
+                    {
+                        return;
+                    }
+
+                    pasteStats = pasteStats with { EnterCount = pasteStats.EnterCount + 1 };
+                    index++;
+                    continue;
+                }
+
+                var segmentStart = index;
+                while (index < text.Length && text[index] is not '\r' and not '\n')
+                {
+                    index++;
+                }
+
+                var segmentLength = index - segmentStart;
+                if (segmentLength == 0)
+                {
+                    continue;
+                }
+
+                var segment = text.Substring(segmentStart, segmentLength);
+                if (!HandleTextCompositionFromInput(segment))
+                {
+                    return;
+                }
+
+                pasteStats = pasteStats with { TextCompositionCount = pasteStats.TextCompositionCount + 1 };
             }
 
-            var segmentStart = index;
-            while (index < text.Length && text[index] is not '\r' and not '\n')
-            {
-                index++;
-            }
+            result = true;
+        });
 
-            var segmentLength = index - segmentStart;
-            if (segmentLength == 0)
-            {
-                continue;
-            }
-
-            var segment = text.Substring(segmentStart, segmentLength);
-            if (!HandleTextCompositionFromInput(segment))
-            {
-                return false;
-            }
-
-            stats = stats with { TextCompositionCount = stats.TextCompositionCount + 1 };
-        }
-
-        return true;
+        stats = pasteStats;
+        return result;
     }
 
     private void ApplyLoadedDocument(FlowDocument document, string reason)

@@ -173,6 +173,7 @@ public class ComboBox : Selector
 
     private Popup? _dropDownPopup;
     private ListBox? _dropDownList;
+    private bool _isDropDownItemsDirty = true;
     private bool _isSynchronizingDropDown;
     private long _runtimeHandlePointerDownCallCount;
     private long _runtimeHandlePointerDownElapsedTicks;
@@ -355,6 +356,7 @@ public class ComboBox : Selector
     {
         IncrementMetric(ref _runtimeItemsChangedCallCount, ref _diagItemsChangedCallCount);
         base.OnItemsChanged();
+        MarkDropDownItemsDirty();
         RefreshDropDownItems();
     }
 
@@ -472,6 +474,7 @@ public class ComboBox : Selector
             args.Property == DropDownListStyleProperty)
         {
             IncrementMetric(ref _runtimeDependencyPropertyRefreshTriggerCount, ref _diagDependencyPropertyRefreshTriggerCount);
+            MarkDropDownItemsDirty();
             RefreshDropDownItems();
         }
     }
@@ -779,21 +782,32 @@ public class ComboBox : Selector
             _isSynchronizingDropDown = true;
             try
             {
-                _dropDownList.ItemContainerStyle = ItemContainerStyle;
-                _dropDownList.ItemContainerStyleSelector = ItemContainerStyleSelector;
-                _dropDownList.ItemsPanel = ItemsPanel;
-
-                var projectedItems = new List<object>(ItemContainers.Count);
-                for (var i = 0; i < ItemContainers.Count; i++)
+                if (_isDropDownItemsDirty)
                 {
-                    var container = ItemContainers[i];
-                    var item = ItemFromContainer(container);
-                    IncrementMetric(ref _runtimeRefreshDropDownItemsProjectedItemCount, ref _diagRefreshDropDownItemsProjectedItemCount);
-                    projectedItems.Add(item ?? string.Empty);
-                }
+                    _dropDownList.ExecuteWithSuspendedRegeneration(() =>
+                    {
+                        _dropDownList.ItemContainerStyle = ItemContainerStyle;
+                        _dropDownList.ItemContainerStyleSelector = ItemContainerStyleSelector;
+                        _dropDownList.ItemsPanel = ItemsPanel;
 
-                _dropDownList.Items.Clear();
-                _dropDownList.AddItems(projectedItems);
+                        var projectedItems = new List<object>(ItemContainers.Count);
+                        for (var i = 0; i < ItemContainers.Count; i++)
+                        {
+                            var container = ItemContainers[i];
+                            var item = ItemFromContainer(container);
+                            IncrementMetric(ref _runtimeRefreshDropDownItemsProjectedItemCount, ref _diagRefreshDropDownItemsProjectedItemCount);
+                            projectedItems.Add(item ?? string.Empty);
+                        }
+
+                        _dropDownList.Items.Clear();
+                        foreach (var projectedItem in projectedItems)
+                        {
+                            _dropDownList.Items.Add(projectedItem);
+                        }
+                    });
+
+                    _isDropDownItemsDirty = false;
+                }
 
                 IncrementMetric(ref _runtimeRefreshDropDownItemsSelectedIndexSyncCount, ref _diagRefreshDropDownItemsSelectedIndexSyncCount);
                 _dropDownList.SelectedIndex = SelectedIndex;
@@ -807,6 +821,11 @@ public class ComboBox : Selector
         {
             AddMetric(ref _runtimeRefreshDropDownItemsElapsedTicks, ref _diagRefreshDropDownItemsElapsedTicks, Stopwatch.GetTimestamp() - start);
         }
+    }
+
+    private void MarkDropDownItemsDirty()
+    {
+        _isDropDownItemsDirty = true;
     }
 
     private void PrepareDropDownContainer(UIElement element, object item, int index)

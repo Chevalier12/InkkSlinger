@@ -121,6 +121,7 @@ internal static class InkkOopsActionLogFormatter
             InkkOopsWaitFramesCommand waitFrames => new InkkOopsActionLogEntry("system", FormatAction(index, "wait frames", displayedFps, $"count={waitFrames.FrameCount}")),
             InkkOopsWaitForIdleCommand waitForIdle => new InkkOopsActionLogEntry("system", FormatAction(index, "wait for idle", displayedFps, $"policy={waitForIdle.Policy}")),
             InkkOopsWaitForElementCommand waitForElement => new InkkOopsActionLogEntry(waitForElement.Target.ToString(), FormatAction(index, $"wait for {waitForElement.Condition.ToString().ToLowerInvariant()}", displayedFps, $"maxFrames={waitForElement.MaxFrames} anchor={waitForElement.Anchor}")),
+            InkkOopsSetClipboardTextCommand setClipboardText => new InkkOopsActionLogEntry("clipboard", FormatAction(index, "set clipboard text", displayedFps, $"length={setClipboardText.Text.Length}")),
             InkkOopsCaptureFrameCommand capture => new InkkOopsActionLogEntry("system", FormatAction(index, "capture frame", displayedFps, $"artifact={capture.ArtifactName}")),
             InkkOopsDumpTelemetryCommand dump => new InkkOopsActionLogEntry("system", FormatAction(index, "dump telemetry", displayedFps, $"artifact={dump.ArtifactName}")),
             InkkOopsAssertExistsCommand exists => new InkkOopsActionLogEntry(exists.Target.ToString(), FormatAction(index, "assert exists", displayedFps)),

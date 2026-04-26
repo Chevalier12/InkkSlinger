@@ -8,6 +8,48 @@ namespace InkkSlinger.Tests;
 
 public sealed class IDEEditorControlTests
 {
+    private const string UserReportedDesignerPreviewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                         Background="#111827">
+                <Grid Margin="24">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="18" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Designer Preview"
+                               Foreground="#E7EDF5"
+                               FontSize="22"
+                               FontWeight="SemiBold" />
+
+                    <Border Grid.Row="2"
+                            Background="#182230"
+                            BorderBrush="#35506B"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="18">
+                        <StackPanel>
+                            <TextBlock Text="Manual refresh is enabled."
+                                       Foreground="#E7EDF5"
+                                       FontSize="18" />
+                            <TextBlock Text="Edit the XML below, then press F5 or the toolbar button."
+                                       Foreground="#8AA3B8"
+                                       Margin="0,6,0,12" />
+                            <Button x:Name="PreviewButton"
+                                    Content="Preview Action"
+                                    Width="180"
+                                    Height="40"
+                                    Background="#1F8EFA"
+                                    BorderBrush="#56A7F7"
+                                    BorderThickness="1" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </UserControl>
+            """;
+
     [Fact]
     public void DefaultFallbackTemplate_BuildsFrameworkOwnedGutterAndEditorParts()
     {
@@ -547,6 +589,30 @@ public sealed class IDEEditorControlTests
 
         editor.Redo();
         Assert.Equal("alpha beta", editor.DocumentText);
+    }
+
+    [Fact]
+    public void PasteLargeXml_ShouldKeepSynchronousEditWorkBelowHalfFrameBudget()
+    {
+        TextClipboard.ResetForTests();
+        var (_, editor) = CreateLaidOutEditor(800f, 480f, string.Empty);
+        editor.SetFocusedFromInput(true);
+        editor.Select(0, 0);
+        editor.Editor.ResetPerformanceSnapshot();
+        TextClipboard.SetText(UserReportedDesignerPreviewXml);
+
+        editor.Paste();
+
+        var snapshot = editor.Editor.GetPerformanceSnapshot();
+        Assert.Equal(UserReportedDesignerPreviewXml, editor.DocumentText);
+        Assert.True(
+            snapshot.LastEditMilliseconds < 8d,
+            $"Paste edit work should stay well under a frame; actual={snapshot.LastEditMilliseconds:0.###}ms undoDepth={snapshot.UndoDepth} undoOps={snapshot.UndoOperationCount}.");
+        Assert.True(Dispatcher.PendingDeferredOperationCount > 0);
+
+        Dispatcher.DrainDeferredOperations();
+
+        Assert.Equal(0, Dispatcher.PendingDeferredOperationCount);
     }
 
     [Fact]

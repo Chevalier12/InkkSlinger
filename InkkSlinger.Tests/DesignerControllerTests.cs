@@ -13,57 +13,179 @@ namespace InkkSlinger.Tests;
 
 public class DesignerControllerTests
 {
-        private const string ValidViewXml = """
-                <UserControl xmlns="urn:inkkslinger-ui"
-                                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                                         Background="#101820">
-                    <Grid x:Name="RootGrid">
-                        <StackPanel x:Name="HostPanel">
-                            <TextBlock Text="Hello designer" />
-                            <Button x:Name="SaveButton"
-                                            Content="Save" />
-                        </StackPanel>
-                    </Grid>
-                </UserControl>
-                """;
-
-        private const string InvalidViewXml = """
-                <UserControl xmlns="urn:inkkslinger-ui"
-                                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-                    <Grid>
-                        <Button UnknownProperty="Boom"
-                                        Content="Broken" />
-                    </Grid>
-                </UserControl>
-                """;
-
-        private const string LateInvalidViewXml = """
-                <UserControl xmlns="urn:inkkslinger-ui"
-                                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-                    <StackPanel>
-                        <TextBlock Text="Line 01" />
-                        <TextBlock Text="Line 02" />
-                        <TextBlock Text="Line 03" />
-                        <TextBlock Text="Line 04" />
-                        <TextBlock Text="Line 05" />
-                        <TextBlock Text="Line 06" />
-                        <TextBlock Text="Line 07" />
-                        <TextBlock Text="Line 08" />
-                        <TextBlock Text="Line 09" />
-                        <Button UnknownProperty="Boom"
-                                        Content="Broken" />
+    private const string ValidViewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                         Background="#101820">
+                <Grid x:Name="RootGrid">
+                    <StackPanel x:Name="HostPanel">
+                        <TextBlock Text="Hello designer" />
+                        <Button x:Name="SaveButton"
+                                Content="Save" />
                     </StackPanel>
-                </UserControl>
-                """;
+                </Grid>
+            </UserControl>
+            """;
 
-        private const string MalformedViewXml = """
-                <UserControl xmlns="urn:inkkslinger-ui"
-                                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-                    <Grid>
-                        <Button Content="Broken">
-                    </Grid>
-                </UserControl>
-                """;
+    private const string InvalidViewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                <Grid>
+                    <Button UnknownProperty="Boom"
+                            Content="Broken" />
+                </Grid>
+            </UserControl>
+            """;
+
+    private const string LateInvalidViewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                <StackPanel>
+                    <TextBlock Text="Line 01" />
+                    <TextBlock Text="Line 02" />
+                    <TextBlock Text="Line 03" />
+                    <TextBlock Text="Line 04" />
+                    <TextBlock Text="Line 05" />
+                    <TextBlock Text="Line 06" />
+                    <TextBlock Text="Line 07" />
+                    <TextBlock Text="Line 08" />
+                    <TextBlock Text="Line 09" />
+                    <Button UnknownProperty="Boom"
+                            Content="Broken" />
+                </StackPanel>
+            </UserControl>
+            """;
+
+    private const string MalformedViewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                <Grid>
+                    <Button Content="Broken">
+                </Grid>
+            </UserControl>
+            """;
+
+    private const string AppResourcesXml = """
+            <Application xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+              <Application.Resources>
+                <ResourceDictionary>
+                  <Color x:Key="PreviewPanelColor">#203A56</Color>
+                  <SolidColorBrush x:Key="PreviewPanelBrush" Color="{StaticResource PreviewPanelColor}" />
+                </ResourceDictionary>
+              </Application.Resources>
+            </Application>
+            """;
+
+    private const string AppResourceBackedViewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                <Border x:Name="AppResourcePanel"
+                        Background="{StaticResource PreviewPanelBrush}" />
+            </UserControl>
+            """;
+
+    private const string DefaultAppResourcesEditorText = """
+            <Application xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                <Application.Resources>
+                    <ResourceDictionary>
+                    </ResourceDictionary>
+                </Application.Resources>
+            </Application>
+            """;
+
+    private const string UserReportedButtonStyleResource = """
+              <Style x:Key="BaseButtonStyle" TargetType="{x:Type Button}">
+                <Setter Property="Background" Value="#2A2A2A" />
+                <Setter Property="Foreground" Value="#F0F0F0" />
+                <Setter Property="BorderBrush" Value="#3F3F3F" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="20,10" />
+                <Setter Property="FontWeight" Value="Medium" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+                <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+                <Setter Property="RenderTransform">
+                  <Setter.Value>
+                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                  </Setter.Value>
+                </Setter>
+                <Setter Property="Template">
+                  <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                      <Border x:Name="border"
+                              Background="{TemplateBinding Background}"
+                              BorderBrush="{TemplateBinding BorderBrush}"
+                              BorderThickness="{TemplateBinding BorderThickness}"
+                              CornerRadius="6"
+                              Padding="{TemplateBinding Padding}"
+                              SnapsToDevicePixels="True">
+                        <Border.Effect>
+                          <DropShadowEffect x:Name="shadow"
+                                            Color="#FF8C00"
+                                            ShadowDepth="0"
+                                            BlurRadius="0"
+                                            Opacity="0" />
+                        </Border.Effect>
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                      </Border>
+                      <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="MouseEnter">
+                          <BeginStoryboard>
+                            <Storyboard>
+                              <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                               To="1.03" Duration="0:0:0.15" />
+                              <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                               To="1.03" Duration="0:0:0.15" />
+                              <DoubleAnimation Storyboard.TargetName="shadow"
+                                               Storyboard.TargetProperty="BlurRadius"
+                                               To="12" Duration="0:0:0.15" />
+                              <DoubleAnimation Storyboard.TargetName="shadow"
+                                               Storyboard.TargetProperty="Opacity"
+                                               To="0.5" Duration="0:0:0.15" />
+                            </Storyboard>
+                          </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="MouseLeave">
+                          <BeginStoryboard>
+                            <Storyboard>
+                              <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                               To="1.0" Duration="0:0:0.15" />
+                              <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                               To="1.0" Duration="0:0:0.15" />
+                              <DoubleAnimation Storyboard.TargetName="shadow"
+                                               Storyboard.TargetProperty="BlurRadius"
+                                               To="0" Duration="0:0:0.15" />
+                              <DoubleAnimation Storyboard.TargetName="shadow"
+                                               Storyboard.TargetProperty="Opacity"
+                                               To="0" Duration="0:0:0.15" />
+                            </Storyboard>
+                          </BeginStoryboard>
+                        </EventTrigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                          <Setter TargetName="border" Property="Background" Value="#333333" />
+                          <Setter TargetName="border" Property="BorderBrush" Value="#FF8C00" />
+                          <Setter Property="Foreground" Value="#FFA940" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                          <Setter TargetName="border" Property="Background" Value="#FF8C00" />
+                          <Setter TargetName="border" Property="BorderBrush" Value="#CC7000" />
+                          <Setter Property="Foreground" Value="#1A1A1A" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                          <Setter TargetName="border" Property="Background" Value="#242424" />
+                          <Setter TargetName="border" Property="BorderBrush" Value="#333333" />
+                          <Setter Property="Foreground" Value="#5A5A5A" />
+                        </Trigger>
+                      </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                  </Setter.Value>
+                </Setter>
+              </Style>
+            """;
 
     private const int FixedCompletionScrollFrameworkMeasureCallCount = 36;
     private const int FixedCompletionScrollVisualChildrenTraversalCount = 5874;
@@ -114,6 +236,140 @@ public class DesignerControllerTests
         Assert.Contains(previewRoot.GetVisualChildren(), child => child is TextBlock textBlock && textBlock.Name == "PanelChild");
         Assert.Equal("DockPanel", controller.Inspector.Properties.Single(property => property.Name == "Type").Value);
         Assert.DoesNotContain(controller.Diagnostics, diagnostic => diagnostic.Code == XamlDiagnosticCode.GeneralFailure);
+    }
+
+    [Fact]
+    public void Refresh_AppResourcesText_ResolvesStaticResourcesForPreview()
+    {
+        var controller = new InkkSlinger.Designer.DesignerController();
+
+        var succeeded = controller.Refresh(AppResourceBackedViewXml, AppResourcesXml);
+
+        Assert.True(succeeded);
+        var root = Assert.IsType<UserControl>(controller.PreviewRoot);
+        var border = Assert.IsType<Border>(root.Content);
+        var brush = Assert.IsType<SolidColorBrush>(border.Background);
+        Assert.Equal(new Color(0x20, 0x3A, 0x56), brush.Color);
+        Assert.Empty(controller.Diagnostics);
+    }
+
+    [Fact]
+    public void Refresh_InvalidAppResourcesText_FailsWithAppResourcesDiagnostic()
+    {
+        const string invalidResourcesXml = """
+                <Application xmlns="urn:inkkslinger-ui"
+                             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    <Application.Resources>
+                        <ResourceDictionary>
+                            <SolidColorBrush x:Key="BrokenBrush" NotAProperty="#203A56" />
+                        </ResourceDictionary>
+                    </Application.Resources>
+                </Application>
+                """;
+        var controller = new InkkSlinger.Designer.DesignerController();
+
+        var succeeded = controller.Refresh(ValidViewXml, invalidResourcesXml);
+
+        Assert.False(succeeded);
+        var diagnostic = Assert.Single(controller.Diagnostics, diagnostic =>
+            diagnostic.Code == XamlDiagnosticCode.UnknownProperty &&
+            diagnostic.Source == InkkSlinger.Designer.DesignerDiagnosticSource.AppResources &&
+            diagnostic.Line.HasValue);
+        Assert.Equal(InkkSlinger.Designer.DesignerDiagnosticSource.AppResources, diagnostic.Source);
+        Assert.Equal("SolidColorBrush.NotAProperty", diagnostic.TargetDescription);
+    }
+
+    [Fact]
+    public void AppResourcesEditor_BulkStylePaste_ShouldNotRefreshHighlightingOrInspectorSynchronously()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var appResourcesEditorView = shell.AppResourcesEditorView;
+        var appResourcesEditor = shell.AppResourcesEditorControl;
+        var insertionIndex = appResourcesEditorView.SourceText.IndexOf(
+            "        </ResourceDictionary>",
+            StringComparison.Ordinal);
+        Assert.True(insertionIndex >= 0);
+        appResourcesEditor.Select(insertionIndex, 0);
+
+        var before = appResourcesEditorView.GetDesignerSourceEditorViewSnapshotForDiagnostics();
+        var beforeEditor = appResourcesEditor.GetIDEEditorSnapshotForDiagnostics();
+        TextClipboard.SetText(UserReportedButtonStyleResource);
+
+        appResourcesEditor.Paste();
+
+        var after = appResourcesEditorView.GetDesignerSourceEditorViewSnapshotForDiagnostics();
+        var afterEditor = appResourcesEditor.GetIDEEditorSnapshotForDiagnostics();
+        Assert.Equal(before.SourceEditorTextChangedCallCount, after.SourceEditorTextChangedCallCount);
+        Assert.Equal(beforeEditor.EditorTextChangedCallCount, afterEditor.EditorTextChangedCallCount);
+        Assert.Equal(
+            beforeEditor.UpdateLineNumberGutterForcedCount,
+            afterEditor.UpdateLineNumberGutterForcedCount);
+        Assert.Equal(
+            before.SourceEditorTextChangedRefreshHighlightedCallCount,
+            after.SourceEditorTextChangedRefreshHighlightedCallCount);
+        Assert.Equal(
+            before.SourceEditorTextChangedRefreshPropertyInspectorCallCount,
+            after.SourceEditorTextChangedRefreshPropertyInspectorCallCount);
+        Assert.Contains("BaseButtonStyle", appResourcesEditor.DocumentText, StringComparison.Ordinal);
+        Assert.True(Dispatcher.PendingDeferredOperationCount > 0);
+
+        Dispatcher.DrainDeferredOperations();
+
+        var afterDeferred = appResourcesEditorView.GetDesignerSourceEditorViewSnapshotForDiagnostics();
+        var afterEditorDeferred = appResourcesEditor.GetIDEEditorSnapshotForDiagnostics();
+        Assert.Equal(0, Dispatcher.PendingDeferredOperationCount);
+        Assert.Equal(before.SourceEditorTextChangedCallCount + 1, afterDeferred.SourceEditorTextChangedCallCount);
+        Assert.True(afterEditorDeferred.EditorTextChangedCallCount > beforeEditor.EditorTextChangedCallCount);
+        Assert.Contains("BaseButtonStyle", appResourcesEditorView.SourceText, StringComparison.Ordinal);
+        Assert.Contains(
+            appResourcesEditorView.SourceOverviewItems,
+            item => string.Equals(item.Name, "Style", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SourceEditor_BulkStylePaste_ShouldNotRefreshHighlightingSynchronously()
+    {
+        var sourceEditorView = new InkkSlinger.Designer.DesignerSourceEditorView
+        {
+            SourceText = DefaultAppResourcesEditorText
+        };
+        var sourceEditor = sourceEditorView.Editor;
+        var insertionIndex = sourceEditorView.SourceText.IndexOf(
+            "        </ResourceDictionary>",
+            StringComparison.Ordinal);
+        Assert.True(insertionIndex >= 0);
+        sourceEditor.Select(insertionIndex, 0);
+
+        var before = sourceEditorView.GetDesignerSourceEditorViewSnapshotForDiagnostics();
+        var beforeEditor = sourceEditor.GetIDEEditorSnapshotForDiagnostics();
+        TextClipboard.SetText(UserReportedButtonStyleResource);
+
+        sourceEditor.Paste();
+
+        var after = sourceEditorView.GetDesignerSourceEditorViewSnapshotForDiagnostics();
+        var afterEditor = sourceEditor.GetIDEEditorSnapshotForDiagnostics();
+        Assert.Equal(before.SourceEditorTextChangedCallCount, after.SourceEditorTextChangedCallCount);
+        Assert.Equal(beforeEditor.EditorTextChangedCallCount, afterEditor.EditorTextChangedCallCount);
+        Assert.Equal(
+            beforeEditor.UpdateLineNumberGutterForcedCount,
+            afterEditor.UpdateLineNumberGutterForcedCount);
+        Assert.Equal(
+            before.SourceEditorTextChangedRefreshHighlightedCallCount,
+            after.SourceEditorTextChangedRefreshHighlightedCallCount);
+        Assert.Contains("BaseButtonStyle", sourceEditor.DocumentText, StringComparison.Ordinal);
+        Assert.True(Dispatcher.PendingDeferredOperationCount > 0);
+
+        Dispatcher.DrainDeferredOperations();
+
+        var afterDeferred = sourceEditorView.GetDesignerSourceEditorViewSnapshotForDiagnostics();
+        var afterEditorDeferred = sourceEditor.GetIDEEditorSnapshotForDiagnostics();
+        Assert.Equal(0, Dispatcher.PendingDeferredOperationCount);
+        Assert.Equal(before.SourceEditorTextChangedCallCount + 1, afterDeferred.SourceEditorTextChangedCallCount);
+        Assert.True(afterEditorDeferred.EditorTextChangedCallCount > beforeEditor.EditorTextChangedCallCount);
+        Assert.Contains("BaseButtonStyle", sourceEditorView.SourceText, StringComparison.Ordinal);
+        Assert.Contains(
+            sourceEditorView.SourceOverviewItems,
+            item => string.Equals(item.Name, "Style", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -269,17 +525,25 @@ public class DesignerControllerTests
         var previewScrollViewer = Assert.IsType<ScrollViewer>(shell.FindName("PreviewScrollViewer"));
         var editorTabControl = Assert.IsType<TabControl>(shell.FindName("EditorTabControl"));
         var diagnosticsTab = Assert.IsType<TabItem>(shell.FindName("DiagnosticsTab"));
+        var appResourcesTab = Assert.IsType<TabItem>(shell.FindName("AppResourcesTab"));
         var sourceLineNumberBorder = shell.SourceLineNumberBorderControl;
         var sourceLineNumberPanel = shell.SourceLineNumberPanelControl;
+        var appResourcesPropertyInspectorSplitter = Assert.IsType<GridSplitter>(shell.AppResourcesEditorView.FindName("SourcePropertyInspectorSplitter"));
+        var appResourcesPropertyInspectorBorder = Assert.IsType<Border>(shell.AppResourcesEditorView.FindName("SourcePropertyInspectorBorder"));
         var diagnosticsItemsControl = Assert.IsType<ItemsControl>(shell.FindName("DiagnosticsItemsControl"));
 
         _ = Assert.IsType<ContentControl>(shell.FindName("PreviewHost"));
         _ = Assert.IsType<ItemsControl>(shell.FindName("VisualTreeView"));
         _ = Assert.IsAssignableFrom<IDE_Editor>(shell.SourceEditorControl);
+        _ = Assert.IsAssignableFrom<IDE_Editor>(shell.AppResourcesEditorControl);
+        Assert.NotSame(shell.SourceEditorView, shell.AppResourcesEditorView);
+        Assert.NotSame(shell.SourceEditorControl, shell.AppResourcesEditorControl);
+        Assert.NotNull(shell.AppResourcesEditorView.Minimap);
 
         Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.HorizontalScrollBarVisibility);
         Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.VerticalScrollBarVisibility);
         Assert.Equal(0, editorTabControl.SelectedIndex);
+        Assert.Equal("App Resources", appResourcesTab.Header);
         Assert.Equal("Diagnostics", diagnosticsTab.Header);
         Assert.NotNull(diagnosticsItemsControl);
         Assert.NotNull(sourceLineNumberBorder.Child);
@@ -303,6 +567,31 @@ public class DesignerControllerTests
         Assert.Equal(HorizontalAlignment.Stretch, sourcePropertyInspectorSplitter.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Stretch, sourcePropertyInspectorSplitter.VerticalAlignment);
         Assert.Equal(2, Grid.GetColumn(sourcePropertyInspectorBorder));
+
+        Assert.Equal(1, Grid.GetColumn(appResourcesPropertyInspectorSplitter));
+        Assert.Equal(GridResizeDirection.Columns, appResourcesPropertyInspectorSplitter.ResizeDirection);
+        Assert.Equal(GridResizeBehavior.PreviousAndNext, appResourcesPropertyInspectorSplitter.ResizeBehavior);
+        Assert.Equal(HorizontalAlignment.Stretch, appResourcesPropertyInspectorSplitter.HorizontalAlignment);
+        Assert.Equal(VerticalAlignment.Stretch, appResourcesPropertyInspectorSplitter.VerticalAlignment);
+        Assert.Equal(2, Grid.GetColumn(appResourcesPropertyInspectorBorder));
+    }
+
+    [Fact]
+    public void ShellView_RefreshPreview_UsesAppResourcesEditorText()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = AppResourceBackedViewXml,
+            AppResourcesText = AppResourcesXml
+        };
+
+        Assert.True(shell.RefreshPreview());
+
+        var root = Assert.IsType<UserControl>(shell.Controller.PreviewRoot);
+        var border = Assert.IsType<Border>(root.Content);
+        var brush = Assert.IsType<SolidColorBrush>(border.Background);
+        Assert.Equal(new Color(0x20, 0x3A, 0x56), brush.Color);
+        Assert.Empty(shell.Controller.Diagnostics);
     }
 
     [Fact]
@@ -2630,7 +2919,7 @@ public class DesignerControllerTests
         var diagnosticsTab = Assert.IsType<TabItem>(shell.FindName("DiagnosticsTab"));
         var diagnosticsSummary = Assert.IsType<TextBlock>(shell.FindName("DiagnosticsSummaryText"));
 
-        Assert.Equal(1, editorTabControl.SelectedIndex);
+        Assert.Equal(2, editorTabControl.SelectedIndex);
         Assert.Contains("(!", diagnosticsTab.Header, StringComparison.Ordinal);
         Assert.Contains("error", diagnosticsSummary.Text, StringComparison.OrdinalIgnoreCase);
     }
@@ -2663,7 +2952,7 @@ public class DesignerControllerTests
         RunLayout(uiRoot, 1280, 840, 16);
 
         Assert.False(shell.Controller.LastRefreshSucceeded);
-        Assert.Equal(1, editorTabControl.SelectedIndex);
+        Assert.Equal(2, editorTabControl.SelectedIndex);
         Assert.Contains("(!", diagnosticsTab.Header, StringComparison.Ordinal);
         Assert.NotSame(sourceEditor, FindSelfOrAncestor<IDE_Editor>(uiRoot.GetHoveredElementForDiagnostics()));
     }
@@ -2698,10 +2987,10 @@ public class DesignerControllerTests
         }
 
         Assert.True(diagnosticIndex >= 0);
-    var diagnosticButton = diagnosticsCardButtons[diagnosticIndex];
-        Assert.Equal(1, editorTabControl.SelectedIndex);
+        var diagnosticButton = diagnosticsCardButtons[diagnosticIndex];
+        Assert.Equal(2, editorTabControl.SelectedIndex);
 
-    Click(uiRoot, GetCenter(diagnosticButton.LayoutSlot));
+        Click(uiRoot, GetCenter(diagnosticButton.LayoutSlot));
         RunLayout(uiRoot, 1280, 840, 16);
 
         var highlightedLineNumber = GetLineNumberContaining(source, "UnknownProperty=\"Boom\"");
@@ -2756,7 +3045,7 @@ public class DesignerControllerTests
 
         Click(uiRoot, GetDiagnosticsTabHeaderPoint(editorTabControl));
         RunLayout(uiRoot, 1280, 840, 16);
-        Assert.Equal(1, editorTabControl.SelectedIndex);
+        Assert.Equal(2, editorTabControl.SelectedIndex);
 
         sourceEditor.Select(0, 0);
 
@@ -5044,6 +5333,211 @@ public class DesignerControllerTests
             $"openMs={snapshot.OpenDropDownMilliseconds:0.###} refreshMs={snapshot.RefreshDropDownItemsMilliseconds:0.###}.");
     }
 
+    [Fact]
+    public void ShellView_RootTemplatePicker_ClickOpen_ShouldBuildDropDownShellsOnlyOncePerOpen()
+    {
+        _ = ComboBox.GetTelemetryAndReset();
+
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var picker = Assert.IsType<ComboBox>(shell.FindName("RootTemplateComboBox"));
+        var templateCount = shell.ViewModel.RootTemplates.Count;
+        Assert.True(templateCount > 40, $"Expected a large enough root template list to reproduce the dropdown open churn, got {templateCount}.");
+
+        Click(uiRoot, GetCenter(picker.LayoutSlot));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var snapshot = picker.GetComboBoxSnapshotForDiagnostics();
+        var aggregate = ComboBox.GetTelemetryAndReset();
+
+        Assert.True(snapshot.IsDropDownOpen, "Expected the root picker click to open the dropdown.");
+        Assert.Equal(
+            templateCount,
+            snapshot.BuildDropDownContainerCallCount);
+        Assert.True(
+            snapshot.DropDownItemCount < templateCount,
+            $"Expected virtualization to limit the visible dropdown slice after reusing the owner containers. templates={templateCount} visible={snapshot.DropDownItemCount} refreshCalls={snapshot.RefreshDropDownItemsCallCount}.");
+        Assert.InRange(
+            snapshot.RefreshDropDownItemsProjectedItemCount,
+            templateCount,
+            templateCount * 2);
+        Assert.True(
+            aggregate.RefreshDropDownItemsCallCount >= snapshot.RefreshDropDownItemsCallCount,
+            $"Expected aggregate telemetry to retain the repeated refresh evidence. snapshotRefreshCalls={snapshot.RefreshDropDownItemsCallCount} aggregateRefreshCalls={aggregate.RefreshDropDownItemsCallCount}.");
+    }
+
+    [Fact]
+    public void ShellView_RootTemplatePicker_ScrollingToBottom_ShouldNotLeaveBlankSpaceAfterLastItem()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var picker = Assert.IsType<ComboBox>(shell.FindName("RootTemplateComboBox"));
+        Click(uiRoot, GetCenter(picker.LayoutSlot));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var dropDown = GetComboBoxDropDownList(picker);
+        var scrollViewer = FindListBoxScrollViewer(dropDown);
+        scrollViewer.ScrollToVerticalOffset(10000f);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var lastItem = GetLastViewportIntersectingListBoxItem(dropDown, scrollViewer);
+        var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+        var probe = new Vector2(
+            scrollViewer.LayoutSlot.X + 24f,
+            (scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight) - 2f);
+        var hit = Assert.IsAssignableFrom<FrameworkElement>(VisualTreeHelper.HitTest(shell, probe));
+        var hitItem = FindAncestorOrSelf<ComboBoxItem>(hit);
+
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f,
+            $"Expected bottom-clamped vertical offset. Offset={scrollViewer.VerticalOffset:0.##}, Max={maxVerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+        Assert.NotNull(hitItem);
+        Assert.True(
+            IsVisualAncestorOrSelf(lastItem, hit),
+            $"Expected the viewport-bottom hit to land on the last root template dropdown item after scrolling to the end. hit={DescribeElement(hit)}, lastItem={DescribeElement(lastItem)}, probe={probe}, Offset={scrollViewer.VerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+        Assert.True(
+            ComboBoxItemHasRenderedText(hitItem!),
+            $"Expected the root template dropdown item under the viewport-bottom hit to still have rendered text content after scrolling to the end. hitItem={DescribeElement(hitItem)}, probe={probe}, Offset={scrollViewer.VerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+    }
+
+    [Fact]
+    public void ShellView_RootTemplatePicker_ScrollingToBottom_ShouldFullyRevealLastLogicalItem()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var picker = Assert.IsType<ComboBox>(shell.FindName("RootTemplateComboBox"));
+        Click(uiRoot, GetCenter(picker.LayoutSlot));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var dropDown = GetComboBoxDropDownList(picker);
+        var scrollViewer = FindListBoxScrollViewer(dropDown);
+        scrollViewer.ScrollToVerticalOffset(10000f);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var lastRealized = GetHighestRealizedIndexListBoxItem(dropDown);
+        var viewportBottom = scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight;
+        var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f,
+            $"Expected bottom-clamped vertical offset. Offset={scrollViewer.VerticalOffset:0.##}, Max={maxVerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+        Assert.Equal(
+            dropDown.Items.Count - 1,
+            lastRealized.Index);
+        Assert.True(
+            lastRealized.Element.LayoutSlot.Y + lastRealized.Element.LayoutSlot.Height <= viewportBottom + 0.5f,
+            $"Expected the last root template dropdown item to be fully visible after scrolling to the end. index={lastRealized.Index} itemTop={lastRealized.Element.LayoutSlot.Y:0.##} itemBottom={lastRealized.Element.LayoutSlot.Y + lastRealized.Element.LayoutSlot.Height:0.##} itemHeight={lastRealized.Element.LayoutSlot.Height:0.##} viewportBottom={viewportBottom:0.##} Offset={scrollViewer.VerticalOffset:0.##} Extent={scrollViewer.ExtentHeight:0.##} Viewport={scrollViewer.ViewportHeight:0.##}.");
+    }
+
+    [Fact]
+    public void ShellView_RootTemplatePicker_DraggingScrollBarThumbToBottom_ShouldFullyRevealLastLogicalItem()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var picker = Assert.IsType<ComboBox>(shell.FindName("RootTemplateComboBox"));
+        Click(uiRoot, GetCenter(picker.LayoutSlot));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var dropDown = GetComboBoxDropDownList(picker);
+        var scrollViewer = FindListBoxScrollViewer(dropDown);
+        var verticalBar = GetPrivateScrollBar(scrollViewer, "_verticalBar");
+        var thumb = FindNamedVisualChild<Thumb>(verticalBar, "PART_Thumb");
+        Assert.NotNull(thumb);
+
+        var start = GetCenter(verticalBar.GetThumbRectForInput());
+        var end = new Vector2(start.X, verticalBar.LayoutSlot.Y + verticalBar.LayoutSlot.Height - 18f);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(start, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(start, leftPressed: true));
+        Assert.Same(thumb, FocusManager.GetCapturedPointerElement());
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(end, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(end, leftReleased: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var lastRealized = GetHighestRealizedIndexListBoxItem(dropDown);
+        var viewportBottom = scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight;
+        var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+        var lastText = FindDescendantOrDefault<TextBlock>(lastRealized.Element, static textBlock => !string.IsNullOrWhiteSpace(textBlock.Text));
+
+        Assert.Null(FocusManager.GetCapturedPointerElement());
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 1.5f,
+            $"Expected thumb drag to bottom-clamp the vertical offset. Offset={scrollViewer.VerticalOffset:0.##}, Max={maxVerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+        Assert.Equal(
+            dropDown.Items.Count - 1,
+            lastRealized.Index);
+        Assert.True(
+            lastRealized.Element.LayoutSlot.Y + lastRealized.Element.LayoutSlot.Height <= viewportBottom + 0.5f,
+            $"Expected dragging the root template scrollbar thumb to the bottom to fully reveal the last logical item. index={lastRealized.Index} itemTop={lastRealized.Element.LayoutSlot.Y:0.##} itemBottom={lastRealized.Element.LayoutSlot.Y + lastRealized.Element.LayoutSlot.Height:0.##} itemHeight={lastRealized.Element.LayoutSlot.Height:0.##} viewportBottom={viewportBottom:0.##} Offset={scrollViewer.VerticalOffset:0.##} Extent={scrollViewer.ExtentHeight:0.##} Viewport={scrollViewer.ViewportHeight:0.##} thumbStart={start} thumbEnd={end}.");
+        Assert.True(
+            lastRealized.Element.TryGetRenderBoundsInRootSpace(out var itemRenderBounds),
+            $"Expected the last realized root template item to expose render bounds. index={lastRealized.Index}.");
+        Assert.True(
+            itemRenderBounds.Y + itemRenderBounds.Height <= viewportBottom + 0.5f,
+            $"Expected the last realized root template item render bounds to remain inside the viewport after dragging to the end. index={lastRealized.Index} renderBottom={itemRenderBounds.Y + itemRenderBounds.Height:0.##} viewportBottom={viewportBottom:0.##} renderBounds={FormatRect(itemRenderBounds)}.");
+        Assert.NotNull(lastText);
+        Assert.True(
+            lastText!.TryGetRenderBoundsInRootSpace(out var textRenderBounds),
+            $"Expected the last realized root template item text to expose render bounds. index={lastRealized.Index}.");
+        Assert.True(
+            textRenderBounds.Y + textRenderBounds.Height <= viewportBottom + 0.5f,
+            $"Expected the last realized root template item text to remain fully visible after dragging to the end. index={lastRealized.Index} textBottom={textRenderBounds.Y + textRenderBounds.Height:0.##} viewportBottom={viewportBottom:0.##} textBounds={FormatRect(textRenderBounds)} itemBounds={FormatRect(itemRenderBounds)}.");
+    }
+
+    [Fact]
+    public void ShellView_RootTemplatePicker_DraggingScrollBarThumbToBottom_ShouldFullyRevealVirtualizingStackPanelRow()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var picker = Assert.IsType<ComboBox>(shell.FindName("RootTemplateComboBox"));
+        Click(uiRoot, GetCenter(picker.LayoutSlot));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var dropDown = GetComboBoxDropDownList(picker);
+        var scrollViewer = FindListBoxScrollViewer(dropDown);
+        var verticalBar = GetPrivateScrollBar(scrollViewer, "_verticalBar");
+        var thumb = FindNamedVisualChild<Thumb>(verticalBar, "PART_Thumb");
+        Assert.NotNull(thumb);
+
+        var start = GetCenter(verticalBar.GetThumbRectForInput());
+        var end = new Vector2(start.X, verticalBar.LayoutSlot.Y + verticalBar.LayoutSlot.Height - 18f);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(start, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(start, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(end, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(end, leftReleased: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var viewportBottom = scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight;
+        var virtualizingStackPanelText = FindDescendantOrDefault<TextBlock>(
+            dropDown,
+            static textBlock => string.Equals(textBlock.Text, "VirtualizingStackPanel", StringComparison.Ordinal));
+
+        Assert.NotNull(virtualizingStackPanelText);
+        Assert.True(
+            virtualizingStackPanelText!.TryGetRenderBoundsInRootSpace(out var textRenderBounds),
+            "Expected the VirtualizingStackPanel row text to expose render bounds.");
+        Assert.True(
+            textRenderBounds.Y + textRenderBounds.Height <= viewportBottom + 0.5f,
+            $"Expected the VirtualizingStackPanel row to be fully visible after dragging the root template scrollbar thumb to the bottom. textBottom={textRenderBounds.Y + textRenderBounds.Height:0.##} viewportBottom={viewportBottom:0.##} textBounds={FormatRect(textRenderBounds)} thumbStart={start} thumbEnd={end}.");
+    }
+
     private static string FindNodeId(InkkSlinger.Designer.DesignerVisualNode node, string? elementName, string typeName)
     {
         if (node.ElementName == elementName && node.TypeName == typeName)
@@ -5259,7 +5753,10 @@ public class DesignerControllerTests
         var sourceHeaderWidth = MathF.Max(
             36f,
             tabControl.HeaderPadding.Horizontal + UiTextRenderer.MeasureWidth(tabControl, "Source", tabControl.FontSize));
-        return new Vector2(tabControl.LayoutSlot.X + sourceHeaderWidth + 8f, tabControl.LayoutSlot.Y + 8f);
+        var appResourcesHeaderWidth = MathF.Max(
+            36f,
+            tabControl.HeaderPadding.Horizontal + UiTextRenderer.MeasureWidth(tabControl, "App Resources", tabControl.FontSize));
+        return new Vector2(tabControl.LayoutSlot.X + sourceHeaderWidth + appResourcesHeaderWidth + 8f, tabControl.LayoutSlot.Y + 8f);
     }
 
     private static Vector2 GetCenter(LayoutRect rect)
@@ -6256,6 +6753,121 @@ public class DesignerControllerTests
         }
 
         throw new Xunit.Sdk.XunitException("Expected ListBox items host to contain at least one item.");
+    }
+
+    private static FrameworkElement GetLastViewportIntersectingListBoxItem(ListBox listBox, ScrollViewer scrollViewer)
+    {
+        var host = FindListBoxItemsHostPanel(listBox);
+        var viewportTop = scrollViewer.LayoutSlot.Y;
+        var viewportBottom = scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight;
+        FrameworkElement? best = null;
+        var bestBottom = float.NegativeInfinity;
+
+        foreach (var child in host.Children)
+        {
+            if (child is not FrameworkElement element)
+            {
+                continue;
+            }
+
+            var elementTop = element.LayoutSlot.Y;
+            var elementBottom = element.LayoutSlot.Y + element.LayoutSlot.Height;
+            if (elementBottom <= viewportTop || elementTop >= viewportBottom)
+            {
+                continue;
+            }
+
+            if (elementBottom > bestBottom)
+            {
+                best = element;
+                bestBottom = elementBottom;
+            }
+        }
+
+        return best ?? throw new Xunit.Sdk.XunitException("Expected ListBox items host to contain an item intersecting the viewport.");
+    }
+
+    private static bool ComboBoxItemHasRenderedText(ComboBoxItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.Text))
+        {
+            return true;
+        }
+
+        var textBlocks = new List<TextBlock>();
+        CollectDescendants(item, textBlocks, static textBlock => !string.IsNullOrWhiteSpace(textBlock.Text));
+        return textBlocks.Count > 0;
+    }
+
+    private static (FrameworkElement Element, int Index) GetHighestRealizedIndexListBoxItem(ListBox listBox)
+    {
+        var host = FindListBoxItemsHostPanel(listBox);
+        FrameworkElement? bestElement = null;
+        var bestIndex = -1;
+
+        foreach (var child in host.Children)
+        {
+            if (child is not FrameworkElement element)
+            {
+                continue;
+            }
+
+            if (!listBox.TryGetGeneratedItemInfo(element, out _, out var index))
+            {
+                continue;
+            }
+
+            if (index > bestIndex)
+            {
+                bestIndex = index;
+                bestElement = element;
+            }
+        }
+
+        return bestElement != null
+            ? (bestElement, bestIndex)
+            : throw new Xunit.Sdk.XunitException("Expected ListBox items host to contain at least one realized item container with generated item info.");
+    }
+
+    private static ScrollBar GetPrivateScrollBar(ScrollViewer viewer, string fieldName)
+    {
+        var field = typeof(ScrollViewer).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return Assert.IsType<ScrollBar>(field!.GetValue(viewer));
+    }
+
+    private static TElement? FindNamedVisualChild<TElement>(UIElement root, string name)
+        where TElement : FrameworkElement
+    {
+        if (root is TElement typed && typed.Name == name)
+        {
+            return typed;
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            var found = FindNamedVisualChild<TElement>(child, name);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private static TElement? FindAncestorOrSelf<TElement>(UIElement? element)
+        where TElement : UIElement
+    {
+        for (var current = element; current != null; current = current.VisualParent)
+        {
+            if (current is TElement match)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 
     private static bool IsVisualAncestorOrSelf(UIElement ancestor, UIElement? candidate)
