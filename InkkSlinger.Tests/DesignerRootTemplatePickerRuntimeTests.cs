@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -55,6 +57,24 @@ public sealed class DesignerRootTemplatePickerRuntimeTests
         Assert.True(File.Exists(Path.Combine(run.ArtifactDirectory, "result.json")), "Expected result.json to be written.");
         Assert.True(File.Exists(Path.Combine(run.ArtifactDirectory, "action.log")), "Expected action.log to be written.");
         Assert.True(File.Exists(Path.Combine(run.ArtifactDirectory, "root-template-dropdown-bottom.png")), "Expected the bottom-row frame capture artifact to be written.");
+    }
+
+    [Fact]
+    public async Task RuntimeRun_Designer_RootTemplateComboBox_ScrollBarThumbDrag_ShouldNotJitter()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var projectPath = Path.Combine(repoRoot, "InkkSlinger.Designer", "InkkSlinger.Designer.csproj");
+        var artifactsRoot = Path.Combine(repoRoot, "artifacts", "inkkoops", DesignerRootTemplateComboBoxScrollBarThumbDragJitterScenario.ScriptName);
+
+        var run = await RunRuntimeScenarioFromTestAssemblyAllowCompletedArtifactsAsync(
+            DesignerRootTemplateComboBoxScrollBarThumbDragJitterScenario.ScriptName,
+            projectPath,
+            artifactsRoot);
+
+        Assert.Equal(nameof(InkkOopsRunStatus.Completed), run.Status);
+        Assert.True(Directory.Exists(run.ArtifactDirectory), $"Expected runtime artifacts under '{run.ArtifactDirectory}'.");
+        Assert.True(File.Exists(Path.Combine(run.ArtifactDirectory, "result.json")), "Expected result.json to be written.");
+        Assert.True(File.Exists(Path.Combine(run.ArtifactDirectory, "action.log")), "Expected action.log to be written.");
     }
 
     private static async Task<RuntimeRunArtifacts> RunRuntimeScenarioFromTestAssemblyAllowCompletedArtifactsAsync(
@@ -312,6 +332,193 @@ public sealed class DesignerRootTemplateComboBoxBottomRowVisibilityScenario : II
             .CaptureFrame("root-template-dropdown-bottom")
             .Add(new AssertRootTemplateComboBoxDropDownItemFullyVisibleCommand(BottomItemText))
             .Build();
+    }
+}
+
+public sealed class DesignerRootTemplateComboBoxScrollBarThumbDragJitterScenario : IInkkOopsScriptDefinition
+{
+    public const string ScriptName = "designer-root-template-combobox-scrollbar-thumb-drag-jitter";
+
+    public string Name => ScriptName;
+
+    public InkkOopsScript CreateScript()
+    {
+        return new InkkOopsScriptBuilder(ScriptName)
+            .ResizeWindow(1440, 900)
+            .WaitForInteractive("RootTemplateComboBox", 240)
+            .Hover("RootTemplateComboBox", dwellFrames: 1)
+            .Click(
+                "RootTemplateComboBox",
+                InkkOopsPointerAnchor.Center,
+                InkkOopsPointerMotion.WithTravelFrames(4))
+            .WaitFrames(2)
+            .AssertProperty("RootTemplateComboBox", "IsDropDownOpen", true)
+            .Add(new AssertRootTemplateComboBoxDropDownThumbDragStableCommand())
+            .Build();
+    }
+}
+
+file sealed class AssertRootTemplateComboBoxDropDownThumbDragStableCommand : IInkkOopsCommand
+{
+    private const string ProbeItemText = "VirtualizingStackPanel";
+    private const int StepCount = 24;
+    private const float StepPixels = 3f;
+    private const float AllowedPointerToThumbCenterDrift = 1.25f;
+    private const float AllowedReverseJitter = 0.25f;
+
+    public InkkOopsExecutionMode ExecutionMode => InkkOopsExecutionMode.Pointer;
+
+    public string Describe()
+    {
+        return "AssertRootTemplateComboBoxDropDownThumbDragStable()";
+    }
+
+    public async Task ExecuteAsync(InkkOopsSession session, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var start = await session.QueryOnUiThreadAsync(() => ResolveThumbCenter(session), cancellationToken).ConfigureAwait(false);
+        var samples = new List<ThumbDragSample>(StepCount + 1);
+        samples.Add(await session.QueryOnUiThreadAsync(() => CaptureSample(session, start, 0), cancellationToken).ConfigureAwait(false));
+
+        await session.MovePointerAsync(start, InkkOopsPointerMotion.WithTravelFrames(2), cancellationToken).ConfigureAwait(false);
+        await session.PressPointerAsync(start, MouseButton.Left, cancellationToken).ConfigureAwait(false);
+
+        var pointer = start;
+        try
+        {
+            for (var step = 1; step <= StepCount; step++)
+            {
+                pointer = new System.Numerics.Vector2(start.X, start.Y + (step * StepPixels));
+                await session.MovePointerAsync(pointer, InkkOopsPointerMotion.WithTravelFrames(1), cancellationToken).ConfigureAwait(false);
+                await session.WaitFramesAsync(1, cancellationToken).ConfigureAwait(false);
+                samples.Add(await session.QueryOnUiThreadAsync(() => CaptureSample(session, pointer, step), cancellationToken).ConfigureAwait(false));
+            }
+        }
+        finally
+        {
+            await session.ReleasePointerAsync(pointer, MouseButton.Left, cancellationToken).ConfigureAwait(false);
+        }
+
+        AssertStableDrag(samples);
+    }
+
+    private static System.Numerics.Vector2 ResolveThumbCenter(InkkOopsSession session)
+    {
+        var scrollBar = ResolveVerticalScrollBar(session);
+        var thumbRect = scrollBar.GetThumbRectForInput();
+        return new System.Numerics.Vector2(
+            thumbRect.X + (thumbRect.Width / 2f),
+            thumbRect.Y + (thumbRect.Height / 2f));
+    }
+
+    private static ThumbDragSample CaptureSample(InkkOopsSession session, System.Numerics.Vector2 pointer, int step)
+    {
+        var scrollBar = ResolveVerticalScrollBar(session);
+        var scrollViewer = ResolveDropDownScrollViewer(session);
+        var thumb = RootTemplateComboBoxDropDownTestHelpers.FindDescendant<Thumb>(scrollBar) ??
+            throw new InkkOopsCommandException(InkkOopsFailureCategory.Unrealized, "Root template dropdown vertical ScrollBar has no Thumb descendant.");
+        var captured = FocusManager.GetCapturedPointerElement();
+        var thumbRect = scrollBar.GetThumbRectForInput();
+        var thumbCenterY = thumbRect.Y + (thumbRect.Height / 2f);
+        var pointerToThumbCenter = pointer.Y - thumbCenterY;
+
+        return new ThumbDragSample(
+            step,
+            pointer.X,
+            pointer.Y,
+            thumbRect.X,
+            thumbRect.Y,
+            thumbRect.Width,
+            thumbRect.Height,
+            scrollViewer.VerticalOffset,
+            scrollViewer.ExtentHeight,
+            scrollViewer.ViewportHeight,
+            ReferenceEquals(captured, thumb),
+            pointerToThumbCenter);
+    }
+
+    private static ScrollBar ResolveVerticalScrollBar(InkkOopsSession session)
+    {
+        var scrollViewer = ResolveDropDownScrollViewer(session);
+        var field = typeof(ScrollViewer).GetField("_verticalBar", BindingFlags.Instance | BindingFlags.NonPublic) ??
+            throw new InkkOopsCommandException(InkkOopsFailureCategory.Unresolved, "Could not resolve ScrollViewer._verticalBar field.");
+        return field.GetValue(scrollViewer) as ScrollBar ??
+            throw new InkkOopsCommandException(InkkOopsFailureCategory.Unrealized, "Root template dropdown ScrollViewer._verticalBar was not a ScrollBar.");
+    }
+
+    private static ScrollViewer ResolveDropDownScrollViewer(InkkOopsSession session)
+    {
+        var listBox = RootTemplateComboBoxDropDownTestHelpers.FindRootTemplateDropDownListBox(session, ProbeItemText);
+        return RootTemplateComboBoxDropDownTestHelpers.FindDescendant<ScrollViewer>(listBox) ??
+            throw new InkkOopsCommandException(InkkOopsFailureCategory.Unrealized, "Root template dropdown ListBox has no ScrollViewer.");
+    }
+
+    private static void AssertStableDrag(IReadOnlyList<ThumbDragSample> samples)
+    {
+        if (samples.Count == 0)
+        {
+            throw new InkkOopsCommandException(InkkOopsFailureCategory.Unresolved, "No thumb drag samples were captured.");
+        }
+
+        var startDrift = samples[0].PointerToThumbCenter;
+        ThumbDragSample? previous = null;
+        foreach (var sample in samples)
+        {
+            if (sample.Step > 0 && !sample.CapturedThumb)
+            {
+                throw CreateFailure("dropdown scrollbar thumb lost pointer capture", samples, sample);
+            }
+
+            var driftDelta = MathF.Abs(sample.PointerToThumbCenter - startDrift);
+            if (driftDelta > AllowedPointerToThumbCenterDrift)
+            {
+                throw CreateFailure($"held pointer drifted away from thumb center by {driftDelta:0.###} px", samples, sample);
+            }
+
+            if (previous is { } before && sample.ThumbY + AllowedReverseJitter < before.ThumbY)
+            {
+                throw CreateFailure($"thumb moved upward during downward drag by {before.ThumbY - sample.ThumbY:0.###} px", samples, sample);
+            }
+
+            previous = sample;
+        }
+    }
+
+    private static InkkOopsCommandException CreateFailure(string reason, IReadOnlyList<ThumbDragSample> samples, ThumbDragSample failingSample)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine($"Root template dropdown scrollbar thumb drag jitter repro failed: {reason}.");
+        builder.AppendLine($"Failing sample: {failingSample.Describe()}");
+        builder.AppendLine("Samples:");
+        foreach (var sample in samples)
+        {
+            builder.AppendLine(sample.Describe());
+        }
+
+        return new InkkOopsCommandException(InkkOopsFailureCategory.Clipped, builder.ToString());
+    }
+
+    private readonly record struct ThumbDragSample(
+        int Step,
+        float PointerX,
+        float PointerY,
+        float ThumbX,
+        float ThumbY,
+        float ThumbWidth,
+        float ThumbHeight,
+        float VerticalOffset,
+        float ExtentHeight,
+        float ViewportHeight,
+        bool CapturedThumb,
+        float PointerToThumbCenter)
+    {
+        public string Describe()
+        {
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"step={Step} pointer=({PointerX:0.###},{PointerY:0.###}) thumb=({ThumbX:0.###},{ThumbY:0.###},{ThumbWidth:0.###},{ThumbHeight:0.###}) drift={PointerToThumbCenter:0.###} offset={VerticalOffset:0.###} extent={ExtentHeight:0.###} viewport={ViewportHeight:0.###} captured={CapturedThumb}");
+        }
     }
 }
 

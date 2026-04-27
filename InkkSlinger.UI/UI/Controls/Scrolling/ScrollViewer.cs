@@ -2454,6 +2454,19 @@ public class ScrollViewer : ContentControl
             SetIfChanged(ScrollBar.SmallChangeProperty, _verticalBar, DefaultLineScrollStep);
             SetIfChanged(ScrollBar.LargeChangeProperty, _horizontalBar, desiredHorizontalLargeChange);
             SetIfChanged(ScrollBar.LargeChangeProperty, _verticalBar, desiredVerticalLargeChange);
+
+            var applyHorizontalDragValue = _horizontalBar.IsThumbDragInProgress;
+            var applyVerticalDragValue = _verticalBar.IsThumbDragInProgress;
+            if (applyHorizontalDragValue)
+            {
+                desiredHorizontalValue = _horizontalBar.GetActiveThumbDragValue();
+            }
+
+            if (applyVerticalDragValue)
+            {
+                desiredVerticalValue = _verticalBar.GetActiveThumbDragValue();
+            }
+
             SetIfChanged(ScrollBar.ValueProperty, _horizontalBar, desiredHorizontalValue);
             SetIfChanged(ScrollBar.ValueProperty, _verticalBar, desiredVerticalValue);
             CacheSynchronizedScrollBarState(
@@ -2465,6 +2478,14 @@ public class ScrollViewer : ContentControl
                 desiredVerticalLargeChange,
                 desiredHorizontalValue,
                 desiredVerticalValue);
+
+            if (applyHorizontalDragValue || applyVerticalDragValue)
+            {
+                SetOffsets(
+                    applyHorizontalDragValue ? desiredHorizontalValue : HorizontalOffset,
+                    applyVerticalDragValue ? desiredVerticalValue : VerticalOffset,
+                    applyVerticalDragValue ? ScrollOffsetUpdateSource.VerticalScrollBar : ScrollOffsetUpdateSource.HorizontalScrollBar);
+            }
         }
         finally
         {

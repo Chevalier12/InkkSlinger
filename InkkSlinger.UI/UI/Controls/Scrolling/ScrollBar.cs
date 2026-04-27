@@ -91,6 +91,7 @@ public class ScrollBar : RangeBase
     private RepeatButton? _lineDownButton;
     private float _thumbDragOriginTravel;
     private float _thumbDragAccumulatedDelta;
+    private bool _isThumbDragInProgress;
     private bool _suppressImmediateTrackLayoutRefresh;
 
     public new static readonly RoutedEvent ValueChangedEvent = RangeBase.ValueChangedEvent;
@@ -300,6 +301,18 @@ public class ScrollBar : RangeBase
         return _track?.GetThumbRect() ?? LayoutSlot;
     }
 
+    internal bool IsThumbDragInProgress => _isThumbDragInProgress;
+
+    internal float GetActiveThumbDragValue()
+    {
+        if (!_isThumbDragInProgress || _track == null)
+        {
+            return Value;
+        }
+
+        return _track.GetValueFromThumbTravel(_thumbDragOriginTravel + _thumbDragAccumulatedDelta);
+    }
+
     protected override void OnMinimumChanged(float oldMinimum, float newMinimum)
     {
         _runtimeOnMinimumChangedCallCount++;
@@ -415,6 +428,7 @@ public class ScrollBar : RangeBase
             _diagOnThumbDragStartedNoTrackCount++;
         }
 
+        _isThumbDragInProgress = true;
         _thumbDragOriginTravel = _track?.GetThumbTravel() ?? 0f;
         _thumbDragAccumulatedDelta = 0f;
         args.Handled = true;
@@ -447,7 +461,7 @@ public class ScrollBar : RangeBase
         }
 
         var valueSetStartTicks = Stopwatch.GetTimestamp();
-        Value = _track.GetValueFromThumbTravel(_thumbDragOriginTravel + _thumbDragAccumulatedDelta);
+        Value = GetActiveThumbDragValue();
         var valueSetElapsedTicks = Stopwatch.GetTimestamp() - valueSetStartTicks;
         _runtimeOnThumbDragDeltaValueSetElapsedTicks += valueSetElapsedTicks;
         _diagOnThumbDragDeltaValueSetElapsedTicks += valueSetElapsedTicks;
@@ -463,6 +477,7 @@ public class ScrollBar : RangeBase
         _ = sender;
         _runtimeOnThumbDragCompletedCallCount++;
         _diagOnThumbDragCompletedCallCount++;
+        _isThumbDragInProgress = false;
         _thumbDragOriginTravel = 0f;
         _thumbDragAccumulatedDelta = 0f;
         args.Handled = true;
