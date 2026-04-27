@@ -2906,6 +2906,64 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditorLineNumberGutter_WithHorizontalScrollbar_ShouldStayInsideTextViewport()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = BuildWideNumberedSource(80)
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var sourceLineNumberPanel = shell.SourceLineNumberPanelControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 960, 520, 16);
+        RunLayout(uiRoot, 960, 520, 16);
+
+        Assert.True(
+            sourceEditor.ScrollableWidth > 0f,
+            $"Expected wide Designer source text to show a horizontal scrollbar, but scrollableWidth={sourceEditor.ScrollableWidth:0.###}, viewportWidth={sourceEditor.ViewportWidth:0.###}, extentWidth={sourceEditor.ExtentWidth:0.###}.");
+        Assert.True(sourceEditor.Editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+
+        var textViewportBottom = viewportSnapshot.TextRect.Y + viewportSnapshot.TextRect.Height;
+        var lineNumberBorderBounds = ResolveRenderedBounds(sourceEditor.LineNumberBorder);
+        var overflowingRows = sourceLineNumberPanel.GetVisualChildren()
+            .OfType<TextBlock>()
+            .Select(ResolveRenderedBounds)
+            .Where(bounds => bounds.Y + bounds.Height > textViewportBottom + 0.5f)
+            .ToArray();
+
+        Assert.True(
+            overflowingRows.Length == 0,
+            $"Expected Designer source-editor line numbers to stop at the RichTextBox text viewport when the horizontal scrollbar is visible, but {overflowingRows.Length} gutter rows extended into the scrollbar band. textViewport={FormatRect(viewportSnapshot.TextRect)} gutterBounds={FormatRect(lineNumberBorderBounds)} overflowingRows=[{string.Join("; ", overflowingRows.Select(FormatRect))}].");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorLineNumberGutter_WithHorizontalScrollbar_ShouldClipToTextViewport()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = BuildWideNumberedSource(80)
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 960, 520, 16);
+        RunLayout(uiRoot, 960, 520, 16);
+
+        Assert.True(
+            sourceEditor.ScrollableWidth > 0f,
+            $"Expected wide Designer source text to show a horizontal scrollbar, but scrollableWidth={sourceEditor.ScrollableWidth:0.###}, viewportWidth={sourceEditor.ViewportWidth:0.###}, extentWidth={sourceEditor.ExtentWidth:0.###}.");
+        Assert.True(sourceEditor.Editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+
+        var textViewportBottom = viewportSnapshot.TextRect.Y + viewportSnapshot.TextRect.Height;
+        var lineNumberBorderBounds = ResolveRenderedBounds(sourceEditor.LineNumberBorder);
+
+        Assert.True(
+            lineNumberBorderBounds.Y + lineNumberBorderBounds.Height <= textViewportBottom + 0.5f,
+            $"Expected the Designer source-editor gutter clip to end at the text viewport instead of covering the horizontal scrollbar band, but gutterBounds={FormatRect(lineNumberBorderBounds)} and textViewport={FormatRect(viewportSnapshot.TextRect)}.");
+    }
+
+    [Fact]
     public void ShellView_RefreshError_SelectsDiagnosticsTabAndShowsErrorCountInHeader()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView
@@ -3429,6 +3487,102 @@ public class DesignerControllerTests
         Assert.Equal(beforeLineCount, CountLogicalLines(shell.SourceText));
         Assert.True(afterMetrics.ExtentHeight >= beforeMetrics.ExtentHeight - 0.01f);
         Assert.True(afterMetrics.ExtentHeight - afterMetrics.ViewportHeight >= beforeMetrics.ExtentHeight - beforeMetrics.ViewportHeight - 0.01f);
+    }
+
+    [Fact]
+    public void ShellView_DefaultSourceEditorAfterFortyEntersAtLineTen_ShouldScrollPastInsertedBlankRegion()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var source = shell.SourceText;
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var beforeLineCount = CountLogicalLines(source);
+        var lineTenStart = GetLineStartOffset(source, 10);
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 10);
+        Click(uiRoot, clickPoint);
+        sourceEditor.SetFocusedFromInput(true);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Select(lineTenStart, 0);
+
+        for (var i = 0; i < 40; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Enter, clickPoint));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        var afterDocumentText = NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document));
+        var afterMetrics = sourceEditor.GetScrollMetricsSnapshot();
+        var expectedLineCount = beforeLineCount + 40;
+        var expectedExtentHeight = sourceEditor.EstimatedLineHeight * expectedLineCount;
+
+        Assert.Equal(shell.SourceText, afterDocumentText);
+        Assert.Equal(expectedLineCount, CountLogicalLines(shell.SourceText));
+        Assert.True(
+            afterMetrics.ExtentHeight > afterMetrics.ViewportHeight,
+            $"Expected the source editor to remain scrollable after 40 Enter presses, but extent={afterMetrics.ExtentHeight:0.###} viewport={afterMetrics.ViewportHeight:0.###}.");
+        Assert.True(
+            afterMetrics.ExtentHeight >= expectedExtentHeight - sourceEditor.EstimatedLineHeight,
+            $"Expected the scroll extent to include all {expectedLineCount} logical lines after 40 Enter presses, but extent={afterMetrics.ExtentHeight:0.###}, expectedExtent~={expectedExtentHeight:0.###}, lineHeight={sourceEditor.EstimatedLineHeight:0.###}, beforeLineCount={beforeLineCount}.");
+
+        sourceEditor.ScrollToVerticalOffset(100000f);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.True(sourceEditor.Editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+        var visibleLines = GetVisibleViewportLines(viewportSnapshot).ToArray();
+        Assert.NotEmpty(visibleLines);
+        var lastVisibleLineNumber = visibleLines[^1].Index + 1;
+
+        Assert.True(
+            sourceEditor.VerticalOffset > sourceEditor.EstimatedLineHeight * 40f,
+            $"Expected bottom scrolling to move past the inserted blank-line region, but offset={sourceEditor.VerticalOffset:0.###}, lineHeight={sourceEditor.EstimatedLineHeight:0.###}, scrollable={sourceEditor.ScrollableHeight:0.###}.");
+        Assert.True(
+            lastVisibleLineNumber >= expectedLineCount - 1,
+            $"Expected bottom scrolling to reveal the document tail after 40 Enter presses, but lastVisibleLine={lastVisibleLineNumber}, expectedLineCount={expectedLineCount}, offset={sourceEditor.VerticalOffset:0.###}, scrollable={sourceEditor.ScrollableHeight:0.###}, extent={sourceEditor.ExtentHeight:0.###}, viewport={sourceEditor.ViewportHeight:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_DefaultSourceEditorAfterFortyDirectEntersAtLineTen_ShouldGrowDocumentAndScrollToTail()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var source = shell.SourceText;
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var beforeLineCount = CountLogicalLines(source);
+        var lineTenStart = GetLineStartOffset(source, 10);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(lineTenStart, 0);
+
+        for (var i = 0; i < 40; i++)
+        {
+            Assert.True(sourceEditor.HandleKeyDownFromInput(Keys.Enter, ModifierKeys.None));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        var afterDocumentText = NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document));
+        var expectedLineCount = beforeLineCount + 40;
+
+        Assert.Equal(shell.SourceText, afterDocumentText);
+        Assert.Equal(expectedLineCount, CountLogicalLines(shell.SourceText));
+
+        sourceEditor.ScrollToVerticalOffset(100000f);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.True(sourceEditor.Editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+        var visibleLines = GetVisibleViewportLines(viewportSnapshot).ToArray();
+        Assert.NotEmpty(visibleLines);
+        var lastVisibleLineNumber = visibleLines[^1].Index + 1;
+
+        Assert.True(
+            lastVisibleLineNumber >= expectedLineCount - 1,
+            $"Expected direct Enter handling to reach the document tail, but lastVisibleLine={lastVisibleLineNumber}, expectedLineCount={expectedLineCount}, offset={sourceEditor.VerticalOffset:0.###}, scrollable={sourceEditor.ScrollableHeight:0.###}, extent={sourceEditor.ExtentHeight:0.###}, viewport={sourceEditor.ViewportHeight:0.###}.");
     }
 
     [Fact]
@@ -5609,6 +5763,16 @@ public class DesignerControllerTests
             Enumerable.Range(1, lineCount).Select(static line => string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
                 $"<Line Number=\"{line}\" />")));
+    }
+
+    private static string BuildWideNumberedSource(int lineCount)
+    {
+        var wideValue = new string('x', 240);
+        return string.Join(
+            "\n",
+            Enumerable.Range(1, lineCount).Select(line => string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"<Line Number=\"{line}\" Text=\"{wideValue}\" />")));
     }
 
         private static string BuildBlankLineAtLineTenSourceXml()

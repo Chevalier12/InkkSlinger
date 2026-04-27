@@ -212,6 +212,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
     private int _lastRenderedVisibleLineCount = -1;
     private float _lastRenderedLineOffset = float.NaN;
     private float _lastRenderedLineHeight = float.NaN;
+    private float _lastRenderedLineNumberGutterMaxHeight = float.NaN;
     private float _lastViewportPresentationHorizontalOffset = float.NaN;
     private float _lastViewportPresentationVerticalOffset = float.NaN;
     private float _lastViewportPresentationViewportWidth = float.NaN;
@@ -956,6 +957,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _lastRenderedVisibleLineCount = -1;
         _lastRenderedLineOffset = float.NaN;
         _lastRenderedLineHeight = float.NaN;
+        _lastRenderedLineNumberGutterMaxHeight = float.NaN;
         _cachedIndentGuideSnapshot = new IDEEditorIndentGuideSnapshot(false, default, Array.Empty<IDEEditorIndentGuideSegmentSnapshot>());
         _isIndentGuideSnapshotDirty = true;
         ResetViewportPresentationCache();
@@ -1190,9 +1192,10 @@ public sealed class IDE_Editor : Control, ITextInputControl
 
         var lineCount = Math.Max(1, _cachedLineCount);
         var lineHeight = EstimateLineHeight(lineCount);
-        var viewportHeight = Math.Max(lineHeight, _editor.ViewportHeight);
+        var viewportHeight = Math.Max(lineHeight, ResolveLineNumberViewportHeight());
+        var gutterMaxHeight = ResolveLineNumberGutterMaxHeight();
         var verticalOffset = Math.Max(0f, _editor.VerticalOffset);
-        var approximateVisibleLineCount = Math.Clamp((int)MathF.Ceiling(viewportHeight / lineHeight) + 1, 1, Math.Max(1, lineCount));
+        var approximateVisibleLineCount = Math.Clamp((int)MathF.Floor((viewportHeight + (verticalOffset % lineHeight)) / lineHeight), 1, Math.Max(1, lineCount));
         var firstVisibleLine = GetFirstVisibleLine(lineCount, approximateVisibleLineCount, lineHeight, verticalOffset);
         var visibleLineCount = Math.Clamp(approximateVisibleLineCount, 1, Math.Max(1, lineCount - firstVisibleLine));
         var lineOffset = verticalOffset - (firstVisibleLine * lineHeight);
@@ -1202,7 +1205,8 @@ public sealed class IDE_Editor : Control, ITextInputControl
             firstVisibleLine == _lastRenderedFirstVisibleLine &&
             visibleLineCount == _lastRenderedVisibleLineCount &&
             Math.Abs(lineOffset - _lastRenderedLineOffset) <= 0.01f &&
-            Math.Abs(lineHeight - _lastRenderedLineHeight) <= 0.01f)
+            Math.Abs(lineHeight - _lastRenderedLineHeight) <= 0.01f &&
+            AreLineNumberGutterMaxHeightsEquivalent(gutterMaxHeight, _lastRenderedLineNumberGutterMaxHeight))
         {
             _diagUpdateLineNumberGutterNoOpCount++;
             _runtimeUpdateLineNumberGutterNoOpCount++;
@@ -1210,6 +1214,11 @@ public sealed class IDE_Editor : Control, ITextInputControl
             _diagUpdateLineNumberGutterElapsedTicks += noOpElapsedTicks;
             _runtimeUpdateLineNumberGutterElapsedTicks += noOpElapsedTicks;
             return;
+        }
+
+        if (_lineNumberBorder != null)
+        {
+            _lineNumberBorder.MaxHeight = gutterMaxHeight;
         }
 
         _lineNumberPresenter.LineHeight = lineHeight;
@@ -1227,10 +1236,47 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _lastRenderedVisibleLineCount = visibleLineCount;
         _lastRenderedLineOffset = lineOffset;
         _lastRenderedLineHeight = lineHeight;
+        _lastRenderedLineNumberGutterMaxHeight = gutterMaxHeight;
 
         var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
         _diagUpdateLineNumberGutterElapsedTicks += elapsedTicks;
         _runtimeUpdateLineNumberGutterElapsedTicks += elapsedTicks;
+    }
+
+    private float ResolveLineNumberViewportHeight()
+    {
+        if (_editor != null && _editor.TryGetViewportLayoutSnapshot(out var viewport))
+        {
+            return viewport.TextRect.Height;
+        }
+
+        return _editor?.ViewportHeight ?? 0f;
+    }
+
+    private float ResolveLineNumberGutterMaxHeight()
+    {
+        if (_editor == null || _lineNumberBorder == null || !_editor.TryGetViewportLayoutSnapshot(out var viewport))
+        {
+            return float.PositiveInfinity;
+        }
+
+        var textViewportBottom = viewport.TextRect.Y + viewport.TextRect.Height;
+        return MathF.Max(0f, textViewportBottom - _lineNumberBorder.LayoutSlot.Y);
+    }
+
+    private static bool AreLineNumberGutterMaxHeightsEquivalent(float left, float right)
+    {
+        if (float.IsPositiveInfinity(left) || float.IsPositiveInfinity(right))
+        {
+            return float.IsPositiveInfinity(left) && float.IsPositiveInfinity(right);
+        }
+
+        if (float.IsNaN(left) || float.IsNaN(right))
+        {
+            return false;
+        }
+
+        return Math.Abs(left - right) <= 0.01f;
     }
 
     private bool TryBuildIndentGuideSnapshot(out IDEEditorIndentGuideSnapshot snapshot)
