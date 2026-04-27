@@ -73,6 +73,8 @@ public partial class RichTextBox
         else
         {
             InvalidateMeasure();
+            _scrollContentPresenter.InvalidateMeasure();
+            _contentHost?.InvalidateScrollInfo();
         }
 
         if (TryGetLocalizedTextDirtyBoundsHint(out var dirtyBounds))
