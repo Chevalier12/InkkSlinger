@@ -354,6 +354,49 @@ public sealed class RetainedRenderSyncRegressionTests
     }
 
     [Fact]
+    public void DrawDecision_WhenRetainedSyncPromotesPartialDirtyToFullDirty_UsesPostSyncDecision()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 500f, 500f));
+
+        var parent = new Panel();
+        parent.SetLayoutSlot(new LayoutRect(0f, 0f, 200f, 120f));
+
+        var child = new Border();
+        child.SetLayoutSlot(new LayoutRect(20f, 20f, 20f, 20f));
+        parent.AddChild(child);
+        root.AddChild(parent);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 500f, 500f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.GetTelemetryAndReset();
+
+        child.InvalidateVisual();
+        Assert.True(uiRoot.WouldUsePartialDirtyRedrawForTests());
+
+        uiRoot.RemoveRetainedNodeIndexForTests(child);
+        var decision = uiRoot.ResolveDirtyDrawDecisionAfterRetainedSyncForTests();
+        var telemetry = uiRoot.GetRenderTelemetrySnapshotForTests();
+
+        Assert.Equal(UiDirtyDrawDecisionReason.Partial, decision.BeforeSyncReason);
+        Assert.Equal(UiDirtyDrawDecisionReason.FullDirty, decision.AfterSyncReason);
+        Assert.False(decision.UsePartialClear);
+        Assert.True(decision.UseFullClear);
+        Assert.Equal(UiDirtyDrawDecisionReason.FullDirty, telemetry.LastDirtyDrawDecisionReason);
+        Assert.Equal(1, telemetry.RetainedSyncChangedDirtyDecisionCount);
+        Assert.Equal(0, telemetry.FullRetainedDrawWithoutFullClearCount);
+
+        uiRoot.GetTelemetryAndReset();
+        var resetTelemetry = uiRoot.GetRenderTelemetrySnapshotForTests();
+        Assert.Equal(0, resetTelemetry.RetainedSyncChangedDirtyDecisionCount);
+        Assert.Equal(0, resetTelemetry.FullRetainedDrawWithoutFullClearCount);
+    }
+
+    [Fact]
     public void DeepHierarchy_MultipleInvalidations_RootSubtreeIndexRemainsConsistentAfterSync()
     {
         var root = new Panel();

@@ -94,7 +94,19 @@ internal readonly record struct UiRenderTelemetrySnapshot(
     int ShapeCacheHitCount,
     int ShapeCacheMissCount,
     int TextLayoutCacheHitCount,
-    int TextLayoutCacheMissCount);
+    int TextLayoutCacheMissCount,
+    UiDirtyDrawDecisionReason LastDirtyDrawDecisionReason,
+    int RetainedSyncChangedDirtyDecisionCount,
+    int FullRetainedDrawWithoutFullClearCount);
+
+/// <summary>
+/// Dirty draw decision snapshot.
+/// </summary>
+internal readonly record struct UiDirtyDrawDecisionSnapshot(
+    UiDirtyDrawDecisionReason BeforeSyncReason,
+    UiDirtyDrawDecisionReason AfterSyncReason,
+    bool UsePartialClear,
+    bool UseFullClear);
 
 /// <summary>
 /// Render invalidation debug snapshot.

@@ -14,7 +14,7 @@ static int PrintUsage()
     Console.Error.WriteLine("  inkkoops list");
     Console.Error.WriteLine("  inkkoops run --script <name> --launch [--project <path>] [--pipe <name>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops run --script <name> --attach [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
-    Console.Error.WriteLine("  inkkoops live --attach --command <ping|get-host-info|get-property|assert-property|assert-exists|assert-not-exists|hover|click|invoke|wait-frames|wait-for-element|wait-for-visible|wait-for-enabled|wait-for-in-viewport|wait-for-interactive|wait-for-idle|wheel|scroll-to|scroll-by|scroll-into-view|get-telemetry|get-target-diagnostics> [--scope <name>] [--owner <name>] [--target <name>] [--property <name>] [--expected <value>] [--frames <count>] [--delta <value>] [--horizontal <percent>] [--vertical <percent>] [--padding <value>] [--artifact <name>] [--compact] [--counters <names>] [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
+    Console.Error.WriteLine("  inkkoops live --attach --command <ping|get-host-info|get-property|assert-property|assert-exists|assert-not-exists|hover|click|invoke|drag|wait-frames|wait-for-element|wait-for-visible|wait-for-enabled|wait-for-in-viewport|wait-for-interactive|wait-for-idle|wheel|scroll-to|scroll-by|scroll-into-view|get-telemetry|get-target-diagnostics> [--scope <name>] [--owner <name>] [--target <name>] [--property <name>] [--expected <value>] [--frames <count>] [--delta <value>] [--delta-x <value>] [--delta-y <value>] [--horizontal <percent>] [--vertical <percent>] [--padding <value>] [--artifact <name>] [--compact] [--counters <names>] [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops record --launch [--project <path>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops <recording-path> [--project <path>] [--artifacts <path>]");
     return 1;
@@ -147,6 +147,7 @@ static InkkOopsPipeRequest? BuildAttachRequest(Dictionary<string, string> option
         "click" => InkkOopsPipeRequestKinds.ClickTarget,
         "invoke" => InkkOopsPipeRequestKinds.InvokeTarget,
         "activate" => InkkOopsPipeRequestKinds.InvokeTarget,
+        "drag" => InkkOopsPipeRequestKinds.DragTarget,
         "wait-frames" => InkkOopsPipeRequestKinds.WaitFrames,
         "wait-for-element" => InkkOopsPipeRequestKinds.WaitForElement,
         "wait-for-visible" => InkkOopsPipeRequestKinds.WaitForVisible,
@@ -181,6 +182,12 @@ static InkkOopsPipeRequest? BuildAttachRequest(Dictionary<string, string> option
         ArtifactName = options.TryGetValue("artifact", out var artifactName) ? artifactName : string.Empty,
         Compact = options.ContainsKey("compact"),
         CounterNames = options.TryGetValue("counters", out var counterNames) ? counterNames : string.Empty,
+        DeltaX = options.TryGetValue("delta-x", out var deltaXText) && float.TryParse(deltaXText, NumberStyles.Float, CultureInfo.InvariantCulture, out var deltaX)
+            ? deltaX
+            : 0f,
+        DeltaY = options.TryGetValue("delta-y", out var deltaYText) && float.TryParse(deltaYText, NumberStyles.Float, CultureInfo.InvariantCulture, out var deltaY)
+            ? deltaY
+            : 0f,
         WheelDelta = options.TryGetValue("delta", out var deltaText) && int.TryParse(deltaText, out var wheelDelta)
             ? wheelDelta
             : 0,

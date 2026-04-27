@@ -30,6 +30,19 @@ public enum UiUpdatePhase
     RenderScheduling
 }
 
+public enum UiDirtyDrawDecisionReason
+{
+    None,
+    Partial,
+    FullDirty,
+    ThresholdFallback,
+    NoRegions,
+    RetainedDisabled,
+    DirtyRegionRenderingDisabled,
+    FullRedrawSettle,
+    DiagnosticCapture
+}
+
 
 
 

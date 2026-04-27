@@ -288,7 +288,6 @@ public partial class CanvasView : UserControl
         ApplyGuideVisibility();
         UpdateLiveText();
 
-        _workbench.InvalidateMeasure();
         _workbench.InvalidateArrange();
         UpdateTelemetry();
 

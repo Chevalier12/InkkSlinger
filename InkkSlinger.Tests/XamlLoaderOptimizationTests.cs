@@ -336,24 +336,28 @@ public sealed class XamlLoaderOptimizationTests
         try
         {
             var viewPath = Path.Combine(tempRoot, "View.xaml");
+            var initialTimestamp = new DateTime(2026, 4, 27, 12, 0, 0, DateTimeKind.Utc);
+            var updatedTimestamp = initialTimestamp.AddSeconds(2);
             File.WriteAllText(
                 viewPath,
                 """
 <Border xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Padding="4" />
 """);
+            File.SetLastWriteTimeUtc(viewPath, initialTimestamp);
 
             var before = GetDocumentCacheMissCounts();
             _ = Assert.IsType<Border>(XamlLoader.LoadFromFile(viewPath));
             var middle = GetDocumentCacheMissCounts();
 
-            System.Threading.Thread.Sleep(1100);
             File.WriteAllText(
                 viewPath,
                 """
 <Border xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Padding="8" />
 """);
+            File.SetLastWriteTimeUtc(viewPath, updatedTimestamp);
+            Assert.NotEqual(initialTimestamp, File.GetLastWriteTimeUtc(viewPath));
 
             var reloaded = Assert.IsType<Border>(XamlLoader.LoadFromFile(viewPath));
             var after = GetDocumentCacheMissCounts();

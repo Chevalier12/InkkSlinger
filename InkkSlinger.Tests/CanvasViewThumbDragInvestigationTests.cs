@@ -59,6 +59,69 @@ public sealed class CanvasViewThumbDragInvestigationTests
         }
     }
 
+    [Fact]
+    public void CanvasView_ThumbDragTelemetry_ShouldNotRemeasureWorkbenchForPositionOnlyDrag()
+    {
+        var snapshot = SnapshotApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var view = new CanvasView();
+            var uiRoot = new UiRoot(view);
+
+            RunLayout(uiRoot, 1280, 820, 16);
+
+            var workbench = Assert.IsType<Canvas>(view.FindName("CanvasWorkbench"));
+            var focusCard = Assert.IsType<Border>(view.FindName("CanvasSceneRootCard"));
+            var thumb = Assert.IsType<Thumb>(view.FindName("CanvasSceneDragThumb"));
+
+            AssertThumbAnchoredToFocusCard(focusCard, thumb);
+
+            var dragStart = GetCenter(thumb.LayoutSlot);
+            var dragEnd = dragStart + new Vector2(36f, 24f);
+
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(dragStart, pointerMoved: true));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(dragStart, leftPressed: true));
+            ResetCanvasDragTelemetry(uiRoot);
+
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(dragEnd, pointerMoved: true));
+            Assert.True(thumb.IsDragging);
+
+            RunLayout(uiRoot, 1280, 820, 16);
+
+            var canvasTelemetry = Canvas.GetTelemetryAndReset();
+            var frameworkTelemetry = FrameworkElement.GetTelemetryAndReset();
+            var controlTelemetry = Control.GetTelemetryAndReset();
+            var workbenchSnapshot = workbench.GetFrameworkElementSnapshotForDiagnostics();
+            var focusSnapshot = focusCard.GetFrameworkElementSnapshotForDiagnostics();
+            var thumbSnapshot = thumb.GetFrameworkElementSnapshotForDiagnostics();
+            var viewDiagnostics = CanvasView.GetDiagnosticsAndReset();
+            var rootTelemetry = uiRoot.GetUiRootTelemetrySnapshot();
+            uiRoot.GetTelemetryAndReset();
+
+            Assert.True(
+                canvasTelemetry.MeasureCallCount == 0,
+                $"Position-only thumb drag should not rerun Canvas.MeasureOverride. " +
+                $"canvasMeasureCalls={canvasTelemetry.MeasureCallCount}, canvasMeasuredChildren={canvasTelemetry.MeasuredChildCount}, " +
+                $"canvasArrangeCalls={canvasTelemetry.ArrangeCallCount}, canvasArrangedChildren={canvasTelemetry.ArrangedChildCount}, " +
+                $"workbenchMeasures={workbenchSnapshot.MeasureCallCount}, workbenchArranges={workbenchSnapshot.ArrangeCallCount}, " +
+                $"workbenchMeasureInvalidations={workbenchSnapshot.Invalidation.DirectMeasureInvalidationCount + workbenchSnapshot.Invalidation.PropagatedMeasureInvalidationCount}, " +
+                $"workbenchArrangeInvalidations={workbenchSnapshot.Invalidation.DirectArrangeInvalidationCount + workbenchSnapshot.Invalidation.PropagatedArrangeInvalidationCount}, " +
+                $"workbenchMeasureSources={workbenchSnapshot.Invalidation.TopMeasureInvalidationSources}, " +
+                $"workbenchArrangeSources={workbenchSnapshot.Invalidation.TopArrangeInvalidationSources}, " +
+                $"frameworkMeasureCalls={frameworkTelemetry.MeasureCallCount}, frameworkMeasureCachedReuse={frameworkTelemetry.MeasureCachedReuseCount}, " +
+                $"frameworkInvalidateMeasureCalls={frameworkTelemetry.InvalidateMeasureCallCount}, frameworkInvalidateArrangeCalls={frameworkTelemetry.InvalidateArrangeCallCount}, " +
+                $"controlVisualChildCalls={controlTelemetry.GetVisualChildrenCallCount}, focusDpChanges={focusSnapshot.DependencyPropertyChangedCallCount}, " +
+                $"thumbDpChanges={thumbSnapshot.DependencyPropertyChangedCallCount}, viewSetLeftChanges={viewDiagnostics.SetCanvasLeftChangeCount}, " +
+                $"viewSetTopChanges={viewDiagnostics.SetCanvasTopChangeCount}, uiRootUpdates={rootTelemetry.UpdateCallCount}.");
+        }
+        finally
+        {
+            RestoreApplicationResources(snapshot);
+        }
+    }
+
     private static void AssertThumbAnchoredToFocusCard(Border focusCard, Thumb thumb)
     {
         var expectedLeft = Canvas.GetLeft(focusCard) + focusCard.ActualWidth - thumb.ActualWidth - 14f;
@@ -102,6 +165,15 @@ public sealed class CanvasViewThumbDragInvestigationTests
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
             new Viewport(0, 0, width, height));
+    }
+
+    private static void ResetCanvasDragTelemetry(UiRoot uiRoot)
+    {
+        _ = Canvas.GetTelemetryAndReset();
+        _ = FrameworkElement.GetTelemetryAndReset();
+        _ = Control.GetTelemetryAndReset();
+        _ = CanvasView.GetDiagnosticsAndReset();
+        uiRoot.GetTelemetryAndReset();
     }
 
     private static Dictionary<object, object> SnapshotApplicationResources()

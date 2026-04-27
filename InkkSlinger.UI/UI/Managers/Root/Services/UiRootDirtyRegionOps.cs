@@ -19,6 +19,7 @@ public sealed partial class UiRoot
 
         if (_dirtyRegions.IsFullFrameDirty || _dirtyRegions.RegionCount == 0)
         {
+            RecordFullRetainedDrawWithoutFullClearIfNeeded();
             DrawRetainedRenderList(spriteBatch);
             return;
         }
@@ -26,6 +27,7 @@ public sealed partial class UiRoot
         if (!ShouldUsePartialDirtyRedraw(_dirtyRegions.RegionCount, LastDirtyAreaPercentage))
         {
             _dirtyRegionThresholdFallbackCount++;
+            RecordFullRetainedDrawWithoutFullClearIfNeeded();
             DrawRetainedRenderList(spriteBatch);
             return;
         }

@@ -19,14 +19,14 @@ public class Canvas : Panel
             "Left",
             typeof(float),
             typeof(Canvas),
-            new FrameworkPropertyMetadata(float.NaN, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
+            new FrameworkPropertyMetadata(float.NaN, FrameworkPropertyMetadataOptions.AffectsArrange));
 
     public static readonly DependencyProperty TopProperty =
         DependencyProperty.RegisterAttached(
             "Top",
             typeof(float),
             typeof(Canvas),
-            new FrameworkPropertyMetadata(float.NaN, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
+            new FrameworkPropertyMetadata(float.NaN, FrameworkPropertyMetadataOptions.AffectsArrange));
 
     public static readonly DependencyProperty RightProperty =
         DependencyProperty.RegisterAttached(

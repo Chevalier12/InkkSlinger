@@ -25,6 +25,7 @@ public static class InkkOopsPipeRequestKinds
     public const string GetTelemetry = "get-telemetry";
     public const string GetTargetDiagnostics = "get-target-diagnostics";
     public const string GetHostInfo = "get-host-info";
+    public const string DragTarget = "drag-target";
 }
 
 public sealed class InkkOopsPipeRequest
@@ -58,6 +59,10 @@ public sealed class InkkOopsPipeRequest
     public bool Compact { get; set; }
 
     public string CounterNames { get; set; } = string.Empty;
+
+    public float DeltaX { get; set; }
+
+    public float DeltaY { get; set; }
 
     public int TimeoutMilliseconds { get; set; }
 

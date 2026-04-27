@@ -60,6 +60,7 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
                 InkkOopsPipeRequestKinds.GetTelemetry => await GetTelemetryAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.GetTargetDiagnostics => await GetTargetDiagnosticsAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.GetHostInfo => GetHostInfo(request),
+                InkkOopsPipeRequestKinds.DragTarget => await ExecuteCommandAsync(request, new InkkOopsDragTargetCommand(CreateTarget(request), request.DeltaX, request.DeltaY), cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.RunScript => await RunScriptAsync(request, cancellationToken).ConfigureAwait(false),
                 _ => Fail(request, $"Unknown live request kind '{request.RequestKind}'.")
             };

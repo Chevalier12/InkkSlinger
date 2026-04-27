@@ -130,6 +130,11 @@ public sealed partial class UiRoot
     private double _lastDrawFinalBatchEndMs;
     private double _lastDrawCleanupMs;
     private int _dirtyRegionThresholdFallbackCount;
+    private UiDirtyDrawDecisionReason _lastDirtyDrawDecisionReason = UiDirtyDrawDecisionReason.None;
+    private int _retainedSyncChangedDirtyDecisionCount;
+    private int _fullRetainedDrawWithoutFullClearCount;
+    private bool _currentDrawPerformedFullClear;
+    private bool _diagnosticCaptureFullClearPending;
     private int _fullDirtyInitialStateCount;
     private int _fullDirtyViewportChangeCount;
     private int _fullDirtySurfaceResetCount;
@@ -476,7 +481,10 @@ public sealed partial class UiRoot
             Shape.GetRenderCacheHitCountForTests(),
             Shape.GetRenderCacheMissCountForTests(),
             TextLayout.GetMetricsSnapshot().CacheHitCount,
-            TextLayout.GetMetricsSnapshot().CacheMissCount);
+            TextLayout.GetMetricsSnapshot().CacheMissCount,
+            _lastDirtyDrawDecisionReason,
+            _retainedSyncChangedDirtyDecisionCount,
+            _fullRetainedDrawWithoutFullClearCount);
     }
 
     internal UiRenderInvalidationDebugSnapshot GetRenderInvalidationDebugSnapshotForTests()
@@ -620,6 +628,8 @@ public sealed partial class UiRoot
         _telemetrySynchronizeRetainedRenderListCallCount = 0;
         _telemetryClearDirtyRenderQueueCallCount = 0;
         _telemetryResetUpdatePhaseStateCallCount = 0;
+        _retainedSyncChangedDirtyDecisionCount = 0;
+        _fullRetainedDrawWithoutFullClearCount = 0;
     }
 
     internal UIElement? GetHoveredElementForDiagnostics()
@@ -656,6 +666,11 @@ public sealed partial class UiRoot
     {
         return _fullRedrawSettleFramesRemaining <= 0 &&
                ShouldUsePartialDirtyRedraw(_dirtyRegions.RegionCount, _dirtyRegions.GetDirtyAreaCoverage());
+    }
+
+    internal UiDirtyDrawDecisionSnapshot ResolveDirtyDrawDecisionAfterRetainedSyncForTests()
+    {
+        return ResolveDirtyDrawDecisionAfterRetainedSync();
     }
 
     internal int GetFullRedrawSettleFramesRemainingForTests()
@@ -714,6 +729,7 @@ public sealed partial class UiRoot
         _telemetryForceFullRedrawForDiagnosticsCaptureCallCount++;
         _hasRenderInvalidation = true;
         _mustDrawNextFrame = true;
+        _diagnosticCaptureFullClearPending = true;
         _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
     }
 
@@ -961,6 +977,7 @@ public sealed partial class UiRoot
         _mustDrawNextFrame = false;
         _scheduledDrawReasons = UiRedrawReason.None;
         ResetRetainedSyncTrackingState();
+        _diagnosticCaptureFullClearPending = false;
     }
 
     private void ArmFullRedrawSettleWindowForResize()

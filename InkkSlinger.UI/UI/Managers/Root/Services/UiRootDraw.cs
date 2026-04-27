@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -36,6 +37,7 @@ public sealed partial class UiRoot
         _lastDrawCursorMs = 0d;
         _lastDrawFinalBatchEndMs = 0d;
         _lastDrawCleanupMs = 0d;
+        _currentDrawPerformedFullClear = false;
         UiDrawing.ResetFrameTelemetry();
 
         var graphicsDevice = spriteBatch.GraphicsDevice;
@@ -44,17 +46,14 @@ public sealed partial class UiRoot
             SyncDirtyRegionViewport(graphicsDevice.Viewport);
         }
 
-        var dirtyCoverage = _dirtyRegions.GetDirtyAreaCoverage();
-        var usePartialClear = UseRetainedRenderList &&
-                              UseDirtyRegionRendering &&
-                              _fullRedrawSettleFramesRemaining <= 0 &&
-                              !_dirtyRegions.IsFullFrameDirty &&
-                              ShouldUsePartialDirtyRedraw(_dirtyRegions.RegionCount, dirtyCoverage);
+        var drawDecision = ResolveDirtyDrawDecisionAfterRetainedSync();
+        var usePartialClear = drawDecision.UsePartialClear;
         if (!usePartialClear)
         {
             var clearStart = Stopwatch.GetTimestamp();
             graphicsDevice.Clear(_clearColor);
             _lastDrawClearMs = Stopwatch.GetElapsedTime(clearStart).TotalMilliseconds;
+            _currentDrawPerformedFullClear = true;
         }
 
         var batchBeginStart = Stopwatch.GetTimestamp();
@@ -74,7 +73,6 @@ public sealed partial class UiRoot
             var treeDrawStart = Stopwatch.GetTimestamp();
             if (UseRetainedRenderList)
             {
-                SynchronizeRetainedRenderListForDrawIfNeeded();
                 if (UseDirtyRegionRendering && usePartialClear)
                 {
                     DrawRetainedRenderListWithDirtyRegions(spriteBatch);
@@ -83,6 +81,7 @@ public sealed partial class UiRoot
                 {
                     LastDirtyRectCount = 1;
                     LastDirtyAreaPercentage = 1d;
+                    RecordFullRetainedDrawWithoutFullClearIfNeeded();
                     DrawRetainedRenderList(spriteBatch);
                 }
             }
@@ -125,9 +124,77 @@ public sealed partial class UiRoot
         ClearDirtyRenderQueue();
         ResetRetainedSyncTrackingState();
         _dirtyRegions.Clear();
+        _diagnosticCaptureFullClearPending = false;
         ConsumeFullRedrawSettleFrame();
         _lastDrawCleanupMs = Stopwatch.GetElapsedTime(cleanupStart).TotalMilliseconds;
         LastDrawMs = Stopwatch.GetElapsedTime(drawStart).TotalMilliseconds;
+    }
+
+    private UiDirtyDrawDecisionSnapshot ResolveDirtyDrawDecisionAfterRetainedSync()
+    {
+        var beforeSyncReason = GetCurrentDirtyDrawDecisionReason();
+        if (UseRetainedRenderList)
+        {
+            SynchronizeRetainedRenderListForDrawIfNeeded();
+        }
+
+        var afterSyncReason = GetCurrentDirtyDrawDecisionReason();
+        if (beforeSyncReason != afterSyncReason)
+        {
+            _retainedSyncChangedDirtyDecisionCount++;
+        }
+
+        _lastDirtyDrawDecisionReason = afterSyncReason;
+        return new UiDirtyDrawDecisionSnapshot(
+            beforeSyncReason,
+            afterSyncReason,
+            afterSyncReason == UiDirtyDrawDecisionReason.Partial,
+            afterSyncReason != UiDirtyDrawDecisionReason.Partial);
+    }
+
+    private UiDirtyDrawDecisionReason GetCurrentDirtyDrawDecisionReason()
+    {
+        if (!UseRetainedRenderList)
+        {
+            return UiDirtyDrawDecisionReason.RetainedDisabled;
+        }
+
+        if (!UseDirtyRegionRendering)
+        {
+            return UiDirtyDrawDecisionReason.DirtyRegionRenderingDisabled;
+        }
+
+        if (_diagnosticCaptureFullClearPending)
+        {
+            return UiDirtyDrawDecisionReason.DiagnosticCapture;
+        }
+
+        if (_fullRedrawSettleFramesRemaining > 0)
+        {
+            return UiDirtyDrawDecisionReason.FullRedrawSettle;
+        }
+
+        if (_dirtyRegions.IsFullFrameDirty)
+        {
+            return UiDirtyDrawDecisionReason.FullDirty;
+        }
+
+        if (_dirtyRegions.RegionCount == 0)
+        {
+            return UiDirtyDrawDecisionReason.NoRegions;
+        }
+
+        return ShouldUsePartialDirtyRedraw(_dirtyRegions.RegionCount, _dirtyRegions.GetDirtyAreaCoverage())
+            ? UiDirtyDrawDecisionReason.Partial
+            : UiDirtyDrawDecisionReason.ThresholdFallback;
+    }
+
+    private void RecordFullRetainedDrawWithoutFullClearIfNeeded()
+    {
+        if (!_currentDrawPerformedFullClear)
+        {
+            _fullRetainedDrawWithoutFullClearCount++;
+        }
     }
 
     private void SynchronizeRetainedRenderListForDrawIfNeeded()
