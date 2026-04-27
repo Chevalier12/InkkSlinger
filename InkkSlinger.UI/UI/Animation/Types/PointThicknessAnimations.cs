@@ -264,6 +264,7 @@ public sealed class SplineThicknessKeyFrame : ThicknessKeyFrame
 public sealed class PointAnimationUsingKeyFrames : AnimationTimeline
 {
     private readonly List<PointKeyFrame> _keyFrames = new();
+    private readonly KeyFrameTiming.ScheduleCache<PointKeyFrame> _scheduleCache = new();
 
     public IList<PointKeyFrame> KeyFrames => _keyFrames;
 
@@ -275,19 +276,19 @@ public sealed class PointAnimationUsingKeyFrames : AnimationTimeline
             return startValue;
         }
 
-        var ordered = KeyFrameTiming.ResolveSchedule(
+        var total = ResolveNaturalDuration();
+        var ordered = _scheduleCache.GetOrResolve(
             _keyFrames,
             k => k.KeyTime,
             k => k.Value,
             startValue,
-            ResolveNaturalDuration(),
+            total,
             static (from, to) =>
             {
                 var a = from is Vector2 fromPoint ? fromPoint : Vector2.Zero;
                 var b = to is Vector2 toPoint ? toPoint : Vector2.Zero;
                 return Vector2.Distance(a, b);
             });
-        var total = ResolveNaturalDuration();
         var now = TimeSpan.FromTicks((long)(total.Ticks * Math.Clamp(progress, 0f, 1f)));
 
         PointKeyFrame? previousFrame = null;
@@ -329,6 +330,7 @@ public sealed class PointAnimationUsingKeyFrames : AnimationTimeline
 public sealed class ThicknessAnimationUsingKeyFrames : AnimationTimeline
 {
     private readonly List<ThicknessKeyFrame> _keyFrames = new();
+    private readonly KeyFrameTiming.ScheduleCache<ThicknessKeyFrame> _scheduleCache = new();
 
     public IList<ThicknessKeyFrame> KeyFrames => _keyFrames;
 
@@ -340,12 +342,13 @@ public sealed class ThicknessAnimationUsingKeyFrames : AnimationTimeline
             return startValue;
         }
 
-        var ordered = KeyFrameTiming.ResolveSchedule(
+        var total = ResolveNaturalDuration();
+        var ordered = _scheduleCache.GetOrResolve(
             _keyFrames,
             k => k.KeyTime,
             k => k.Value,
             startValue,
-            ResolveNaturalDuration(),
+            total,
             static (from, to) =>
             {
                 var a = from is Thickness fromThickness ? fromThickness : Thickness.Empty;
@@ -356,7 +359,6 @@ public sealed class ThicknessAnimationUsingKeyFrames : AnimationTimeline
                 var db = b.Bottom - a.Bottom;
                 return MathF.Sqrt((dl * dl) + (dt * dt) + (dr * dr) + (db * db));
             });
-        var total = ResolveNaturalDuration();
         var now = TimeSpan.FromTicks((long)(total.Ticks * Math.Clamp(progress, 0f, 1f)));
 
         ThicknessKeyFrame? previousFrame = null;

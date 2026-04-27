@@ -373,6 +373,20 @@ public class ListBox : Selector
         }
     }
 
+    internal void ResetScrollStateForReuse()
+    {
+        var scrollViewer = ActiveScrollViewer;
+        scrollViewer.ScrollToHorizontalOffset(0f);
+        scrollViewer.ScrollToVerticalOffset(0f);
+        scrollViewer.InvalidateScrollInfo();
+        scrollViewer.InvalidateMeasure();
+        scrollViewer.InvalidateArrange();
+        _itemsHost.InvalidateMeasure();
+        _itemsHost.InvalidateArrange();
+        InvalidateMeasure();
+        InvalidateArrange();
+    }
+
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
         base.OnDependencyPropertyChanged(args);

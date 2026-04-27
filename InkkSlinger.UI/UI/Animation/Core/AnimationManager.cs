@@ -23,7 +23,9 @@ public sealed class AnimationManager
     private readonly List<AnimationLaneKey> _inactiveLaneBuffer = new();
     private readonly HashSet<AnimationLaneKey> _activeLaneKeys = new();
     private readonly List<PendingAnimationWrite> _pendingWriteBuffer = new();
+    private readonly List<int> _optimizedMatchedWriteIndices = new();
     private readonly HashSet<Freezable> _batchedFreezables = new();
+    private bool[] _handledWriteBuffer = Array.Empty<bool>();
     private ConditionalWeakTable<Storyboard, StoryboardInstance.PreparedStoryboardMetadata> _preparedStoryboardMetadata = new();
     private long _nextSequence;
     private int _nextStoryboardInstanceId;
@@ -719,7 +721,7 @@ public sealed class AnimationManager
 
         var batchedFreezables = _batchedFreezables;
         batchedFreezables.Clear();
-        var handledWrites = new bool[pendingWrites.Count];
+        var handledWrites = PrepareHandledWriteBuffer(pendingWrites.Count);
         try
         {
             var batchBeginStartTicks = Stopwatch.GetTimestamp();
@@ -779,6 +781,18 @@ public sealed class AnimationManager
         }
     }
 
+    private bool[] PrepareHandledWriteBuffer(int count)
+    {
+        if (_handledWriteBuffer.Length < count)
+        {
+            _handledWriteBuffer = new bool[count];
+            return _handledWriteBuffer;
+        }
+
+        Array.Clear(_handledWriteBuffer, 0, count);
+        return _handledWriteBuffer;
+    }
+
     private bool TryApplyOptimizedPendingWrites(
         List<PendingAnimationWrite> pendingWrites,
         bool[] handledWrites,
@@ -821,6 +835,8 @@ public sealed class AnimationManager
         var centerX = 0f;
         var hasCenterY = false;
         var centerY = 0f;
+        var matchedIndices = _optimizedMatchedWriteIndices;
+        matchedIndices.Clear();
 
         for (var i = startIndex; i < pendingWrites.Count; i++)
         {
@@ -834,43 +850,30 @@ public sealed class AnimationManager
                 case nameof(ScaleTransform.ScaleX) when pendingWrites[i].Value is float value:
                     hasScaleX = true;
                     scaleX = value;
-                    matchedCount++;
+                    matchedIndices.Add(i);
                     break;
                 case nameof(ScaleTransform.ScaleY) when pendingWrites[i].Value is float value:
                     hasScaleY = true;
                     scaleY = value;
-                    matchedCount++;
+                    matchedIndices.Add(i);
                     break;
                 case nameof(ScaleTransform.CenterX) when pendingWrites[i].Value is float value:
                     hasCenterX = true;
                     centerX = value;
-                    matchedCount++;
+                    matchedIndices.Add(i);
                     break;
                 case nameof(ScaleTransform.CenterY) when pendingWrites[i].Value is float value:
                     hasCenterY = true;
                     centerY = value;
-                    matchedCount++;
+                    matchedIndices.Add(i);
                     break;
             }
         }
 
+        matchedCount = matchedIndices.Count;
         if (matchedCount == 0)
         {
             return false;
-        }
-
-        var matchedIndices = new List<int>(matchedCount);
-        for (var i = startIndex; i < pendingWrites.Count; i++)
-        {
-            if (handledWrites[i] || pendingWrites[i].Sink is not ClrPropertyAnimationSink clrSink || !ReferenceEquals(clrSink.Target, target))
-            {
-                continue;
-            }
-
-            if (clrSink.Property.Name is nameof(ScaleTransform.ScaleX) or nameof(ScaleTransform.ScaleY) or nameof(ScaleTransform.CenterX) or nameof(ScaleTransform.CenterY))
-            {
-                matchedIndices.Add(i);
-            }
         }
 
         var setStartTicks = Stopwatch.GetTimestamp();
@@ -908,6 +911,8 @@ public sealed class AnimationManager
         var opacity = 0f;
         var hasDirection = false;
         var direction = 0d;
+        var matchedIndices = _optimizedMatchedWriteIndices;
+        matchedIndices.Clear();
 
         for (var i = startIndex; i < pendingWrites.Count; i++)
         {
@@ -921,48 +926,35 @@ public sealed class AnimationManager
                 case nameof(DropShadowEffect.Color) when pendingWrites[i].Value is Color value:
                     hasColor = true;
                     color = value;
-                    matchedCount++;
+                    matchedIndices.Add(i);
                     break;
                 case nameof(DropShadowEffect.ShadowDepth) when pendingWrites[i].Value is float value:
                     hasShadowDepth = true;
                     shadowDepth = value;
-                    matchedCount++;
+                    matchedIndices.Add(i);
                     break;
                 case nameof(DropShadowEffect.BlurRadius) when pendingWrites[i].Value is float value:
                     hasBlurRadius = true;
                     blurRadius = value;
-                    matchedCount++;
+                    matchedIndices.Add(i);
                     break;
                 case nameof(DropShadowEffect.Opacity) when pendingWrites[i].Value is float value:
                     hasOpacity = true;
                     opacity = value;
-                    matchedCount++;
+                    matchedIndices.Add(i);
                     break;
                 case nameof(DropShadowEffect.Direction) when pendingWrites[i].Value is double value:
                     hasDirection = true;
                     direction = value;
-                    matchedCount++;
+                    matchedIndices.Add(i);
                     break;
             }
         }
 
+        matchedCount = matchedIndices.Count;
         if (matchedCount == 0)
         {
             return false;
-        }
-
-        var matchedIndices = new List<int>(matchedCount);
-        for (var i = startIndex; i < pendingWrites.Count; i++)
-        {
-            if (handledWrites[i] || pendingWrites[i].Sink is not ClrPropertyAnimationSink clrSink || !ReferenceEquals(clrSink.Target, target))
-            {
-                continue;
-            }
-
-            if (clrSink.Property.Name is nameof(DropShadowEffect.Color) or nameof(DropShadowEffect.ShadowDepth) or nameof(DropShadowEffect.BlurRadius) or nameof(DropShadowEffect.Opacity) or nameof(DropShadowEffect.Direction))
-            {
-                matchedIndices.Add(i);
-            }
         }
 
         var setStartTicks = Stopwatch.GetTimestamp();

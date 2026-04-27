@@ -1,11 +1,56 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace InkkSlinger;
 
 internal static class KeyFrameTiming
 {
+    public sealed class ScheduleCache<TFrame>
+    {
+        private int _count;
+        private TimeSpan _totalDuration;
+        private int _fingerprint;
+        private bool _hasSchedule;
+        private IReadOnlyList<(TFrame Frame, TimeSpan Time)> _schedule = Array.Empty<(TFrame Frame, TimeSpan Time)>();
+
+        public IReadOnlyList<(TFrame Frame, TimeSpan Time)> GetOrResolve(
+            IReadOnlyList<TFrame> frames,
+            Func<TFrame, KeyTime> keyTimeSelector,
+            Func<TFrame, object?> valueSelector,
+            object? startValue,
+            TimeSpan totalDuration,
+            Func<object?, object?, float>? distanceCalculator)
+        {
+            var count = frames.Count;
+            var fingerprint = ComputeScheduleFingerprint(
+                frames,
+                keyTimeSelector,
+                valueSelector,
+                startValue,
+                includeStartValue: distanceCalculator != null);
+            if (_hasSchedule &&
+                _count == count &&
+                _totalDuration == totalDuration &&
+                _fingerprint == fingerprint)
+            {
+                return _schedule;
+            }
+
+            _schedule = ResolveSchedule(
+                frames,
+                keyTimeSelector,
+                valueSelector,
+                startValue,
+                totalDuration,
+                distanceCalculator);
+            _count = count;
+            _totalDuration = totalDuration;
+            _fingerprint = fingerprint;
+            _hasSchedule = true;
+            return _schedule;
+        }
+    }
+
     public static TimeSpan ResolveNaturalDuration<TFrame>(
         IReadOnlyList<TFrame> frames,
         Func<TFrame, KeyTime> keyTimeSelector,
@@ -128,12 +173,65 @@ internal static class KeyFrameTiming
         }
 
         // Keep keyframe progression deterministic for ties while evaluating in timeline order.
-        return frames
-            .Select((frame, i) => (Frame: frame, Time: resolved[i] ?? TimeSpan.Zero, Index: i))
-            .OrderBy(x => x.Time)
-            .ThenBy(x => x.Index)
-            .Select(x => (x.Frame, x.Time))
-            .ToList();
+        var ordered = new (TFrame Frame, TimeSpan Time, int Index)[count];
+        for (var i = 0; i < count; i++)
+        {
+            ordered[i] = (frames[i], resolved[i] ?? TimeSpan.Zero, i);
+        }
+
+        Array.Sort(
+            ordered,
+            static (left, right) =>
+            {
+                var timeComparison = left.Time.CompareTo(right.Time);
+                return timeComparison != 0 ? timeComparison : left.Index.CompareTo(right.Index);
+            });
+
+        var schedule = new (TFrame Frame, TimeSpan Time)[count];
+        for (var i = 0; i < count; i++)
+        {
+            schedule[i] = (ordered[i].Frame, ordered[i].Time);
+        }
+
+        return schedule;
+    }
+
+    private static int ComputeScheduleFingerprint<TFrame>(
+        IReadOnlyList<TFrame> frames,
+        Func<TFrame, KeyTime> keyTimeSelector,
+        Func<TFrame, object?> valueSelector,
+        object? startValue,
+        bool includeStartValue)
+    {
+        var hash = new HashCode();
+        if (includeStartValue)
+        {
+            hash.Add(ComputeValueFingerprint(startValue));
+        }
+
+        for (var i = 0; i < frames.Count; i++)
+        {
+            var frame = frames[i];
+            hash.Add(keyTimeSelector(frame));
+            hash.Add(ComputeValueFingerprint(valueSelector(frame)));
+        }
+
+        return hash.ToHashCode();
+    }
+
+    private static int ComputeValueFingerprint(object? value)
+    {
+        return value switch
+        {
+            null => 0,
+            float number => HashCode.Combine(number),
+            double number => HashCode.Combine(number),
+            int number => HashCode.Combine(number),
+            Microsoft.Xna.Framework.Vector2 vector => HashCode.Combine(vector.X, vector.Y),
+            Microsoft.Xna.Framework.Color color => HashCode.Combine(color.R, color.G, color.B, color.A),
+            Thickness thickness => HashCode.Combine(thickness.Left, thickness.Top, thickness.Right, thickness.Bottom),
+            _ => value.GetHashCode()
+        };
     }
 
     private static void ResolveUniformRun(
@@ -171,7 +269,6 @@ internal static class KeyFrameTiming
         object? startValue,
         Func<object?, object?, float> distanceCalculator)
     {
-        var distances = new List<float>();
         var previous = runStart > 0 ? valueSelector(frames[runStart - 1]) : startValue;
         var cumulative = new float[runEnd - runStart + 1];
         var totalDistance = 0f;
@@ -180,7 +277,6 @@ internal static class KeyFrameTiming
         {
             var current = valueSelector(frames[i]);
             var distance = Math.Max(0f, distanceCalculator(previous, current));
-            distances.Add(distance);
             totalDistance += distance;
             cumulative[i - runStart] = totalDistance;
             previous = current;

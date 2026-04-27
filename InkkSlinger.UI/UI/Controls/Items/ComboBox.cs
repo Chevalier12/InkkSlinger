@@ -629,6 +629,7 @@ public class ComboBox : Selector
             }
 
             RefreshDropDownItems();
+            _dropDownList.ResetScrollStateForReuse();
 
             _dropDownPopup.PlacementTarget = this;
             _dropDownPopup.PlacementMode = PopupPlacementMode.Bottom;

@@ -279,6 +279,67 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
             cancellationToken);
     }
 
+    public Task<InkkOopsFrameRegionSample> SampleCurrentFrameRegionAsync(LayoutRect region, CancellationToken cancellationToken = default)
+    {
+        return QueryOnUiThreadAsync(() => SampleCurrentFrameRegion(region), cancellationToken);
+    }
+
+    private InkkOopsFrameRegionSample SampleCurrentFrameRegion(LayoutRect region)
+    {
+        var renderTarget = _renderTargetAccessor();
+        if (renderTarget == null || renderTarget.IsDisposed)
+        {
+            throw new InvalidOperationException("UI composite render target is unavailable.");
+        }
+
+        var x = Math.Clamp((int)MathF.Floor(region.X), 0, renderTarget.Width);
+        var y = Math.Clamp((int)MathF.Floor(region.Y), 0, renderTarget.Height);
+        var right = Math.Clamp((int)MathF.Ceiling(region.X + region.Width), x, renderTarget.Width);
+        var bottom = Math.Clamp((int)MathF.Ceiling(region.Y + region.Height), y, renderTarget.Height);
+        var width = Math.Max(0, right - x);
+        var height = Math.Max(0, bottom - y);
+        if (width == 0 || height == 0)
+        {
+            return new InkkOopsFrameRegionSample(x, y, width, height, 0, 0, 0, 0f);
+        }
+
+        var pixels = new Microsoft.Xna.Framework.Color[width * height];
+        renderTarget.GetData(
+            level: 0,
+            rect: new Microsoft.Xna.Framework.Rectangle(x, y, width, height),
+            data: pixels,
+            startIndex: 0,
+            elementCount: pixels.Length);
+
+        var brightPixels = 0;
+        var maxLuma = 0;
+        var lumaSum = 0L;
+        foreach (var pixel in pixels)
+        {
+            var luma = Math.Max(pixel.R, Math.Max(pixel.G, pixel.B));
+            lumaSum += luma;
+            if (luma > maxLuma)
+            {
+                maxLuma = luma;
+            }
+
+            if (pixel.A > 0 && luma >= 150)
+            {
+                brightPixels++;
+            }
+        }
+
+        return new InkkOopsFrameRegionSample(
+            x,
+            y,
+            width,
+            height,
+            pixels.Length,
+            brightPixels,
+            maxLuma,
+            pixels.Length == 0 ? 0f : lumaSum / (float)pixels.Length);
+    }
+
     public Task<string> CaptureTelemetryAsync(string artifactName, CancellationToken cancellationToken = default)
     {
         return QueryOnUiThreadAsync(

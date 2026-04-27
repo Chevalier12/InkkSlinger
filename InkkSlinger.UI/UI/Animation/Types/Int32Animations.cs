@@ -135,6 +135,7 @@ public sealed class SplineInt32KeyFrame : Int32KeyFrame
 public sealed class Int32AnimationUsingKeyFrames : AnimationTimeline
 {
     private readonly List<Int32KeyFrame> _keyFrames = new();
+    private readonly KeyFrameTiming.ScheduleCache<Int32KeyFrame> _scheduleCache = new();
 
     public IList<Int32KeyFrame> KeyFrames => _keyFrames;
 
@@ -153,14 +154,14 @@ public sealed class Int32AnimationUsingKeyFrames : AnimationTimeline
             return startValue;
         }
 
-        var ordered = KeyFrameTiming.ResolveSchedule(
+        var total = ResolveNaturalDuration();
+        var ordered = _scheduleCache.GetOrResolve(
             _keyFrames,
             k => k.KeyTime,
             k => k.Value,
             startValue,
-            ResolveNaturalDuration(),
+            total,
             static (from, to) => MathF.Abs(ConvertToInt32(to) - ConvertToInt32(from)));
-        var total = ResolveNaturalDuration();
         var now = TimeSpan.FromTicks((long)(total.Ticks * Math.Clamp(progress, 0f, 1f)));
 
         Int32KeyFrame? previousFrame = null;

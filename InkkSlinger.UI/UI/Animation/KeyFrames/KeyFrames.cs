@@ -152,6 +152,7 @@ public sealed class SplineColorKeyFrame : ColorKeyFrame
 public sealed class DoubleAnimationUsingKeyFrames : AnimationTimeline
 {
     private readonly List<DoubleKeyFrame> _keyFrames = new();
+    private readonly KeyFrameTiming.ScheduleCache<DoubleKeyFrame> _scheduleCache = new();
 
     public IList<DoubleKeyFrame> KeyFrames => _keyFrames;
 
@@ -170,12 +171,13 @@ public sealed class DoubleAnimationUsingKeyFrames : AnimationTimeline
             return startValue;
         }
 
-        var ordered = KeyFrameTiming.ResolveSchedule(
+        var total = ResolveNaturalDuration();
+        var ordered = _scheduleCache.GetOrResolve(
             _keyFrames,
             k => k.KeyTime,
             k => k.Value,
             startValue,
-            ResolveNaturalDuration(),
+            total,
             static (from, to) =>
             {
                 static float ToSingle(object? value)
@@ -191,7 +193,6 @@ public sealed class DoubleAnimationUsingKeyFrames : AnimationTimeline
 
                 return MathF.Abs(ToSingle(to) - ToSingle(from));
             });
-        var total = ResolveNaturalDuration();
         var now = TimeSpan.FromTicks((long)(total.Ticks * Math.Clamp(progress, 0f, 1f)));
 
         DoubleKeyFrame? previousFrame = null;
@@ -233,6 +234,7 @@ public sealed class DoubleAnimationUsingKeyFrames : AnimationTimeline
 public sealed class ColorAnimationUsingKeyFrames : AnimationTimeline
 {
     private readonly List<ColorKeyFrame> _keyFrames = new();
+    private readonly KeyFrameTiming.ScheduleCache<ColorKeyFrame> _scheduleCache = new();
 
     public IList<ColorKeyFrame> KeyFrames => _keyFrames;
 
@@ -244,12 +246,13 @@ public sealed class ColorAnimationUsingKeyFrames : AnimationTimeline
             return startValue;
         }
 
-        var ordered = KeyFrameTiming.ResolveSchedule(
+        var total = ResolveNaturalDuration();
+        var ordered = _scheduleCache.GetOrResolve(
             _keyFrames,
             k => k.KeyTime,
             k => k.Value,
             startValue,
-            ResolveNaturalDuration(),
+            total,
             static (from, to) =>
             {
                 var a = from is Color fromColor ? fromColor : Color.Transparent;
@@ -260,7 +263,6 @@ public sealed class ColorAnimationUsingKeyFrames : AnimationTimeline
                 var da = b.A - a.A;
                 return MathF.Sqrt((dr * dr) + (dg * dg) + (db * db) + (da * da));
             });
-        var total = ResolveNaturalDuration();
         var now = TimeSpan.FromTicks((long)(total.Ticks * Math.Clamp(progress, 0f, 1f)));
 
         ColorKeyFrame? previousFrame = null;

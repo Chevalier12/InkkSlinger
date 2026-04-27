@@ -5540,24 +5540,20 @@ public class DesignerControllerTests
         scrollViewer.ScrollToVerticalOffset(10000f);
         RunLayout(uiRoot, 1280, 840, 16);
 
-        var lastItem = GetLastViewportIntersectingListBoxItem(dropDown, scrollViewer);
+        var lastItem = Assert.IsType<ComboBoxItem>(GetLastViewportIntersectingListBoxItem(dropDown, scrollViewer));
         var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
-        var probe = new Vector2(
-            scrollViewer.LayoutSlot.X + 24f,
-            (scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight) - 2f);
-        var hit = Assert.IsAssignableFrom<FrameworkElement>(VisualTreeHelper.HitTest(shell, probe));
-        var hitItem = FindAncestorOrSelf<ComboBoxItem>(hit);
+        var viewportBottom = scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight;
+        var gapAfterLastVisibleItem = viewportBottom - (lastItem.LayoutSlot.Y + lastItem.LayoutSlot.Height);
 
         Assert.True(
             MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f,
             $"Expected bottom-clamped vertical offset. Offset={scrollViewer.VerticalOffset:0.##}, Max={maxVerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
-        Assert.NotNull(hitItem);
         Assert.True(
-            IsVisualAncestorOrSelf(lastItem, hit),
-            $"Expected the viewport-bottom hit to land on the last root template dropdown item after scrolling to the end. hit={DescribeElement(hit)}, lastItem={DescribeElement(lastItem)}, probe={probe}, Offset={scrollViewer.VerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+            gapAfterLastVisibleItem <= 0.5f,
+            $"Expected the last visible root template dropdown item to reach the viewport bottom after scrolling to the end. lastItem={DescribeElement(lastItem)} gap={gapAfterLastVisibleItem:0.##} viewportBottom={viewportBottom:0.##}, itemBottom={lastItem.LayoutSlot.Y + lastItem.LayoutSlot.Height:0.##}, Offset={scrollViewer.VerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
         Assert.True(
-            ComboBoxItemHasRenderedText(hitItem!),
-            $"Expected the root template dropdown item under the viewport-bottom hit to still have rendered text content after scrolling to the end. hitItem={DescribeElement(hitItem)}, probe={probe}, Offset={scrollViewer.VerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+            ComboBoxItemHasRenderedText(lastItem),
+            $"Expected the last visible root template dropdown item to still have rendered text content after scrolling to the end. lastItem={DescribeElement(lastItem)}, Offset={scrollViewer.VerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
     }
 
     [Fact]

@@ -688,6 +688,271 @@ public sealed class ComboBoxPopupEdgeParityTests
     }
 
     [Fact]
+    public void ReopenDropDown_AfterScrollingToBottom_ShouldResetScrollViewerToTop()
+    {
+        var host = new Canvas
+        {
+            Width = 360f,
+            Height = 420f
+        };
+
+        var comboBox = new ComboBox
+        {
+            Width = 220f,
+            Height = 36f,
+            MaxDropDownHeight = 260f,
+            ItemTemplate = new DataTemplate(static item => new TextBlock
+            {
+                Text = item is ComboBoxTemplateOption option ? option.DisplayText : string.Empty,
+                TextWrapping = TextWrapping.Wrap,
+                FontFamily = "Consolas",
+                FontSize = 12f
+            })
+        };
+
+        for (var i = 0; i < 95; i++)
+        {
+            comboBox.Items.Add(new ComboBoxTemplateOption($"Choice {i:00} - reopen scroll state repro"));
+        }
+
+        comboBox.Items.Add(new ComboBoxTemplateOption("VirtualizingStackPanel"));
+        comboBox.SelectedIndex = 0;
+        host.AddChild(comboBox);
+        Canvas.SetLeft(comboBox, 40f);
+        Canvas.SetTop(comboBox, 40f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var firstOpenDropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var firstOpenScrollViewer = FindScrollViewer(firstOpenDropDown);
+        ScrollDropDownToBottom(uiRoot, firstOpenScrollViewer);
+
+        Assert.True(
+            firstOpenScrollViewer.VerticalOffset > firstOpenScrollViewer.ViewportHeight,
+            $"Expected the first open to retain a substantial downward dropdown scroll offset before reopening. Offset={firstOpenScrollViewer.VerticalOffset:0.##}, Extent={firstOpenScrollViewer.ExtentHeight:0.##}, Viewport={firstOpenScrollViewer.ViewportHeight:0.##}.");
+
+        comboBox.IsDropDownOpen = false;
+        RunLayout(uiRoot);
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var reopenedDropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var reopenedScrollViewer = FindScrollViewer(reopenedDropDown);
+
+        Assert.True(
+            reopenedScrollViewer.VerticalOffset <= 0.5f,
+            $"Expected reopening the dropdown to reset the ScrollViewer to the top. Offset={reopenedScrollViewer.VerticalOffset:0.##}, Extent={reopenedScrollViewer.ExtentHeight:0.##}, Viewport={reopenedScrollViewer.ViewportHeight:0.##}, SelectedIndex={comboBox.SelectedIndex}.");
+    }
+
+    [Fact]
+    public void ReopenDropDown_AfterScrollingToBottom_ClickingVisibleItem_ShouldSelectThatVisibleItem()
+    {
+        var host = new Canvas
+        {
+            Width = 360f,
+            Height = 420f
+        };
+
+        var comboBox = new ComboBox
+        {
+            Width = 220f,
+            Height = 36f,
+            MaxDropDownHeight = 260f,
+            ItemTemplate = new DataTemplate(static item => new TextBlock
+            {
+                Text = item is ComboBoxTemplateOption option ? option.DisplayText : string.Empty,
+                TextWrapping = TextWrapping.Wrap,
+                FontFamily = "Consolas",
+                FontSize = 12f
+            })
+        };
+
+        for (var i = 0; i < 95; i++)
+        {
+            comboBox.Items.Add(new ComboBoxTemplateOption($"Choice {i:00} - visible selection repro"));
+        }
+
+        comboBox.Items.Add(new ComboBoxTemplateOption("VirtualizingStackPanel"));
+        comboBox.SelectedIndex = 0;
+        host.AddChild(comboBox);
+        Canvas.SetLeft(comboBox, 40f);
+        Canvas.SetTop(comboBox, 40f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var firstOpenDropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var firstOpenScrollViewer = FindScrollViewer(firstOpenDropDown);
+        ScrollDropDownToBottom(uiRoot, firstOpenScrollViewer);
+
+        comboBox.IsDropDownOpen = false;
+        RunLayout(uiRoot);
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var reopenedDropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var clickedItem = Assert.IsType<ComboBoxItem>(GetLastVisibleItem(reopenedDropDown));
+        var expectedText = GetVisibleDisplayText(clickedItem);
+        var clickPoint = new Vector2(
+            clickedItem.LayoutSlot.X + (clickedItem.LayoutSlot.Width / 2f),
+            clickedItem.LayoutSlot.Y + (clickedItem.LayoutSlot.Height / 2f));
+
+        Click(uiRoot, clickPoint);
+        RunLayout(uiRoot);
+
+        var selectedOption = Assert.IsType<ComboBoxTemplateOption>(comboBox.SelectedItem);
+
+        Assert.Equal(
+            expectedText,
+            selectedOption.DisplayText);
+        Assert.False(comboBox.IsDropDownOpen);
+    }
+
+    [Fact]
+    public void ReopenDropDown_AfterScrollingToBottom_ShouldRetainVisibleItemTextBeforeAnyFurtherScroll()
+    {
+        var host = new Canvas
+        {
+            Width = 360f,
+            Height = 420f
+        };
+
+        var comboBox = new ComboBox
+        {
+            Width = 220f,
+            Height = 36f,
+            MaxDropDownHeight = 260f,
+            ItemTemplate = new DataTemplate(static item => new TextBlock
+            {
+                Text = item is ComboBoxTemplateOption option ? option.DisplayText : string.Empty,
+                TextWrapping = TextWrapping.Wrap,
+                FontFamily = "Consolas",
+                FontSize = 12f
+            })
+        };
+
+        for (var i = 0; i < 95; i++)
+        {
+            comboBox.Items.Add(new ComboBoxTemplateOption($"Choice {i:00} - retained visible text repro"));
+        }
+
+        comboBox.Items.Add(new ComboBoxTemplateOption("VirtualizingStackPanel"));
+        comboBox.SelectedIndex = 0;
+        host.AddChild(comboBox);
+        Canvas.SetLeft(comboBox, 40f);
+        Canvas.SetTop(comboBox, 40f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var firstOpenDropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var firstOpenScrollViewer = FindScrollViewer(firstOpenDropDown);
+        ScrollDropDownToBottom(uiRoot, firstOpenScrollViewer);
+
+        comboBox.IsDropDownOpen = false;
+        RunLayout(uiRoot);
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var reopenedDropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var reopenedScrollViewer = FindScrollViewer(reopenedDropDown);
+        var visibleItem = Assert.IsType<ComboBoxItem>(GetLastViewportIntersectingItem(reopenedDropDown, reopenedScrollViewer));
+        var visibleText = GetVisibleDisplayTextBlock(visibleItem);
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.Contains(visibleText, uiRoot.GetRetainedVisualOrderForTests());
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
+    public void ReopenDropDown_AfterSelectingBottomItem_ShouldRetainVisibleItemTextBeforeAnyFurtherScroll()
+    {
+        var host = new Canvas
+        {
+            Width = 360f,
+            Height = 420f
+        };
+
+        var comboBox = new ComboBox
+        {
+            Width = 220f,
+            Height = 36f,
+            MaxDropDownHeight = 260f,
+            ItemTemplate = new DataTemplate(static item => new TextBlock
+            {
+                Text = item is ComboBoxTemplateOption option ? option.DisplayText : string.Empty,
+                TextWrapping = TextWrapping.Wrap,
+                FontFamily = "Consolas",
+                FontSize = 12f
+            })
+        };
+
+        for (var i = 0; i < 95; i++)
+        {
+            comboBox.Items.Add(new ComboBoxTemplateOption($"Choice {i:00} - selected bottom retained visible text repro"));
+        }
+
+        comboBox.Items.Add(new ComboBoxTemplateOption("VirtualizingStackPanel"));
+        comboBox.SelectedIndex = 0;
+        host.AddChild(comboBox);
+        Canvas.SetLeft(comboBox, 40f);
+        Canvas.SetTop(comboBox, 40f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var firstOpenDropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var firstOpenScrollViewer = FindScrollViewer(firstOpenDropDown);
+        ScrollDropDownToBottom(uiRoot, firstOpenScrollViewer);
+
+        var bottomItem = Assert.IsType<ComboBoxItem>(GetLastViewportIntersectingItem(firstOpenDropDown, firstOpenScrollViewer));
+        Assert.Equal("VirtualizingStackPanel", GetVisibleDisplayText(bottomItem));
+        var clickPoint = new Vector2(
+            bottomItem.LayoutSlot.X + (bottomItem.LayoutSlot.Width / 2f),
+            bottomItem.LayoutSlot.Y + (bottomItem.LayoutSlot.Height / 2f));
+
+        Click(uiRoot, clickPoint);
+        RunLayout(uiRoot);
+
+        Assert.False(comboBox.IsDropDownOpen);
+        var selectedOption = Assert.IsType<ComboBoxTemplateOption>(comboBox.SelectedItem);
+        Assert.Equal("VirtualizingStackPanel", selectedOption.DisplayText);
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var reopenedDropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var reopenedScrollViewer = FindScrollViewer(reopenedDropDown);
+        var visibleItem = Assert.IsType<ComboBoxItem>(GetLastViewportIntersectingItem(reopenedDropDown, reopenedScrollViewer));
+        var visibleText = GetVisibleDisplayTextBlock(visibleItem);
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.Contains(visibleText, uiRoot.GetRetainedVisualOrderForTests());
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
     public void DropDown_InNestedScrollViewerUserControl_ShouldAnchorToComboBoxInsteadOfFlowingAfterSiblingContent()
     {
         var rootView = new UserControl();
@@ -1216,6 +1481,38 @@ public sealed class ComboBoxPopupEdgeParityTests
         throw new InvalidOperationException("Expected ListBox items host to contain at least one visible item container.");
     }
 
+    private static FrameworkElement GetLastViewportIntersectingItem(ListBox listBox, ScrollViewer scrollViewer)
+    {
+        var hostPanel = FindItemsHostPanel(listBox);
+        var viewportTop = scrollViewer.LayoutSlot.Y;
+        var viewportBottom = scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight;
+        FrameworkElement? bestElement = null;
+        var bestBottom = float.NegativeInfinity;
+
+        foreach (var child in hostPanel.Children)
+        {
+            if (child is not FrameworkElement element)
+            {
+                continue;
+            }
+
+            var elementTop = element.LayoutSlot.Y;
+            var elementBottom = element.LayoutSlot.Y + element.LayoutSlot.Height;
+            if (elementBottom <= viewportTop || elementTop >= viewportBottom)
+            {
+                continue;
+            }
+
+            if (elementBottom > bestBottom)
+            {
+                bestElement = element;
+                bestBottom = elementBottom;
+            }
+        }
+
+        return bestElement ?? throw new InvalidOperationException("Expected ListBox items host to contain an item intersecting the viewport.");
+    }
+
     private static (FrameworkElement Element, int Index) GetHighestRealizedIndexItem(ListBox listBox)
     {
         var hostPanel = FindItemsHostPanel(listBox);
@@ -1244,6 +1541,68 @@ public sealed class ComboBoxPopupEdgeParityTests
         return bestElement != null
             ? (bestElement, bestIndex)
             : throw new InvalidOperationException("Expected ListBox items host to contain at least one realized item container with generated item info.");
+    }
+
+    private static string GetVisibleDisplayText(FrameworkElement element)
+    {
+        return GetVisibleDisplayTextBlock(element).Text;
+    }
+
+    private static TextBlock GetVisibleDisplayTextBlock(FrameworkElement element)
+    {
+        return TryGetVisibleDisplayTextBlock(element) ??
+            throw new InvalidOperationException($"Expected {element.GetType().Name} to contain visible text content.");
+    }
+
+    private static TextBlock? TryGetVisibleDisplayTextBlock(FrameworkElement element)
+    {
+        if (element is TextBlock textBlock && !string.IsNullOrWhiteSpace(textBlock.Text))
+        {
+            return textBlock;
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            if (child is not FrameworkElement frameworkChild)
+            {
+                continue;
+            }
+
+            var descendantTextBlock = TryGetVisibleDisplayTextBlock(frameworkChild);
+            if (descendantTextBlock != null)
+            {
+                return descendantTextBlock;
+            }
+        }
+
+        return null;
+    }
+
+    private static void ScrollDropDownToBottom(UiRoot uiRoot, ScrollViewer scrollViewer)
+    {
+        var priorOffset = -1f;
+        var priorExtent = -1f;
+
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            scrollViewer.ScrollToVerticalOffset(float.MaxValue);
+            RunLayout(uiRoot);
+
+            var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+            if (MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f)
+            {
+                return;
+            }
+
+            if (MathF.Abs(scrollViewer.VerticalOffset - priorOffset) <= 0.5f &&
+                MathF.Abs(scrollViewer.ExtentHeight - priorExtent) <= 0.5f)
+            {
+                break;
+            }
+
+            priorOffset = scrollViewer.VerticalOffset;
+            priorExtent = scrollViewer.ExtentHeight;
+        }
     }
 
     private static void Click(UiRoot uiRoot, Vector2 pointer)

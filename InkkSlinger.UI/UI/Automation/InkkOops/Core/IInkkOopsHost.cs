@@ -46,6 +46,8 @@ public interface IInkkOopsHost
 
     Task CaptureFrameAsync(string artifactName, CancellationToken cancellationToken = default);
 
+    Task<InkkOopsFrameRegionSample> SampleCurrentFrameRegionAsync(LayoutRect region, CancellationToken cancellationToken = default);
+
     Task<string> CaptureTelemetryAsync(string artifactName, CancellationToken cancellationToken = default);
 
     UIElement? FindElement(string identifier);
@@ -62,3 +64,13 @@ public interface IInkkOopsHost
 
     Task<T> QueryOnUiThreadAsync<T>(Func<T> query, CancellationToken cancellationToken = default);
 }
+
+public readonly record struct InkkOopsFrameRegionSample(
+    int X,
+    int Y,
+    int Width,
+    int Height,
+    int TotalPixelCount,
+    int BrightPixelCount,
+    int MaxLuma,
+    float AverageLuma);

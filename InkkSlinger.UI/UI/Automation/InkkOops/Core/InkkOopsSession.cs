@@ -155,6 +155,11 @@ public sealed class InkkOopsSession
         return Host.CaptureFrameAsync(artifactName, cancellationToken);
     }
 
+    public Task<InkkOopsFrameRegionSample> SampleCurrentFrameRegionAsync(LayoutRect region, CancellationToken cancellationToken = default)
+    {
+        return Host.SampleCurrentFrameRegionAsync(region, cancellationToken);
+    }
+
     public async Task WriteTelemetryAsync(string artifactName, CancellationToken cancellationToken = default)
     {
         var telemetryText = await Host.CaptureTelemetryAsync(artifactName, cancellationToken).ConfigureAwait(false);

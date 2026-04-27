@@ -60,6 +60,25 @@ public sealed class DesignerRootTemplatePickerRuntimeTests
     }
 
     [Fact]
+    public async Task RuntimeRun_Designer_RootTemplateComboBox_ReopenAfterSelectingBottomItem_ShouldPaintVisibleTextBeforeAnyScroll()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var projectPath = Path.Combine(repoRoot, "InkkSlinger.Designer", "InkkSlinger.Designer.csproj");
+        var artifactsRoot = Path.Combine(repoRoot, "artifacts", "inkkoops", DesignerRootTemplateComboBoxReopenAfterBottomSelectionTextPaintScenario.ScriptName);
+
+        var run = await RunRuntimeScenarioFromTestAssemblyAllowCompletedArtifactsAsync(
+            DesignerRootTemplateComboBoxReopenAfterBottomSelectionTextPaintScenario.ScriptName,
+            projectPath,
+            artifactsRoot);
+
+        Assert.Equal(nameof(InkkOopsRunStatus.Completed), run.Status);
+        Assert.True(Directory.Exists(run.ArtifactDirectory), $"Expected runtime artifacts under '{run.ArtifactDirectory}'.");
+        Assert.True(File.Exists(Path.Combine(run.ArtifactDirectory, "result.json")), "Expected result.json to be written.");
+        Assert.True(File.Exists(Path.Combine(run.ArtifactDirectory, "action.log")), "Expected action.log to be written.");
+        Assert.True(File.Exists(Path.Combine(run.ArtifactDirectory, "root-template-reopen-selected-bottom-current-frame-text-sample.txt")), "Expected the current-frame text sample artifact to be written.");
+    }
+
+    [Fact]
     public async Task RuntimeRun_Designer_RootTemplateComboBox_ScrollBarThumbDrag_ShouldNotJitter()
     {
         var repoRoot = FindRepositoryRoot();
@@ -335,6 +354,42 @@ public sealed class DesignerRootTemplateComboBoxBottomRowVisibilityScenario : II
     }
 }
 
+public sealed class DesignerRootTemplateComboBoxReopenAfterBottomSelectionTextPaintScenario : IInkkOopsScriptDefinition
+{
+    public const string ScriptName = "designer-root-template-combobox-reopen-after-bottom-selection-text-paint";
+    private const string BottomItemText = "VirtualizingStackPanel";
+
+    public string Name => ScriptName;
+
+    public InkkOopsScript CreateScript()
+    {
+        return new InkkOopsScriptBuilder(ScriptName)
+            .ResizeWindow(1440, 900)
+            .WaitForInteractive("RootTemplateComboBox", 240)
+            .Hover("RootTemplateComboBox", dwellFrames: 1)
+            .Click(
+                "RootTemplateComboBox",
+                InkkOopsPointerAnchor.Center,
+                InkkOopsPointerMotion.WithTravelFrames(4))
+            .WaitFrames(2)
+            .AssertProperty("RootTemplateComboBox", "IsDropDownOpen", true)
+            .Add(new ScrollRootTemplateComboBoxDropDownToBottomItemCommand(BottomItemText))
+            .Add(new AssertRootTemplateComboBoxDropDownItemFullyVisibleCommand(BottomItemText))
+            .Add(new ClickRootTemplateComboBoxDropDownItemCommand(BottomItemText))
+            .WaitFrames(2)
+            .AssertProperty("RootTemplateComboBox", "IsDropDownOpen", false)
+            .Click(
+                "RootTemplateComboBox",
+                InkkOopsPointerAnchor.Center,
+                InkkOopsPointerMotion.WithTravelFrames(4))
+            .WaitFrames(2)
+            .AssertProperty("RootTemplateComboBox", "IsDropDownOpen", true)
+            .Add(new AssertRootTemplateComboBoxFirstVisibleTextPaintedInCurrentFrameCommand(
+                "root-template-reopen-selected-bottom-current-frame-text-sample"))
+            .Build();
+    }
+}
+
 public sealed class DesignerRootTemplateComboBoxScrollBarThumbDragJitterScenario : IInkkOopsScriptDefinition
 {
     public const string ScriptName = "designer-root-template-combobox-scrollbar-thumb-drag-jitter";
@@ -356,6 +411,136 @@ public sealed class DesignerRootTemplateComboBoxScrollBarThumbDragJitterScenario
             .Add(new AssertRootTemplateComboBoxDropDownThumbDragStableCommand())
             .Build();
     }
+}
+
+file sealed class ClickRootTemplateComboBoxDropDownItemCommand : IInkkOopsCommand
+{
+    private readonly string _itemText;
+
+    public ClickRootTemplateComboBoxDropDownItemCommand(string itemText)
+    {
+        _itemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
+    }
+
+    public InkkOopsExecutionMode ExecutionMode => InkkOopsExecutionMode.Pointer;
+
+    public string Describe()
+    {
+        return $"ClickRootTemplateComboBoxDropDownItem('{_itemText}')";
+    }
+
+    public async Task ExecuteAsync(InkkOopsSession session, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var point = await session.QueryOnUiThreadAsync(() => ResolveItemCenter(session, _itemText), cancellationToken).ConfigureAwait(false);
+        await session.MovePointerAsync(point, InkkOopsPointerMotion.WithTravelFrames(2), cancellationToken).ConfigureAwait(false);
+        await session.PressPointerAsync(point, MouseButton.Left, cancellationToken).ConfigureAwait(false);
+        await session.ReleasePointerAsync(point, MouseButton.Left, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static System.Numerics.Vector2 ResolveItemCenter(InkkOopsSession session, string itemText)
+    {
+        var listBox = RootTemplateComboBoxDropDownTestHelpers.FindRootTemplateDropDownListBox(session, itemText);
+        var textBlock = RootTemplateComboBoxDropDownTestHelpers.FindBottomMostTextBlock(listBox, itemText) ??
+            throw new InkkOopsCommandException(InkkOopsFailureCategory.Unresolved, $"Could not find realized TextBlock text '{itemText}'.");
+        var item = RootTemplateComboBoxDropDownTestHelpers.FindAncestor<ListBoxItem>(textBlock) ??
+            throw new InkkOopsCommandException(InkkOopsFailureCategory.Unrealized, $"TextBlock '{itemText}' has no ListBoxItem ancestor.");
+        if (!item.TryGetRenderBoundsInRootSpace(out var itemBounds))
+        {
+            throw new InkkOopsCommandException(InkkOopsFailureCategory.Unrealized, $"ListBoxItem '{itemText}' does not expose render bounds.");
+        }
+
+        return new System.Numerics.Vector2(itemBounds.X + (itemBounds.Width / 2f), itemBounds.Y + (itemBounds.Height / 2f));
+    }
+}
+
+file sealed class AssertRootTemplateComboBoxFirstVisibleTextPaintedInCurrentFrameCommand : IInkkOopsCommand
+{
+    private const string ProbeItemText = "VirtualizingStackPanel";
+    private const int MinimumBrightPixels = 6;
+    private readonly string _artifactName;
+
+    public AssertRootTemplateComboBoxFirstVisibleTextPaintedInCurrentFrameCommand(string artifactName)
+    {
+        _artifactName = string.IsNullOrWhiteSpace(artifactName)
+            ? throw new ArgumentException("Artifact name is required.", nameof(artifactName))
+            : artifactName;
+    }
+
+    public InkkOopsExecutionMode ExecutionMode => InkkOopsExecutionMode.Diagnostic;
+
+    public string Describe()
+    {
+        return $"AssertRootTemplateComboBoxFirstVisibleTextPaintedInCurrentFrame('{_artifactName}')";
+    }
+
+    public async Task ExecuteAsync(InkkOopsSession session, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var target = await session.QueryOnUiThreadAsync(() => ResolveFirstVisibleText(session), cancellationToken).ConfigureAwait(false);
+        var sample = await session.SampleCurrentFrameRegionAsync(target.Bounds, cancellationToken).ConfigureAwait(false);
+        var report = FormatReport(target, sample);
+        session.Artifacts.BufferTextArtifact(_artifactName + ".txt", report);
+
+        if (sample.BrightPixelCount >= MinimumBrightPixels)
+        {
+            return;
+        }
+
+        throw new InkkOopsCommandException(
+            InkkOopsFailureCategory.Clipped,
+            "Root template dropdown visible text was logically realized but not painted in the current frame before any further scroll. " +
+            report.Replace(Environment.NewLine, " ", StringComparison.Ordinal));
+    }
+
+    private static VisibleTextTarget ResolveFirstVisibleText(InkkOopsSession session)
+    {
+        var listBox = RootTemplateComboBoxDropDownTestHelpers.FindRootTemplateDropDownListBox(session, ProbeItemText);
+        var scrollViewer = RootTemplateComboBoxDropDownTestHelpers.FindDescendant<ScrollViewer>(listBox) ??
+            throw new InkkOopsCommandException(InkkOopsFailureCategory.Unrealized, "Root template dropdown ListBox has no ScrollViewer.");
+        if (!scrollViewer.TryGetContentViewportClipRect(out var viewportClip))
+        {
+            throw new InkkOopsCommandException(InkkOopsFailureCategory.Unrealized, "Root template dropdown ScrollViewer does not expose a content viewport clip.");
+        }
+
+        foreach (var textBlock in RootTemplateComboBoxDropDownTestHelpers.EnumerateVisualsForDiagnostics(listBox).OfType<TextBlock>())
+        {
+            if (string.IsNullOrWhiteSpace(textBlock.Text) || !textBlock.TryGetRenderBoundsInRootSpace(out var bounds))
+            {
+                continue;
+            }
+
+            var intersectsViewport = bounds.Y + bounds.Height > viewportClip.Y + 0.5f &&
+                                     bounds.Y < viewportClip.Y + viewportClip.Height - 0.5f;
+            if (!intersectsViewport)
+            {
+                continue;
+            }
+
+            return new VisibleTextTarget(textBlock.Text, bounds, viewportClip);
+        }
+
+        throw new InkkOopsCommandException(InkkOopsFailureCategory.Unresolved, "Could not find any realized visible TextBlock in the reopened root template dropdown.");
+    }
+
+    private static string FormatReport(VisibleTextTarget target, InkkOopsFrameRegionSample sample)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine($"text={target.Text}");
+        builder.AppendLine($"textBounds={RootTemplateComboBoxDropDownTestHelpers.FormatRect(target.Bounds)}");
+        builder.AppendLine($"viewportClip={RootTemplateComboBoxDropDownTestHelpers.FormatRect(target.ViewportClip)}");
+        builder.AppendLine($"sampleRect=({sample.X},{sample.Y},{sample.Width},{sample.Height})");
+        builder.AppendLine($"totalPixels={sample.TotalPixelCount}");
+        builder.AppendLine($"brightPixels={sample.BrightPixelCount}");
+        builder.AppendLine($"maxLuma={sample.MaxLuma}");
+        builder.AppendLine($"averageLuma={sample.AverageLuma:0.###}");
+        builder.AppendLine($"minimumBrightPixels={MinimumBrightPixels}");
+        return builder.ToString();
+    }
+
+    private readonly record struct VisibleTextTarget(string Text, LayoutRect Bounds, LayoutRect ViewportClip);
 }
 
 file sealed class AssertRootTemplateComboBoxDropDownThumbDragStableCommand : IInkkOopsCommand
@@ -542,40 +727,28 @@ file sealed class ScrollRootTemplateComboBoxDropDownToBottomItemCommand : IInkkO
     {
         ArgumentNullException.ThrowIfNull(session);
 
-        var wheelPoint = await session.QueryOnUiThreadAsync(() => ResolveDropDownWheelPoint(session, _itemText), cancellationToken).ConfigureAwait(false);
-        await session.MovePointerAsync(wheelPoint, InkkOopsPointerMotion.WithTravelFrames(4), cancellationToken).ConfigureAwait(false);
-        for (var i = 0; i < 100; i++)
+        await session.ExecuteOnUiThreadAsync(() => ScrollDropDownItemIntoView(session, _itemText), cancellationToken).ConfigureAwait(false);
+        await session.WaitFramesAsync(4, cancellationToken).ConfigureAwait(false);
+        if (await session.QueryOnUiThreadAsync(() => IsItemVisibleInDropDownViewport(session, _itemText), cancellationToken).ConfigureAwait(false))
         {
-            await session.WheelAsync(-360, cancellationToken).ConfigureAwait(false);
-            await session.WaitFramesAsync(1, cancellationToken).ConfigureAwait(false);
-            if (await session.QueryOnUiThreadAsync(() => IsItemVisibleInDropDownViewport(session, _itemText), cancellationToken).ConfigureAwait(false))
-            {
-                await session.WaitFramesAsync(3, cancellationToken).ConfigureAwait(false);
-                return;
-            }
+            return;
         }
 
-        throw new InkkOopsCommandException(InkkOopsFailureCategory.Unresolved, $"Root template dropdown item '{_itemText}' was not realized after mouse-wheel scrolling.");
+        throw new InkkOopsCommandException(InkkOopsFailureCategory.Unresolved, $"Root template dropdown item '{_itemText}' was not realized after ScrollIntoView.");
     }
 
-    private static System.Numerics.Vector2 ResolveDropDownWheelPoint(InkkOopsSession session, string itemText)
+    private static void ScrollDropDownItemIntoView(InkkOopsSession session, string itemText)
     {
         var listBox = RootTemplateComboBoxDropDownTestHelpers.FindRootTemplateDropDownListBox(session, itemText);
         var scrollViewer = RootTemplateComboBoxDropDownTestHelpers.FindDescendant<ScrollViewer>(listBox) ??
             throw new InkkOopsCommandException(InkkOopsFailureCategory.Unrealized, "Root template dropdown ListBox has no ScrollViewer.");
-        if (!scrollViewer.TryGetContentViewportClipRect(out var viewportClip))
-        {
-            throw new InkkOopsCommandException(InkkOopsFailureCategory.Unrealized, "Root template dropdown ScrollViewer does not expose a content viewport clip.");
-        }
-
-        return new System.Numerics.Vector2(
-            viewportClip.X + (viewportClip.Width / 2f),
-            viewportClip.Y + (viewportClip.Height / 2f));
+        scrollViewer.ScrollToVerticalOffset(10000f);
     }
 
     private static bool IsItemVisibleInDropDownViewport(InkkOopsSession session, string itemText)
     {
-        var textBlock = RootTemplateComboBoxDropDownTestHelpers.FindBottomMostTextBlock(session.UiRoot.VisualRoot, itemText);
+        var listBox = RootTemplateComboBoxDropDownTestHelpers.FindRootTemplateDropDownListBox(session, itemText);
+        var textBlock = RootTemplateComboBoxDropDownTestHelpers.FindBottomMostTextBlock(listBox, itemText);
         if (textBlock == null || !textBlock.TryGetRenderBoundsInRootSpace(out var textBounds))
         {
             return false;
@@ -616,7 +789,8 @@ file sealed class AssertRootTemplateComboBoxDropDownItemFullyVisibleCommand : II
 
     private static void AssertFullyVisible(InkkOopsSession session, string itemText)
     {
-        var textBlock = RootTemplateComboBoxDropDownTestHelpers.FindBottomMostTextBlock(session.UiRoot.VisualRoot, itemText) ??
+        var listBox = RootTemplateComboBoxDropDownTestHelpers.FindRootTemplateDropDownListBox(session, itemText);
+        var textBlock = RootTemplateComboBoxDropDownTestHelpers.FindBottomMostTextBlock(listBox, itemText) ??
             throw new InkkOopsCommandException(InkkOopsFailureCategory.Unresolved, $"Could not find realized TextBlock text '{itemText}'.");
         if (!textBlock.TryGetRenderBoundsInRootSpace(out var textBounds))
         {
@@ -749,6 +923,11 @@ file static class RootTemplateComboBoxDropDownTestHelpers
                 yield return descendant;
             }
         }
+    }
+
+    public static IEnumerable<UIElement> EnumerateVisualsForDiagnostics(UIElement root)
+    {
+        return EnumerateVisuals(root);
     }
 
     private static bool ItemTextMatches(object? item, string expectedText)

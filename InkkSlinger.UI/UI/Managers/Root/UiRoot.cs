@@ -218,6 +218,12 @@ public sealed partial class UiRoot
 
     public static UiRoot? Current { get; private set; }
 
+    internal static void ResetForTests()
+    {
+        RegisteredRoots.Clear();
+        Current = null;
+    }
+
     private static void RegisterRoot(UiRoot root)
     {
         for (var i = RegisteredRoots.Count - 1; i >= 0; i--)

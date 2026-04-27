@@ -30,8 +30,7 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
         int height = 600,
         string displayedFps = "60.0")
     {
-        Dispatcher.ResetForTests();
-        Dispatcher.InitializeForCurrentThread();
+        ResetGlobalTestState();
         _visualRoot = visualRoot;
         _displayedFps = displayedFps;
         _width = width;
@@ -192,6 +191,12 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
         return Task.CompletedTask;
     }
 
+    public Task<InkkOopsFrameRegionSample> SampleCurrentFrameRegionAsync(LayoutRect region, CancellationToken cancellationToken = default)
+    {
+        _ = region;
+        return Task.FromResult(new InkkOopsFrameRegionSample(0, 0, 1, 1, 1, 1, 255, 255f));
+    }
+
     public Task<string> CaptureTelemetryAsync(string artifactName, CancellationToken cancellationToken = default)
     {
         var hovered = UiRoot.GetHoveredElementForDiagnostics();
@@ -266,7 +271,7 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
     {
         UiRoot.Automation.AutomationEventRaised -= OnAutomationEventRaised;
         UiRoot.Shutdown();
-        Dispatcher.ResetForTests();
+        ResetGlobalTestState();
         try
         {
             Directory.Delete(ArtifactRoot, recursive: true);
@@ -275,6 +280,20 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
         {
             // ignore cleanup failures in tests
         }
+    }
+
+    private static void ResetGlobalTestState()
+    {
+        UiRoot.ResetForTests();
+        Dispatcher.ResetForTests();
+        Dispatcher.InitializeForCurrentThread();
+        AnimationManager.Current.ResetForTests();
+        UiApplication.Current.ResetForTests();
+        FocusManager.ClearFocus();
+        FocusManager.ClearPointerCapture();
+        InputGestureService.Clear();
+        Popup.ResetForTests();
+        TextClipboard.ResetForTests();
     }
 
     private void OnAutomationEventRaised(object? sender, AutomationEventArgs args)

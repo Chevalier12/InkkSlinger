@@ -189,6 +189,8 @@ public static class InkkOopsTargetResolver
 
         var contentMatches = scopedElements
             .Where(element => string.Equals(GetElementTextForMatching(element), identifier, StringComparison.Ordinal))
+            .Select(element => PromoteContentTextMatch(element, identifier, scopeSet, allPeers))
+            .Distinct()
             .ToArray();
         if (contentMatches.Length > 0)
         {
@@ -333,6 +335,40 @@ public static class InkkOopsTargetResolver
         }
 
         return string.Empty;
+    }
+
+    private static UIElement PromoteContentTextMatch(
+        UIElement element,
+        string identifier,
+        IReadOnlySet<UIElement> scopeSet,
+        IReadOnlyList<AutomationPeer> allPeers)
+    {
+        var current = element;
+        while (TryGetParent(current, out var parent) && parent != null && scopeSet.Contains(parent))
+        {
+            if (string.Equals(GetElementTextForMatching(parent), identifier, StringComparison.Ordinal))
+            {
+                current = parent;
+                continue;
+            }
+
+            var parentPeer = FindPeer(allPeers, parent);
+            if (parentPeer != null &&
+                (parent is Control || parent is FrameworkElement frameworkElement && !string.IsNullOrWhiteSpace(frameworkElement.Name)))
+            {
+                return parent;
+            }
+
+            break;
+        }
+
+        return current;
+    }
+
+    private static bool TryGetParent(UIElement element, out UIElement? parent)
+    {
+        parent = element.VisualParent ?? element.LogicalParent;
+        return parent != null;
     }
 
     private static AutomationPeer? FindPeer(IReadOnlyList<AutomationPeer> peers, UIElement element)

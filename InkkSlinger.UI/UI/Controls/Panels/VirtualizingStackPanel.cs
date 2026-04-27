@@ -168,6 +168,8 @@ public class VirtualizingStackPanel : Panel
     private Vector2 _lastArrangeOrigin;
     private float _lastArrangeViewportOffset;
     private bool _hasArrangedRange;
+    private int _pendingUnrealizedClearFirst = -1;
+    private int _pendingUnrealizedClearLast = -1;
 
     public Orientation Orientation
     {
@@ -539,6 +541,7 @@ public class VirtualizingStackPanel : Panel
                 _lastArrangeOrigin = currentOrigin;
                 _lastArrangeViewportOffset = context.OffsetPrimary;
                 _lastArrangedChildOrderVersion = _childOrderVersion;
+                ClearPendingUnrealizedLayoutSlots();
             }
             else
             {
@@ -551,6 +554,7 @@ public class VirtualizingStackPanel : Panel
                 _lastArrangeOrigin = new Vector2(LayoutSlot.X, LayoutSlot.Y);
                 _lastArrangeViewportOffset = 0f;
                 _lastArrangedChildOrderVersion = _childOrderVersion;
+                ClearPendingUnrealizedLayoutSlots();
             }
 
             UpdateViewportFromFinalSize(finalSize);
@@ -1074,6 +1078,8 @@ public class VirtualizingStackPanel : Panel
         _lastArrangedFirst = -1;
         _lastArrangedLast = -1;
         _hasArrangedRange = false;
+        _pendingUnrealizedClearFirst = -1;
+        _pendingUnrealizedClearLast = -1;
     }
 
     private bool IsVirtualizationActiveContext(ViewportContext context)
@@ -1746,6 +1752,7 @@ public class VirtualizingStackPanel : Panel
             RealizedChildrenCount = 0;
             if (prevFirst != FirstRealizedIndex || prevLast != LastRealizedIndex)
             {
+                QueueUnrealizedLayoutSlotClear(prevFirst, prevLast, FirstRealizedIndex, LastRealizedIndex);
                 NotifyRealizedVisualRangeChanged();
             }
             return;
@@ -1756,8 +1763,63 @@ public class VirtualizingStackPanel : Panel
         RealizedChildrenCount = LastRealizedIndex - FirstRealizedIndex + 1;
         if (prevFirst != FirstRealizedIndex || prevLast != LastRealizedIndex)
         {
+            QueueUnrealizedLayoutSlotClear(prevFirst, prevLast, FirstRealizedIndex, LastRealizedIndex);
             NotifyRealizedVisualRangeChanged();
         }
+    }
+
+    private void QueueUnrealizedLayoutSlotClear(int prevFirst, int prevLast, int nextFirst, int nextLast)
+    {
+        if (prevFirst < 0 || prevLast < prevFirst)
+        {
+            return;
+        }
+
+        for (var i = prevFirst; i <= prevLast; i++)
+        {
+            if (i >= nextFirst && i <= nextLast)
+            {
+                continue;
+            }
+
+            if (_pendingUnrealizedClearFirst < 0)
+            {
+                _pendingUnrealizedClearFirst = i;
+                _pendingUnrealizedClearLast = i;
+            }
+            else
+            {
+                _pendingUnrealizedClearFirst = Math.Min(_pendingUnrealizedClearFirst, i);
+                _pendingUnrealizedClearLast = Math.Max(_pendingUnrealizedClearLast, i);
+            }
+        }
+    }
+
+    private void ClearPendingUnrealizedLayoutSlots()
+    {
+        if (_pendingUnrealizedClearFirst < 0 || _pendingUnrealizedClearLast < _pendingUnrealizedClearFirst)
+        {
+            return;
+        }
+
+        var first = Math.Max(0, _pendingUnrealizedClearFirst);
+        var last = Math.Min(Children.Count - 1, _pendingUnrealizedClearLast);
+        var emptySlot = new LayoutRect(LayoutSlot.X, LayoutSlot.Y, 0f, 0f);
+        for (var i = first; i <= last; i++)
+        {
+            if (i >= FirstRealizedIndex && i <= LastRealizedIndex)
+            {
+                continue;
+            }
+
+            if (Children[i] is FrameworkElement child)
+            {
+                child.Arrange(emptySlot);
+            }
+        }
+
+        _pendingUnrealizedClearFirst = -1;
+        _pendingUnrealizedClearLast = -1;
     }
 
     private void NotifyRealizedVisualRangeChanged()

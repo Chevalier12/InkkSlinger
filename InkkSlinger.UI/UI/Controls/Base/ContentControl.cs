@@ -709,6 +709,8 @@ public class ContentControl : Control
         _contentElement.SetLogicalParent(this);
         _runtimeUpdateContentElementAttachedNewElementCount++;
         IncrementAggregate(ref _diagUpdateContentElementAttachedNewElementCount);
+        InvalidateVisual();
+        UiRoot.Current?.NotifyDirectRenderInvalidation(this, requireDeepSync: true);
     }
 
     private static InkkSlinger.UI.Telemetry.ContentControlTelemetrySnapshot CreateAggregateTelemetrySnapshot(bool reset)

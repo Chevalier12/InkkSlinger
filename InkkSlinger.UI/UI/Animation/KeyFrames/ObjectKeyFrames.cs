@@ -40,6 +40,7 @@ public sealed class DiscreteObjectKeyFrame : ObjectKeyFrame
 public sealed class ObjectAnimationUsingKeyFrames : AnimationTimeline
 {
     private readonly List<ObjectKeyFrame> _keyFrames = new();
+    private readonly KeyFrameTiming.ScheduleCache<ObjectKeyFrame> _scheduleCache = new();
 
     public IList<ObjectKeyFrame> KeyFrames => _keyFrames;
 
@@ -51,14 +52,14 @@ public sealed class ObjectAnimationUsingKeyFrames : AnimationTimeline
             return startValue;
         }
 
-        var ordered = KeyFrameTiming.ResolveSchedule(
+        var total = ResolveNaturalDuration();
+        var ordered = _scheduleCache.GetOrResolve(
             _keyFrames,
             k => k.KeyTime,
             k => k.Value,
             startValue,
-            ResolveNaturalDuration(),
+            total,
             distanceCalculator: null);
-        var total = ResolveNaturalDuration();
         var now = TimeSpan.FromTicks((long)(total.Ticks * Math.Clamp(progress, 0f, 1f)));
 
         ObjectKeyFrame? previousFrame = null;

@@ -13,6 +13,11 @@ namespace InkkSlinger.Tests;
 
 public sealed class InkkOopsRegistryAndRunnerTests
 {
+    public InkkOopsRegistryAndRunnerTests()
+    {
+        ResetRegistryTestState();
+    }
+
     [Fact]
     public void Registry_Discovers_BuiltInScript()
     {
@@ -564,6 +569,20 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
         var emit = compilation.Emit(stream);
         Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
         return Assembly.Load(stream.ToArray());
+    }
+
+    private static void ResetRegistryTestState()
+    {
+        UiRoot.ResetForTests();
+        Dispatcher.ResetForTests();
+        Dispatcher.InitializeForCurrentThread();
+        AnimationManager.Current.ResetForTests();
+        UiApplication.Current.ResetForTests();
+        FocusManager.ClearFocus();
+        FocusManager.ClearPointerCapture();
+        InputGestureService.Clear();
+        Popup.ResetForTests();
+        TextClipboard.ResetForTests();
     }
 
     private sealed class TestCommand : IInkkOopsCommand
