@@ -252,6 +252,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
     private long _runtimeBuildIndentGuideSnapshotElapsedTicks;
     private int _deferredPresentationRefreshVersion;
     private bool _hasDeferredPresentationRefreshPending;
+    private bool _suppressEditorChangeEventsForPresentationUpdate;
 
     public IDE_Editor()
     {
@@ -264,6 +265,8 @@ public sealed class IDE_Editor : Control, ITextInputControl
     public event EventHandler<RoutedSimpleEventArgs>? TextChanged;
 
     public event EventHandler<SelectionChangedEventArgs>? SelectionChanged;
+
+    public event EventHandler<IDEEditorPreviewTextCompositionEventArgs>? PreviewTextComposition;
 
     public FlowDocument Document
     {
@@ -565,13 +568,51 @@ public sealed class IDE_Editor : Control, ITextInputControl
     public bool HandleTextInputFromInput(char character)
     {
         EnsureEditorFocusState();
-        return _editor != null && _editor.HandleTextInputFromInput(character);
+        if (_editor == null)
+        {
+            return false;
+        }
+
+        var originalText = character.ToString();
+        var previewArgs = CreatePreviewTextCompositionEventArgs(originalText);
+        if (previewArgs.Handled)
+        {
+            return true;
+        }
+
+        if (string.IsNullOrEmpty(previewArgs.Text))
+        {
+            return false;
+        }
+
+        return string.Equals(previewArgs.Text, originalText, StringComparison.Ordinal)
+            ? _editor.HandleTextInputFromInput(character)
+            : _editor.HandleTextCompositionFromInput(previewArgs.Text);
     }
 
     public bool HandleTextCompositionFromInput(string? text)
     {
         EnsureEditorFocusState();
-        return _editor != null && _editor.HandleTextCompositionFromInput(text);
+        if (_editor == null || string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        var previewArgs = CreatePreviewTextCompositionEventArgs(text);
+        if (previewArgs.Handled)
+        {
+            return true;
+        }
+
+        return !string.IsNullOrEmpty(previewArgs.Text) &&
+            _editor.HandleTextCompositionFromInput(previewArgs.Text);
+    }
+
+    private IDEEditorPreviewTextCompositionEventArgs CreatePreviewTextCompositionEventArgs(string text)
+    {
+        var args = new IDEEditorPreviewTextCompositionEventArgs(text);
+        PreviewTextComposition?.Invoke(this, args);
+        return args;
     }
 
     public bool HandleKeyDownFromInput(Keys key, ModifierKeys modifiers)
@@ -667,6 +708,31 @@ public sealed class IDE_Editor : Control, ITextInputControl
         UpdateCachedDocumentSnapshot(Document);
         UpdateLineNumberGutter(force: true);
         _indentGuideOverlay?.InvalidateVisual();
+    }
+
+    public void UpdateDocumentPresentation(Action<FlowDocument> updateDocument)
+    {
+        ArgumentNullException.ThrowIfNull(updateDocument);
+
+        var previous = _suppressEditorChangeEventsForPresentationUpdate;
+        _suppressEditorChangeEventsForPresentationUpdate = true;
+        try
+        {
+            if (_editor == null)
+            {
+                updateDocument(Document);
+            }
+            else
+            {
+                _editor.ExecuteDocumentPresentationChangeBatch(() => updateDocument(Document));
+            }
+        }
+        finally
+        {
+            _suppressEditorChangeEventsForPresentationUpdate = previous;
+        }
+
+        RefreshDocumentMetrics();
     }
 
     public bool TryGetCaretBounds(out LayoutRect bounds)
@@ -798,6 +864,12 @@ public sealed class IDE_Editor : Control, ITextInputControl
     private void OnEditorTextChanged(object? sender, RoutedSimpleEventArgs args)
     {
         _ = sender;
+        if (_suppressEditorChangeEventsForPresentationUpdate)
+        {
+            UpdateCachedDocumentSnapshot(Document);
+            return;
+        }
+
         var startTicks = Stopwatch.GetTimestamp();
         _diagEditorTextChangedCallCount++;
         _runtimeEditorTextChangedCallCount++;
@@ -874,6 +946,13 @@ public sealed class IDE_Editor : Control, ITextInputControl
     {
         _ = sender;
         _ = args;
+        if (_suppressEditorChangeEventsForPresentationUpdate)
+        {
+            SyncDocumentFromEditor();
+            UpdateCachedDocumentSnapshot(Document);
+            return;
+        }
+
         _diagEditorDocumentChangedCallCount++;
         _runtimeEditorDocumentChangedCallCount++;
         SyncDocumentFromEditor();
@@ -1984,6 +2063,18 @@ public sealed class IDE_Editor : Control, ITextInputControl
 
         return template;
     }
+}
+
+public sealed class IDEEditorPreviewTextCompositionEventArgs : EventArgs
+{
+    public IDEEditorPreviewTextCompositionEventArgs(string text)
+    {
+        Text = text ?? string.Empty;
+    }
+
+    public string Text { get; set; }
+
+    public bool Handled { get; set; }
 }
 
 internal readonly record struct IDEEditorIndentGuideSnapshot(

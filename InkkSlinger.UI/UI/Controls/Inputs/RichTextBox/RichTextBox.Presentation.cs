@@ -77,7 +77,10 @@ public partial class RichTextBox
             _contentHost?.InvalidateScrollInfo();
         }
 
-        if (TryGetLocalizedTextDirtyBoundsHint(out var dirtyBounds))
+        _scrollContentPresenter.InvalidateVisual();
+
+        if (!_forceFullRenderInvalidationForDocumentChange &&
+            TryGetLocalizedTextDirtyBoundsHint(out var dirtyBounds))
         {
             InvalidateVisualWithDirtyBoundsHint(dirtyBounds, "DocumentChange");
             return;

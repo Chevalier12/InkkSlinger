@@ -74,6 +74,25 @@ internal static class DesignerXmlEditorLanguageService
         return true;
     }
 
+    public static bool TryHandleSelfClosingTagSlash(
+        string text,
+        int insertedIndex,
+        out IDEEditorTextEditResult edit)
+    {
+        var normalized = IDEEditorTextCommandService.Normalize(text);
+        edit = IDEEditorTextEditResult.Unchanged(normalized, insertedIndex + 1, 0);
+        if (!TryGetIncompleteSelfClosingTagName(normalized, insertedIndex, out var tagName) ||
+            !DesignerXmlSyntaxHighlighter.TryClassifyTagName(tagName, out _) ||
+            HasImmediateSelfClosingBracket(normalized, insertedIndex + 1))
+        {
+            return false;
+        }
+
+        var updated = normalized.Insert(insertedIndex + 1, ">");
+        edit = new IDEEditorTextEditResult(updated, insertedIndex + 2, 0);
+        return true;
+    }
+
     public static IDEEditorTextEditResult ApplySmartEnter(string previousText, string currentText, int insertedIndex, string? indent = null)
     {
         var indentText = NormalizeIndent(indent);
@@ -551,6 +570,88 @@ internal static class DesignerXmlEditorLanguageService
 
         var close = text.LastIndexOf('>', Math.Clamp(index, 0, Math.Max(0, text.Length - 1)));
         return close < open;
+    }
+
+    private static bool TryGetIncompleteSelfClosingTagName(string text, int slashIndex, out string tagName)
+    {
+        tagName = string.Empty;
+        if (slashIndex <= 0 || slashIndex >= text.Length || text[slashIndex] != '/')
+        {
+            return false;
+        }
+
+        var open = text.LastIndexOf('<', slashIndex - 1);
+        if (open < 0)
+        {
+            return false;
+        }
+
+        var previousClose = text.LastIndexOf('>', slashIndex - 1);
+        if (previousClose > open)
+        {
+            return false;
+        }
+
+        var nameStart = open + 1;
+        while (nameStart < slashIndex && char.IsWhiteSpace(text[nameStart]))
+        {
+            nameStart++;
+        }
+
+        if (nameStart >= slashIndex || text[nameStart] is '/' or '!' or '?')
+        {
+            return false;
+        }
+
+        var nameEnd = nameStart;
+        while (nameEnd < slashIndex && IsXmlNameChar(text[nameEnd]))
+        {
+            nameEnd++;
+        }
+
+        if (nameEnd == nameStart)
+        {
+            return false;
+        }
+
+        var quote = '\0';
+        for (var index = nameEnd; index < slashIndex; index++)
+        {
+            var current = text[index];
+            if (quote != '\0')
+            {
+                if (current == quote)
+                {
+                    quote = '\0';
+                }
+
+                continue;
+            }
+
+            if (current is '"' or '\'')
+            {
+                quote = current;
+                continue;
+            }
+
+            if (current is '<' or '>')
+            {
+                return false;
+            }
+        }
+
+        if (quote != '\0')
+        {
+            return false;
+        }
+
+        tagName = text[nameStart..nameEnd];
+        return IsValidXmlName(tagName);
+    }
+
+    private static bool HasImmediateSelfClosingBracket(string text, int index)
+    {
+        return index >= 0 && index < text.Length && text[index] == '>';
     }
 
     private static bool HasOnlyWhitespaceBetween(string text, int start, int end)

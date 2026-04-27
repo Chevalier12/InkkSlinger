@@ -250,6 +250,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private bool _hasPendingTextChangedEvent;
     private bool _hasPendingDocumentMaintenanceWork;
     private bool _suppressMeasureInvalidationForDocumentBatch;
+    private bool _forceFullRenderInvalidationForDocumentChange;
     private bool _deferDocumentChangeBatchFlush;
     private int _deferredDocumentChangeFlushVersion;
     private DateTime _lastPointerDownUtc;

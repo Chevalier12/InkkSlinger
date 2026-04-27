@@ -514,6 +514,60 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void SourceEditor_TypingSlashAfterOpenStartTagWithAttributes_InsertsClosingBracket()
+    {
+        const string initialText = "<TextBlock Text=\"Haha\"";
+        const string expectedText = "<TextBlock Text=\"Haha\"/>";
+
+        var sourceEditorView = new InkkSlinger.Designer.DesignerSourceEditorView
+        {
+            SourceText = initialText
+        };
+        var sourceEditor = sourceEditorView.Editor;
+        var uiRoot = new UiRoot(sourceEditorView);
+        RunLayout(uiRoot, 640, 240, 16);
+        RunLayout(uiRoot, 640, 240, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(initialText.Length, 0);
+
+        Assert.True(sourceEditor.HandleTextCompositionFromInput("/"));
+        RunLayout(uiRoot, 640, 240, 16);
+
+        Assert.Equal(expectedText, sourceEditorView.SourceText);
+        Assert.Equal(expectedText, NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(expectedText.Length, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void SourceEditor_TypingSlashInsideAttributeValue_DoesNotInsertClosingBracket()
+    {
+        const string initialText = "<TextBlock Text=\"Haha";
+        const string expectedText = "<TextBlock Text=\"Haha/";
+
+        var sourceEditorView = new InkkSlinger.Designer.DesignerSourceEditorView
+        {
+            SourceText = initialText
+        };
+        var sourceEditor = sourceEditorView.Editor;
+        var uiRoot = new UiRoot(sourceEditorView);
+        RunLayout(uiRoot, 640, 240, 16);
+        RunLayout(uiRoot, 640, 240, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(initialText.Length, 0);
+
+        Assert.True(sourceEditor.HandleTextCompositionFromInput("/"));
+        RunLayout(uiRoot, 640, 240, 16);
+
+        Assert.Equal(expectedText, sourceEditorView.SourceText);
+        Assert.Equal(expectedText, NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(expectedText.Length, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
     public void ShellView_ContainsRequiredPreviewSplitters()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView();

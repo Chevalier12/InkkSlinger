@@ -501,29 +501,13 @@ public partial class DesignerSourceEditorView : UserControl
     private void TryAutoInsertSelfClosingBracket(string currentText, int insertedIndex, out string updatedText)
     {
         updatedText = currentText;
-        if (!TryGetSelfClosingTagName(currentText, insertedIndex, out var tagName) ||
-            !DesignerXmlSyntaxHighlighter.TryClassifyTagName(tagName, out _) ||
-            HasImmediateSelfClosingBracket(currentText, insertedIndex + 1))
+        if (!DesignerXmlEditorLanguageService.TryHandleSelfClosingTagSlash(currentText, insertedIndex, out var edit))
         {
             return;
         }
 
-        _suppressSourceEditorChanges = true;
-        try
-        {
-            SourceEditor.Select(insertedIndex + 1, 0);
-            if (!SourceEditor.HandleTextCompositionFromInput(">"))
-            {
-                return;
-            }
-
-            SourceEditor.Select(insertedIndex + 2, 0);
-            updatedText = DocumentEditing.GetText(SourceEditor.Document);
-        }
-        finally
-        {
-            _suppressSourceEditorChanges = false;
-        }
+        ApplySourceEditorTextEdit(edit, keepPendingSelection: true);
+        updatedText = DocumentEditing.GetText(SourceEditor.Document);
     }
 
     private void TryAutoInsertInferredClosingTag(string currentText, int slashIndex, out string updatedText)
@@ -2118,45 +2102,6 @@ public partial class DesignerSourceEditorView : UserControl
         return sourceText.Substring(
             targetLineStartIndex + closingIndentationLength,
             targetIndentationLength - closingIndentationLength);
-    }
-
-    private static bool TryGetSelfClosingTagName(string sourceText, int slashIndex, out string tagName)
-    {
-        tagName = string.Empty;
-        if (slashIndex <= 0 || slashIndex >= sourceText.Length || sourceText[slashIndex] != '/')
-        {
-            return false;
-        }
-
-        var openBracketIndex = slashIndex - 1;
-        while (openBracketIndex >= 0 && sourceText[openBracketIndex] != '<')
-        {
-            if (!IsAutoCloseTagNameCharacter(sourceText[openBracketIndex]))
-            {
-                return false;
-            }
-
-            openBracketIndex--;
-        }
-
-        if (openBracketIndex < 0 || openBracketIndex + 1 >= slashIndex)
-        {
-            return false;
-        }
-
-        var firstTagCharacter = sourceText[openBracketIndex + 1];
-        if (firstTagCharacter == '/' || firstTagCharacter == '!' || firstTagCharacter == '?')
-        {
-            return false;
-        }
-
-        tagName = sourceText.Substring(openBracketIndex + 1, slashIndex - openBracketIndex - 1);
-        return tagName.Length > 0;
-    }
-
-    private static bool HasImmediateSelfClosingBracket(string sourceText, int index)
-    {
-        return index >= 0 && index < sourceText.Length && sourceText[index] == '>';
     }
 
     private static bool TryFindInferredClosingTagTarget(string sourceText, int closingTagOpenIndex, out AutoCloseTagTarget target)

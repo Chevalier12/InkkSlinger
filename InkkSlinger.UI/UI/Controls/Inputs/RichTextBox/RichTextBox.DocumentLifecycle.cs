@@ -66,6 +66,20 @@ public partial class RichTextBox
         }
     }
 
+    internal void ExecuteDocumentPresentationChangeBatch(Action action)
+    {
+        var previous = _forceFullRenderInvalidationForDocumentChange;
+        _forceFullRenderInvalidationForDocumentChange = true;
+        try
+        {
+            ExecuteDocumentChangeBatch(action);
+        }
+        finally
+        {
+            _forceFullRenderInvalidationForDocumentChange = previous;
+        }
+    }
+
     private T ExecuteDocumentChangeBatch<T>(Func<T> action)
     {
         BeginDocumentChangeBatch();

@@ -30,6 +30,7 @@ Desktop.ini
 Docs/
 !site/docs/
 !site/docs/**
+architecture.md
 ARCHITECTURE-SUMMARY.md
 BEHAVIOR-PARITY-MAP.md
 TEST-MAP.md
