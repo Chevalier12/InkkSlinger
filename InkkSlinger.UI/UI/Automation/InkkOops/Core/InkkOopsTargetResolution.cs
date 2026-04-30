@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace InkkSlinger;
 
@@ -316,8 +317,8 @@ public static class InkkOopsTargetResolver
 
     private static string GetElementTextForMatching(UIElement element)
     {
-        var contentProperty = element.GetType().GetProperty("Content");
-        if (contentProperty?.CanRead == true && contentProperty.GetIndexParameters().Length == 0)
+        var contentProperty = GetReadableInstanceProperty(element.GetType(), "Content");
+        if (contentProperty != null)
         {
             if (contentProperty.GetValue(element) is string contentText && !string.IsNullOrWhiteSpace(contentText))
             {
@@ -325,8 +326,8 @@ public static class InkkOopsTargetResolver
             }
         }
 
-        var textProperty = element.GetType().GetProperty("Text");
-        if (textProperty?.CanRead == true && textProperty.GetIndexParameters().Length == 0)
+        var textProperty = GetReadableInstanceProperty(element.GetType(), "Text");
+        if (textProperty != null)
         {
             if (textProperty.GetValue(element) is string text && !string.IsNullOrWhiteSpace(text))
             {
@@ -335,6 +336,22 @@ public static class InkkOopsTargetResolver
         }
 
         return string.Empty;
+    }
+
+    private static PropertyInfo? GetReadableInstanceProperty(Type type, string name)
+    {
+        for (var current = type; current != null; current = current.BaseType)
+        {
+            var property = current.GetProperty(
+                name,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
+            if (property?.CanRead == true && property.GetIndexParameters().Length == 0)
+            {
+                return property;
+            }
+        }
+
+        return null;
     }
 
     private static UIElement PromoteContentTextMatch(

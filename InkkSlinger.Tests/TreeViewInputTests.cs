@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -165,11 +166,13 @@ public sealed class TreeViewInputTests
 
         Assert.False(docs.IsExpanded);
         var visibleDocsExpanderPoint = new Vector2(
-            docs.LayoutSlot.X + 8f,
-            docs.LayoutSlot.Y - scrollViewer.VerticalOffset + 9f);
+            docs.LayoutSlot.X + 24f,
+            docs.LayoutSlot.Y + 9f);
         var hit = VisualTreeHelper.HitTest(host, visibleDocsExpanderPoint);
-        Assert.True(IsDescendantOrSelf(docs, hit));
-        Assert.False(docs.HitExpander(visibleDocsExpanderPoint));
+        Assert.True(
+            IsDescendantOrSelf(docs, hit),
+            $"Expected hit under docs. hit={hit?.GetType().Name ?? "<null>"}, docsSlot={docs.LayoutSlot}, offset={scrollViewer.VerticalOffset:0.###}, point={visibleDocsExpanderPoint}.");
+        Assert.True(docs.HitExpander(visibleDocsExpanderPoint));
 
         Click(uiRoot, visibleDocsExpanderPoint);
 
@@ -213,6 +216,77 @@ public sealed class TreeViewInputTests
         RunLayout(uiRoot);
         Click(uiRoot, expanderPoint);
         Assert.True(root.IsExpanded);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ClickingCollapsedNestedFolderExpander_ShouldExpandAndRealizeChildren()
+    {
+        await Task.Yield();
+
+        var host = new Canvas
+        {
+            Width = 460f,
+            Height = 320f
+        };
+
+        var treeView = new TreeView
+        {
+            Width = 320f,
+            Height = 260f
+        };
+
+        var root = new TreeViewItem
+        {
+            Header = "[+] InkkSlinger",
+            IsExpanded = true
+        };
+        var claude = new TreeViewItem
+        {
+            Header = "[+] .claude",
+            IsExpanded = true
+        };
+        var classTelemetryAuthor = new TreeViewItem
+        {
+            Header = "[+] class-telemetry-author",
+            IsExpanded = false
+        };
+        var skillFile = new TreeViewItem { Header = "    SKILL.md" };
+        classTelemetryAuthor.Items.Add(skillFile);
+        claude.Items.Add(classTelemetryAuthor);
+        claude.Items.Add(new TreeViewItem { Header = "[+] inkkoops-diagnostics-contributor-author" });
+        claude.Items.Add(new TreeViewItem { Header = "[+] pre-warm-author" });
+        root.Items.Add(claude);
+        treeView.Items.Add(root);
+
+        host.AddChild(treeView);
+        Canvas.SetLeft(treeView, 20f);
+        Canvas.SetTop(treeView, 20f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        Assert.False(classTelemetryAuthor.IsExpanded);
+        Assert.Null(skillFile.VisualParent);
+
+        var expanderPoint = new Vector2(classTelemetryAuthor.LayoutSlot.X + 40f, classTelemetryAuthor.LayoutSlot.Y + 9f);
+        Assert.True(classTelemetryAuthor.HitExpander(expanderPoint));
+
+        Click(uiRoot, expanderPoint);
+        RunLayout(uiRoot);
+
+        Assert.True(classTelemetryAuthor.IsExpanded);
+        Assert.True(IsDescendantOrSelf(treeView, skillFile));
+        Assert.True(skillFile.LayoutSlot.Height > 0f, $"Expected expanded child to be arranged, but got {skillFile.LayoutSlot}.");
+
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(treeView.GetVisualChildren()));
+        var hostPanel = Assert.IsAssignableFrom<Panel>(scrollViewer.Content);
+        Assert.Collection(
+            hostPanel.Children.OfType<TreeViewItem>().Take(5),
+            item => Assert.Same(root, item),
+            item => Assert.Same(claude, item),
+            item => Assert.Same(classTelemetryAuthor, item),
+            item => Assert.Same(skillFile, item),
+            item => Assert.Equal("[+] inkkoops-diagnostics-contributor-author", item.Header));
     }
 
     [Fact]
@@ -433,7 +507,7 @@ public sealed class TreeViewInputTests
         ClickWithoutPointerMove(uiRoot, grandchildPoint);
         Assert.Same(grandchild, treeView.SelectedItem);
 
-        var branchExpanderPoint = new Vector2(branch.LayoutSlot.X + 8f, branch.LayoutSlot.Y + 9f);
+        var branchExpanderPoint = new Vector2(branch.LayoutSlot.X + 24f, branch.LayoutSlot.Y + 9f);
         ClickWithoutPointerMove(uiRoot, branchExpanderPoint);
         Assert.False(branch.IsExpanded);
 
@@ -489,6 +563,66 @@ public sealed class TreeViewInputTests
     {
         uiRoot.RunInputDeltaForTests(CreatePointerDeltaNoMove(pointer, leftPressed: true));
         uiRoot.RunInputDeltaForTests(CreatePointerDeltaNoMove(pointer, leftReleased: true));
+    }
+
+    [Fact]
+    public void StaticPointerWheel_WhenHoveredItemScrolledAway_ShouldNotReuseHoveredTarget()
+    {
+        var host = new Canvas
+        {
+            Width = 460f,
+            Height = 320f
+        };
+
+        var treeView = new TreeView
+        {
+            Width = 340f,
+            Height = 100f
+        };
+
+        for (var i = 0; i < 40; i++)
+        {
+            var item = new TreeViewItem { Header = $"Node {i}" };
+            treeView.Items.Add(item);
+        }
+
+        host.AddChild(treeView);
+        Canvas.SetLeft(treeView, 20f);
+        Canvas.SetTop(treeView, 20f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(treeView.GetVisualChildren()));
+        Assert.True(scrollViewer.ExtentHeight > scrollViewer.ViewportHeight,
+            "TreeView must have scrollable overflow");
+
+        var firstRealizedItem = FindDescendant<TreeViewItem>(scrollViewer);
+        Assert.NotNull(firstRealizedItem);
+        var pointerPoint = new Vector2(
+            firstRealizedItem.LayoutSlot.X + 24f,
+            firstRealizedItem.LayoutSlot.Y + 8f);
+
+        var initialDelta = CreatePointerDelta(
+            pointerPoint,
+            pointerMoved: true,
+            wheelDelta: 0);
+        uiRoot.RunInputDeltaForTests(initialDelta);
+        var initialResolvePath = uiRoot.LastPointerResolvePathForDiagnostics;
+        Assert.NotEqual("NoInputBypass", initialResolvePath);
+        Assert.NotEqual("None", initialResolvePath);
+
+        RunLayout(uiRoot);
+
+        scrollViewer.ScrollToVerticalOffset(400f);
+        RunLayout(uiRoot);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(
+            pointerPoint,
+            pointerMoved: false,
+            wheelDelta: -120));
+        var afterScrollWheelPath = uiRoot.LastPointerResolvePathForDiagnostics;
+        Assert.NotEqual("HoverReuse", afterScrollWheelPath);
     }
 
     private static InputDelta CreatePointerDeltaNoMove(

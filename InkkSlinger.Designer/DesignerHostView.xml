@@ -1,0 +1,431 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.Designer.DesignerHostView"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../InkkSlinger.UI/Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../InkkSlinger.UI/Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#18191B">
+  <UserControl.Resources>
+    <Style x:Key="WelcomeActionButtonStyle" TargetType="{x:Type Button}">
+      <Setter Property="Background" Value="#1D1F22" />
+      <Setter Property="Foreground" Value="#E5E7EA" />
+      <Setter Property="BorderBrush" Value="#4A4D54" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="13,6" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="#2A2D33" />
+          <Setter Property="BorderBrush" Value="#6A6F7A" />
+          <Setter Property="Foreground" Value="#FFFFFF" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style x:Key="RecentProjectButtonStyle" TargetType="{x:Type Button}">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Height" Value="60" />
+      <Setter Property="MaxHeight" Value="60" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="#24272C" />
+          <Setter Property="BorderBrush" Value="#3C414A" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style x:Key="RecentProjectRemoveButtonStyle" TargetType="{x:Type Button}">
+      <Setter Property="Background" Value="#01000000" />
+      <Setter Property="Foreground" Value="#8B919B" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Width" Value="28" />
+      <Setter Property="Height" Value="28" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Visibility" Value="Collapsed" />
+      <Setter Property="Margin" Value="0,0,18,0" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Foreground" Value="#F3F5F8" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style x:Key="SidebarNavButtonStyle" TargetType="{x:Type Button}">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#D7DBE3" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="22,8" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+
+    <Style x:Key="DesignerTitleBarButtonStyle" TargetType="{x:Type Button}">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#C7CBD3" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Width" Value="46" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="#2A2D33" />
+          <Setter Property="Foreground" Value="#FFFFFF" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style x:Key="DesignerTitleBarCloseButtonStyle" TargetType="{x:Type Button}">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#C7CBD3" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Width" Value="46" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="#C93C37" />
+          <Setter Property="Foreground" Value="#FFFFFF" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <DataTemplate x:Key="RecentProjectTemplate">
+      <Grid x:Name="RecentProjectRowRoot"
+            Height="60">
+        <Button Style="{StaticResource RecentProjectButtonStyle}"
+                Command="{Binding DataContext.OpenProjectCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
+                CommandParameter="{Binding Path}">
+          <Grid x:Name="RecentProjectContentGrid"
+                Margin="18,0,54,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="36" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0"
+                    Width="21"
+                    Height="21"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Background="#A858E6"
+                    CornerRadius="5">
+              <TextBlock Text="{Binding DisplayInitial}"
+                         Foreground="#FFFFFF"
+                         FontSize="12"
+                         FontWeight="SemiBold"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center" />
+            </Border>
+            <StackPanel Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Margin="10,0,0,0">
+              <TextBlock Text="{Binding DisplayName}"
+                         Foreground="#E6EAF1"
+                         FontSize="15" />
+              <TextBlock Text="{Binding Path}"
+                         Foreground="#7D828C"
+                         FontSize="12"
+                         Margin="0,3,0,0" />
+            </StackPanel>
+          </Grid>
+        </Button>
+        <Button x:Name="RecentProjectRemoveButton"
+                Style="{StaticResource RecentProjectRemoveButtonStyle}"
+                Command="{Binding DataContext.RemoveRecentProjectCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
+                CommandParameter="{Binding Path}">
+            <Grid Width="16"
+              Height="16"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+          <PathShape x:Name="RecentProjectRemoveIcon"
+                 Stroke="{Binding Foreground, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type Button}}}"
+                        StrokeThickness="1.4"
+                        Data="M 25,8 L 25,1 L 39,1 L 39,8 M 14,10 L 14,63 L 50,63 L 50,10 M 26,20 L 26,54 M 38,20 L 38,54 M 10,9 L 54,9" />
+          </Grid>
+        </Button>
+      </Grid>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <Grid x:Name="DesignerHostRoot">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="34" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+          <Border x:Name="DesignerTitleBar"
+            Grid.Row="0"
+            Background="#18191B"
+            BorderBrush="#2B2D31"
+                  BorderThickness="0">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="138" />
+        </Grid.ColumnDefinitions>
+        <Border x:Name="DesignerTitleBarDragSurface"
+          Grid.Column="0"
+          Background="Transparent">
+          <TextBlock Text="InkkSlinger Designer"
+               Foreground="#C7CBD3"
+               FontSize="12"
+               Margin="12,0,0,0"
+               VerticalAlignment="Center" />
+        </Border>
+        <Grid x:Name="DesignerTitleBarButtons"
+              Grid.Column="1"
+              HorizontalAlignment="Right"
+              VerticalAlignment="Stretch">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="46" />
+            <ColumnDefinition Width="46" />
+            <ColumnDefinition Width="46" />
+          </Grid.ColumnDefinitions>
+              <Button x:Name="DesignerMinimizeButton"
+              Grid.Column="0"
+              Style="{StaticResource DesignerTitleBarButtonStyle}"
+              Command="{Binding MinimizeWindowCommand}">
+                  <Path x:Name="DesignerMinimizeIcon"
+                  Data="M 4,10 L 16,10"
+                  Fill="Transparent"
+                  Stroke="#CED3DC"
+                  StrokeThickness="1.5"
+                  Stretch="Uniform"
+                  Width="12"
+                  Height="12"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center" />
+          </Button>
+          <Button x:Name="DesignerMaximizeButton"
+            Grid.Column="1"
+            Style="{StaticResource DesignerTitleBarButtonStyle}"
+            Command="{Binding MaximizeWindowCommand}">
+            <Path Data="M 4,4 L 16,4 L 16,16 L 4,16 Z"
+                  Fill="Transparent"
+                  Stroke="#CED3DC"
+                  StrokeThickness="1.35"
+                  Stretch="Uniform"
+                  Width="12"
+            Height="12"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center" />
+          </Button>
+          <Button x:Name="DesignerCloseButton"
+            Grid.Column="2"
+            Style="{StaticResource DesignerTitleBarCloseButtonStyle}"
+            Command="{Binding CloseWindowCommand}">
+            <Path Data="M 5,5 L 15,15 M 15,5 L 5,15"
+                  Fill="Transparent"
+                  Stroke="#F2F4F8"
+                  StrokeThickness="1.45"
+                  Stretch="Uniform"
+                  Width="12"
+            Height="12"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center" />
+          </Button>
+        </Grid>
+        <Border Grid.ColumnSpan="2"
+                Height="1"
+                Background="#2B2D31"
+                VerticalAlignment="Bottom"
+                IsHitTestVisible="False" />
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1">
+      <Grid x:Name="StartPageRoot"
+          Visibility="{Binding StartPageVisibility}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="225" />
+        <ColumnDefinition Width="1" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <Grid Grid.Column="0"
+            Background="#18191B">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="104" />
+          <RowDefinition Height="*" />
+          <RowDefinition Height="44" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0"
+              Margin="18,29,12,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="36" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Grid Grid.Column="0"
+                Width="30"
+                Height="30"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top">
+            <Border Background="#FF2A80"
+                    Width="24"
+                    Height="24"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Bottom" />
+            <Border Background="#00B7FF"
+                    Width="22"
+                    Height="22"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top" />
+            <Border Background="#111214"
+                    Width="24"
+                    Height="24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    BorderBrush="#2C2F36"
+                    BorderThickness="1">
+              <TextBlock Text="IS"
+                         Foreground="#FFFFFF"
+                         FontSize="9"
+                         FontWeight="SemiBold"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center" />
+            </Border>
+          </Grid>
+          <StackPanel Grid.Column="1"
+                      Margin="0,1,0,0">
+            <TextBlock Text="InkkSlinger Designer"
+                       Foreground="#EEF1F7"
+                       FontSize="14" />
+            <TextBlock Text="2026.1"
+                       Foreground="#8E939E"
+                       FontSize="12"
+                       Margin="0,3,0,0" />
+          </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="1"
+                    Margin="12,0,12,0">
+          <Border Background="#31518A"
+                  CornerRadius="4"
+                  Height="33"
+                  Margin="0,0,0,4">
+            <TextBlock Text="Projects"
+                       Foreground="#EAF0FA"
+                       FontSize="14"
+                       Margin="22,0,0,0"
+                       VerticalAlignment="Center" />
+          </Border>
+        </StackPanel>
+      </Grid>
+
+      <Border Grid.Column="1"
+              Background="#2B2D31" />
+
+      <Grid Grid.Column="2"
+            Background="#18191B"
+            Margin="12,22,12,0">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="47" />
+          <RowDefinition Height="1" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0"
+              VerticalAlignment="Top">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <Grid Grid.Column="0"
+                Height="36"
+                Margin="7,0,20,0"
+                VerticalAlignment="Center">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="28" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Path Grid.Column="0"
+                  Data="M10 6.5C10 8.433 8.433 10 6.5 10C4.567 10 3 8.433 3 6.5C3 4.567 4.567 3 6.5 3C8.433 3 10 4.567 10 6.5ZM9.30884 10.0159C8.53901 10.6318 7.56251 11 6.5 11C4.01472 11 2 8.98528 2 6.5C2 4.01472 4.01472 2 6.5 2C8.98528 2 11 4.01472 11 6.5C11 7.56251 10.6318 8.53901 10.0159 9.30884L12.8536 12.1464C13.0488 12.3417 13.0488 12.6583 12.8536 12.8536C12.6583 13.0488 12.3417 13.0488 12.1464 12.8536L9.30884 10.0159Z"
+                  Fill="#9BA1AB"
+                  Stroke="Transparent"
+                  StrokeThickness="0"
+                  Stretch="Uniform"
+                  Width="18"
+                  Height="18"
+                  FillRule="EvenOdd"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center" />
+            <TextBox x:Name="OpenProjectPathTextBox"
+                     Grid.Column="1"
+                     Text="{Binding OpenProjectPathText, UpdateSourceTrigger=PropertyChanged}"
+                     Background="#18191B"
+                     Foreground="#C9CED8"
+                     BorderBrush="#18191B"
+                     BorderThickness="0"
+                     Padding="0,7"
+                     FontSize="14"
+                     Cursor="IBeam" />
+            <TextBlock x:Name="SearchProjectPlaceholder"
+                       Grid.Column="1"
+                       Text="Search projects"
+                       Foreground="#7D828C"
+                       FontSize="14"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False" />
+          </Grid>
+
+          <StackPanel Grid.Column="1"
+                      Orientation="Horizontal"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Top">
+            <Button Content="Open"
+                    Style="{StaticResource WelcomeActionButtonStyle}"
+                    Command="{Binding OpenProjectCommand}"
+                    Margin="0,0,8,0" />
+          </StackPanel>
+        </Grid>
+
+        <Border Grid.Row="1"
+                Background="#2B2D31" />
+
+        <Grid Grid.Row="2"
+              ClipToBounds="True">
+          <ScrollViewer VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Disabled"
+                        Background="#18191B">
+            <ItemsControl x:Name="RecentProjectsItemsControl"
+                          ItemsSource="{Binding RecentProjects}"
+                          ItemTemplate="{StaticResource RecentProjectTemplate}"
+                          HorizontalAlignment="Stretch"
+                          Margin="12,18,12,0" />
+          </ScrollViewer>
+        </Grid>
+      </Grid>
+    </Grid>
+
+    <ContentControl x:Name="WorkspaceHost"
+                    Visibility="{Binding WorkspaceVisibility}" />
+    </Grid>
+  </Grid>
+</UserControl>

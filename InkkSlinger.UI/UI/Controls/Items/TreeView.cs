@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -84,6 +85,7 @@ public class TreeView : ItemsControl
             new FrameworkPropertyMetadata(new Thickness(0f), FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
     private readonly ScrollViewer _fallbackScrollViewer;
+    private readonly HashSet<TreeViewItem> _trackedTreeItems = new();
     private ScrollViewer? _templatedScrollViewer;
     private Panel _itemsHost;
 
@@ -379,6 +381,7 @@ public class TreeView : ItemsControl
         if (clickedItem.HitExpander(GetExpanderHitTestPoint(clickedItem, args.Position)))
         {
             clickedItem.IsExpanded = !clickedItem.IsExpanded;
+            RefreshVirtualizedItemsHost();
         }
 
         ApplySelectedItem(clickedItem);
@@ -387,6 +390,11 @@ public class TreeView : ItemsControl
 
     private Vector2 GetExpanderHitTestPoint(TreeViewItem item, Vector2 pointerPosition)
     {
+        if (item.HitExpander(pointerPosition))
+        {
+            return pointerPosition;
+        }
+
         var scrollViewer = ActiveScrollViewer;
         if (scrollViewer.Content is not UIElement content ||
             content is not IScrollTransformContent ||
@@ -438,10 +446,18 @@ public class TreeView : ItemsControl
             return ItemsPanel.Build(this);
         }
 
-        return new ScrollContentStackPanel
+        return new VirtualizingTreeItemsHost
         {
-            Orientation = Orientation.Vertical
+            Orientation = Orientation.Vertical,
+            CacheLength = 2f
         };
+    }
+
+    protected override void OnItemsChanged()
+    {
+        base.OnItemsChanged();
+        RefreshTreeItemTracking();
+        RefreshVirtualizedItemsHost();
     }
 
     private void ConfigureScrollViewer(ScrollViewer viewer)
@@ -461,6 +477,8 @@ public class TreeView : ItemsControl
         _itemsHost = nextHost;
         ActiveScrollViewer.Content = _itemsHost;
         AttachItemsHost(_itemsHost);
+        RefreshTreeItemTracking();
+        RefreshVirtualizedItemsHost();
         InvalidateMeasure();
     }
 
@@ -484,6 +502,8 @@ public class TreeView : ItemsControl
         }
 
         AttachItemsHost(_itemsHost);
+        RefreshTreeItemTracking();
+        RefreshVirtualizedItemsHost();
     }
 
     private void RestoreFallbackScrollViewer()
@@ -510,9 +530,35 @@ public class TreeView : ItemsControl
         _fallbackScrollViewer.SetLogicalParent(null);
     }
 
-    private List<TreeViewItem> GetVisibleItems()
+    private void OnTrackedTreeItemExpandedStateChanged(object? sender, EventArgs args)
     {
-        var result = new List<TreeViewItem>();
+        _ = sender;
+        _ = args;
+        RefreshVirtualizedItemsHost();
+    }
+
+    private void RefreshTreeItemTracking()
+    {
+        var current = EnumerateAllTreeItems().ToHashSet();
+        foreach (var removed in _trackedTreeItems.Where(item => !current.Contains(item)).ToArray())
+        {
+            removed.ExpandedStateChanged -= OnTrackedTreeItemExpandedStateChanged;
+            removed.UseVirtualizedTreeLayout = false;
+            removed.VirtualizedTreeDepth = 0;
+            _trackedTreeItems.Remove(removed);
+        }
+
+        foreach (var item in current)
+        {
+            if (_trackedTreeItems.Add(item))
+            {
+                item.ExpandedStateChanged += OnTrackedTreeItemExpandedStateChanged;
+            }
+        }
+    }
+
+    private IEnumerable<TreeViewItem> EnumerateAllTreeItems()
+    {
         foreach (var container in ItemContainers)
         {
             if (container is not TreeViewItem root)
@@ -520,15 +566,106 @@ public class TreeView : ItemsControl
                 continue;
             }
 
-            AddVisible(root, result);
+            foreach (var item in EnumerateAllTreeItems(root))
+            {
+                yield return item;
+            }
+        }
+    }
+
+    private static IEnumerable<TreeViewItem> EnumerateAllTreeItems(TreeViewItem item)
+    {
+        yield return item;
+        foreach (var child in item.GetChildTreeItems())
+        {
+            foreach (var descendant in EnumerateAllTreeItems(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    private void RefreshVirtualizedItemsHost()
+    {
+        if (_itemsHost is not VirtualizingTreeItemsHost virtualizingHost)
+        {
+            foreach (var item in _trackedTreeItems)
+            {
+                item.UseVirtualizedTreeLayout = false;
+                item.VirtualizedTreeDepth = 0;
+            }
+
+            return;
+        }
+
+        var visibleItems = GetVisibleItemEntries();
+        var visibleSet = new HashSet<TreeViewItem>();
+        foreach (var entry in visibleItems)
+        {
+            entry.Item.UseVirtualizedTreeLayout = true;
+            entry.Item.VirtualizedTreeDepth = entry.Depth;
+            visibleSet.Add(entry.Item);
+        }
+
+        foreach (var item in _trackedTreeItems)
+        {
+            if (visibleSet.Contains(item))
+            {
+                continue;
+            }
+
+            item.UseVirtualizedTreeLayout = true;
+            item.VirtualizedTreeDepth = 0;
+            DetachVirtualizedTreeItem(item);
+        }
+
+        virtualizingHost.SetVisibleItems(visibleItems);
+    }
+
+    private void DetachVirtualizedTreeItem(TreeViewItem item)
+    {
+        if (ReferenceEquals(item.VisualParent, _itemsHost))
+        {
+            return;
+        }
+
+        if (item.VisualParent is Panel visualPanel)
+        {
+            visualPanel.RemoveChild(item);
+        }
+        else if (item.VisualParent != null)
+        {
+            item.SetVisualParent(null);
+        }
+
+        item.InvalidateMeasure();
+        item.InvalidateArrange();
+    }
+
+    private List<TreeViewItem> GetVisibleItems()
+    {
+        return GetVisibleItemEntries().Select(static entry => entry.Item).ToList();
+    }
+
+    private List<VisibleTreeItemEntry> GetVisibleItemEntries()
+    {
+        var result = new List<VisibleTreeItemEntry>();
+        foreach (var container in ItemContainers)
+        {
+            if (container is not TreeViewItem root)
+            {
+                continue;
+            }
+
+            AddVisible(root, depth: 0, result);
         }
 
         return result;
     }
 
-    private static void AddVisible(TreeViewItem item, IList<TreeViewItem> output)
+    private static void AddVisible(TreeViewItem item, int depth, IList<VisibleTreeItemEntry> output)
     {
-        output.Add(item);
+        output.Add(new VisibleTreeItemEntry(item, depth));
 
         if (!item.IsExpanded)
         {
@@ -537,7 +674,7 @@ public class TreeView : ItemsControl
 
         foreach (var childItem in item.GetChildTreeItems())
         {
-            AddVisible(childItem, output);
+            AddVisible(childItem, depth + 1, output);
         }
     }
 
@@ -608,6 +745,135 @@ public class TreeView : ItemsControl
     private sealed class ScrollContentStackPanel : StackPanel, IScrollTransformContent
     {
     }
+
+    private readonly record struct VisibleTreeItemEntry(TreeViewItem Item, int Depth);
+
+    private sealed class VirtualizingTreeItemsHost : VirtualizingStackPanel
+    {
+        public override IEnumerable<UIElement> GetVisualChildren()
+        {
+            if (!IsVirtualizationActive || FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex)
+            {
+                foreach (var child in Children)
+                {
+                    yield return child;
+                }
+
+                yield break;
+            }
+
+            var first = Math.Max(0, FirstRealizedIndex);
+            var last = Math.Min(Children.Count - 1, LastRealizedIndex);
+            for (var index = first; index <= last; index++)
+            {
+                yield return Children[index];
+            }
+        }
+
+        internal override int GetVisualChildCountForTraversal()
+        {
+            if (!IsVirtualizationActive || FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex)
+            {
+                return Children.Count;
+            }
+
+            var first = Math.Max(0, FirstRealizedIndex);
+            var last = Math.Min(Children.Count - 1, LastRealizedIndex);
+            return Math.Max(0, last - first + 1);
+        }
+
+        internal override UIElement GetVisualChildAtForTraversal(int index)
+        {
+            if (!IsVirtualizationActive || FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex)
+            {
+                if ((uint)index < (uint)Children.Count)
+                {
+                    return Children[index];
+                }
+
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            var first = Math.Max(0, FirstRealizedIndex);
+            var last = Math.Min(Children.Count - 1, LastRealizedIndex);
+            var count = Math.Max(0, last - first + 1);
+            if ((uint)index >= (uint)count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return Children[first + index];
+        }
+
+        public void SetVisibleItems(IReadOnlyList<VisibleTreeItemEntry> visibleItems)
+        {
+            var visibleSet = new HashSet<TreeViewItem>(visibleItems.Select(static entry => entry.Item));
+            for (var index = Children.Count - 1; index >= 0; index--)
+            {
+                var child = Children[index];
+                if (child is TreeViewItem treeItem && visibleSet.Contains(treeItem))
+                {
+                    continue;
+                }
+
+                RemoveChildAt(index);
+            }
+
+            for (var index = 0; index < visibleItems.Count; index++)
+            {
+                var item = visibleItems[index].Item;
+                var currentIndex = IndexOfChild(item);
+                if (currentIndex == index)
+                {
+                    continue;
+                }
+
+                if (currentIndex >= 0)
+                {
+                    MoveChildRange(currentIndex, 1, index);
+                    continue;
+                }
+
+                DetachFromCurrentParent(item);
+                InsertChild(index, item);
+            }
+
+            InvalidateMeasure();
+            InvalidateArrange();
+        }
+
+        private int IndexOfChild(UIElement child)
+        {
+            for (var index = 0; index < Children.Count; index++)
+            {
+                if (ReferenceEquals(Children[index], child))
+                {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+
+        private static void DetachFromCurrentParent(UIElement child)
+        {
+            if (child.VisualParent is Panel visualPanel)
+            {
+                visualPanel.RemoveChild(child);
+            }
+            else
+            {
+                child.SetVisualParent(null);
+            }
+
+            if (child.LogicalParent is Panel logicalPanel)
+            {
+                logicalPanel.RemoveChild(child);
+            }
+            else
+            {
+                child.SetLogicalParent(null);
+            }
+        }
+    }
 }
-
-

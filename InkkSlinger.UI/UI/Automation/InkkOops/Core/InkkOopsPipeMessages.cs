@@ -26,6 +26,7 @@ public static class InkkOopsPipeRequestKinds
     public const string GetTargetDiagnostics = "get-target-diagnostics";
     public const string GetHostInfo = "get-host-info";
     public const string DragTarget = "drag-target";
+    public const string TakeScreenshot = "take-screenshot";
 }
 
 public sealed class InkkOopsPipeRequest

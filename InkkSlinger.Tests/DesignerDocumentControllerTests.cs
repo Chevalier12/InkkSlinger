@@ -63,18 +63,59 @@ public class DesignerDocumentControllerTests
         Assert.False(controller.IsDirty);
     }
 
+    [Fact]
+    public void OpenPath_ReadsTextNormalizesLineEndingsUpdatesDocumentIdentityAndClearsDirtyState()
+    {
+        var store = new FakeDocumentFileStore();
+        store.Texts["C:/project/Views/Main.xml"] = "<UserControl>\r\n    <Grid />\r</UserControl>";
+        var controller = new InkkSlinger.Designer.DesignerDocumentController(DefaultDocument, store);
+        controller.UpdateText("<UserControl><TextBlock Text=\"Dirty\" /></UserControl>");
+
+        controller.OpenPath("C:/project/Views/Main.xml");
+
+        Assert.Equal("<UserControl>\n    <Grid />\n</UserControl>", controller.CurrentText);
+        Assert.Equal("C:/project/Views/Main.xml", controller.CurrentPath);
+        Assert.Equal("Main.xml", controller.DisplayName);
+        Assert.False(controller.IsDirty);
+    }
+
+    [Fact]
+    public void Reset_ReplacesTextClearsPathAndDirtyState()
+    {
+        var store = new FakeDocumentFileStore();
+        store.Texts["C:/project/Views/Main.xml"] = "<UserControl />";
+        var controller = new InkkSlinger.Designer.DesignerDocumentController(DefaultDocument, store);
+        controller.OpenPath("C:/project/Views/Main.xml");
+        controller.UpdateText("<UserControl><Grid /></UserControl>");
+
+        controller.Reset("<UserControl>\r\n</UserControl>");
+
+        Assert.Equal("<UserControl>\n</UserControl>", controller.CurrentText);
+        Assert.Null(controller.CurrentPath);
+        Assert.Equal("Untitled.xml", controller.DisplayName);
+        Assert.False(controller.IsDirty);
+    }
+
     private sealed class FakeDocumentFileStore : InkkSlinger.Designer.IDesignerDocumentFileStore
     {
+        public Dictionary<string, string> Texts { get; } = new(StringComparer.Ordinal);
+
         public Dictionary<string, string> WrittenTexts { get; } = new(StringComparer.Ordinal);
 
         public bool Exists(string path)
         {
-            return WrittenTexts.ContainsKey(path);
+            return Texts.ContainsKey(path) || WrittenTexts.ContainsKey(path);
+        }
+
+        public string ReadAllText(string path)
+        {
+            return Texts[path];
         }
 
         public void WriteAllText(string path, string text)
         {
             WrittenTexts[path] = text;
+            Texts[path] = text;
         }
     }
 }

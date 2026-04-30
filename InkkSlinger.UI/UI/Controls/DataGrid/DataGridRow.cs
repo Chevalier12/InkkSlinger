@@ -356,6 +356,7 @@ public class DataGridRow : Control
         var rowHeight = MathF.Max(0f, finalSize.Y - detailsHeight);
         var horizontalOffset = Owner?.HorizontalOffsetForTesting ?? 0f;
 
+
         _rowHeaderLaneCoordinator.ArrangeHeader(_rowHeader, x + horizontalOffset, y, rowHeaderWidth, rowHeight);
 
         var frozenCount = Math.Clamp(Owner?.FrozenColumnCount ?? 0, 0, _columns.Count);

@@ -5,6 +5,13 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
+public enum StrokeLineJoin
+{
+    Miter,
+    Round,
+    Bevel
+}
+
 public abstract class Shape : FrameworkElement
 {
     private static int _renderCacheHitCount;
@@ -62,6 +69,20 @@ public abstract class Shape : FrameworkElement
                 Stretch.Fill,
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty FillRuleProperty =
+        DependencyProperty.Register(
+            nameof(FillRule),
+            typeof(FillRule),
+            typeof(Shape),
+            new FrameworkPropertyMetadata(FillRule.Nonzero, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty StrokeLineJoinProperty =
+        DependencyProperty.Register(
+            nameof(StrokeLineJoin),
+            typeof(StrokeLineJoin),
+            typeof(Shape),
+            new FrameworkPropertyMetadata(StrokeLineJoin.Round, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public Color Fill
     {
         get => GetValue<Color>(FillProperty);
@@ -84,6 +105,18 @@ public abstract class Shape : FrameworkElement
     {
         get => GetValue<Stretch>(StretchProperty);
         set => SetValue(StretchProperty, value);
+    }
+
+    public FillRule FillRule
+    {
+        get => GetValue<FillRule>(FillRuleProperty);
+        set => SetValue(FillRuleProperty, value);
+    }
+
+    public StrokeLineJoin StrokeLineJoin
+    {
+        get => GetValue<StrokeLineJoin>(StrokeLineJoinProperty);
+        set => SetValue(StrokeLineJoinProperty, value);
     }
 
     protected abstract Geometry? DefiningGeometry { get; }
@@ -141,16 +174,45 @@ public abstract class Shape : FrameworkElement
             return;
         }
 
-        foreach (var figure in transformed)
+        // Even-odd fill: collect all closed figures and fill as combined polygons
+        if (Fill.A > 0 && FillRule == FillRule.EvenOdd && transformed.Count > 1)
         {
-            if (figure.IsClosed && Fill.A > 0 && figure.Points.Count >= 3)
+            var closedPolygons = new List<IReadOnlyList<Vector2>>(transformed.Count);
+            foreach (var figure in transformed)
             {
-                UiDrawing.DrawFilledPolygon(spriteBatch, figure.Points, Fill, Opacity);
+                if (figure.IsClosed && figure.Points.Count >= 3)
+                {
+                    closedPolygons.Add(figure.Points);
+                }
             }
 
+            if (closedPolygons.Count > 1)
+            {
+                UiDrawing.DrawFilledPolygonCombined(spriteBatch, closedPolygons, Fill, Opacity);
+            }
+            else if (closedPolygons.Count == 1)
+            {
+                UiDrawing.DrawFilledPolygon(spriteBatch, closedPolygons[0], Fill, Opacity);
+            }
+        }
+        else
+        {
+            // Nonzero fill: fill each figure independently
+            foreach (var figure in transformed)
+            {
+                if (figure.IsClosed && Fill.A > 0 && figure.Points.Count >= 3)
+                {
+                    UiDrawing.DrawFilledPolygon(spriteBatch, figure.Points, Fill, Opacity);
+                }
+            }
+        }
+
+        // Stroke all figures with StrokeLineJoin
+        foreach (var figure in transformed)
+        {
             if (Stroke.A > 0 && StrokeThickness > 0f && figure.Points.Count >= 2)
             {
-                UiDrawing.DrawPolyline(spriteBatch, figure.Points, figure.IsClosed, StrokeThickness, Stroke, Opacity);
+                UiDrawing.DrawPolyline(spriteBatch, figure.Points, figure.IsClosed, StrokeThickness, Stroke, Opacity, StrokeLineJoin);
             }
         }
     }
@@ -180,6 +242,12 @@ public abstract class Shape : FrameworkElement
         }
 
         _ = ResolveTransformedFigures(geometry);
+    }
+
+    internal IReadOnlyList<GeometryFigure> GetTransformedFiguresForTests()
+    {
+        var geometry = DefiningGeometry;
+        return geometry == null ? Array.Empty<GeometryFigure>() : ResolveTransformedFigures(geometry);
     }
 
     private IReadOnlyList<GeometryFigure> ResolveTransformedFigures(Geometry geometry)
@@ -213,25 +281,23 @@ public abstract class Shape : FrameworkElement
         Stretch stretch)
     {
         var bounds = GetBounds(figures);
-        if (bounds.Width <= 0f || bounds.Height <= 0f)
-        {
-            return figures;
-        }
+        var hasWidth = bounds.Width > 0f;
+        var hasHeight = bounds.Height > 0f;
 
         var scaleX = 1f;
         var scaleY = 1f;
         if (stretch != Stretch.None)
         {
-            scaleX = slot.Width / bounds.Width;
-            scaleY = slot.Height / bounds.Height;
+            scaleX = hasWidth ? slot.Width / bounds.Width : 1f;
+            scaleY = hasHeight ? slot.Height / bounds.Height : 1f;
 
-            if (stretch == Stretch.Uniform)
+            if (stretch == Stretch.Uniform && hasWidth && hasHeight)
             {
                 var uniform = MathF.Min(scaleX, scaleY);
                 scaleX = uniform;
                 scaleY = uniform;
             }
-            else if (stretch == Stretch.UniformToFill)
+            else if (stretch == Stretch.UniformToFill && hasWidth && hasHeight)
             {
                 var uniform = MathF.Max(scaleX, scaleY);
                 scaleX = uniform;
@@ -297,6 +363,10 @@ public abstract class Shape : FrameworkElement
                MathF.Abs(left.Height - right.Height) <= epsilon;
     }
 }
+
+// Note: RectangleShape and EllipseShape override OnRender directly and
+// bypass RenderGeometry, so FillRule and StrokeLineJoin on these shapes
+// have no effect. Only PathShape, PolygonShape, and PolylineShape honor them.
 
 public class RectangleShape : Shape
 {

@@ -74,6 +74,9 @@ public sealed partial class UiRoot
         var visited = 0;
         var drawn = 0;
         var clipPushCount = 0;
+        var translationX = 0f;
+        var translationY = 0f;
+        var translationStack = new List<ScrollTranslationFrame>(4);
         _activeRetainedDrawPath.Clear();
 
         try
@@ -82,16 +85,30 @@ public sealed partial class UiRoot
             {
                 visited++;
                 var node = _retainedRenderList[nodeIndex];
+                while (translationStack.Count > 0 && translationStack[^1].Depth >= node.Depth)
+                {
+                    var frame = translationStack[^1];
+                    translationX -= frame.TranslationX;
+                    translationY -= frame.TranslationY;
+                    translationStack.RemoveAt(translationStack.Count - 1);
+                }
+
                 if (!node.IsEffectivelyVisible)
                 {
                     nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
                     continue;
                 }
 
-                if (node.HasSubtreeBoundsSnapshot && !Intersects(node.SubtreeBoundsSnapshot, clipRect))
+                if (node.HasSubtreeBoundsSnapshot)
                 {
-                    nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
-                    continue;
+                    var subtreeBounds = (AreClose(translationX, 0f) && AreClose(translationY, 0f))
+                        ? node.SubtreeBoundsSnapshot
+                        : TranslateRect(node.SubtreeBoundsSnapshot, translationX, translationY);
+                    if (!Intersects(subtreeBounds, clipRect))
+                    {
+                        nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
+                        continue;
+                    }
                 }
 
                 if (spriteBatch != null)
@@ -106,6 +123,18 @@ public sealed partial class UiRoot
 
                 visuals?.Add(node.Visual);
                 drawn++;
+
+                if (node.HasScrollTranslation)
+                {
+                    var offsetX = node.ScrollTranslationX;
+                    var offsetY = node.ScrollTranslationY;
+                    if (!AreClose(offsetX, 0f) || !AreClose(offsetY, 0f))
+                    {
+                        translationStack.Add(new ScrollTranslationFrame(node.Depth, offsetX, offsetY));
+                        translationX += offsetX;
+                        translationY += offsetY;
+                    }
+                }
             }
         }
         finally
@@ -234,6 +263,10 @@ public sealed partial class UiRoot
             var existingNode = _retainedRenderList[renderNodeIndex];
             hasOldBounds = existingNode.HasBoundsSnapshot;
             oldBounds = existingNode.BoundsSnapshot;
+            if (hasOldBounds)
+            {
+                oldBounds = ApplyScrollTranslationFromAncestors(visual, oldBounds);
+            }
         }
 
         var hasNewBounds = visual.TryGetRenderBoundsInRootSpace(out var newBounds);
@@ -257,9 +290,15 @@ public sealed partial class UiRoot
 
     private void RecordBoundsDelta(RenderNode previous, RenderNode updated)
     {
+        var previousBounds = previous.BoundsSnapshot;
+        if (previous.HasBoundsSnapshot)
+        {
+            previousBounds = ApplyScrollTranslationFromAncestors(previous.Visual, previousBounds);
+        }
+
         if (previous.HasBoundsSnapshot &&
             updated.HasBoundsSnapshot &&
-            AreRectsEqual(previous.BoundsSnapshot, updated.BoundsSnapshot))
+            AreRectsEqual(previousBounds, updated.BoundsSnapshot))
         {
             return;
         }
@@ -291,7 +330,7 @@ public sealed partial class UiRoot
         AddDirtyBounds(
             updated.Visual,
             previous.HasBoundsSnapshot,
-            previous.BoundsSnapshot,
+            previousBounds,
             updated.HasBoundsSnapshot,
             updated.BoundsSnapshot);
     }
@@ -386,10 +425,6 @@ public sealed partial class UiRoot
     private static bool TryGetTransformScrollDirtyBoundsHint(UIElement visual, out LayoutRect bounds)
     {
         bounds = default;
-        if (visual is VirtualizingStackPanel)
-        {
-            return false;
-        }
 
         if (visual is ScrollViewer viewer &&
             viewer.Content is UIElement viewerContent)
@@ -405,21 +440,19 @@ public sealed partial class UiRoot
             visual = viewerContent;
         }
 
-        if (visual is IScrollTransformContent &&
+        if (IsTransformScrollContent(visual) &&
             TryGetDirectTransformScrollOwner(visual, out var transformOwner) &&
             transformOwner.TryGetContentViewportClipRect(out bounds))
         {
             return bounds.Width > 0f && bounds.Height > 0f;
         }
 
-        if (visual is IScrollTransformContent &&
-            TryGetDirectTransformScrollOwner(visual, out transformOwner) &&
-            transformOwner.TryGetContentViewportClipRect(out bounds))
-        {
-            return bounds.Width > 0f && bounds.Height > 0f;
-        }
-
         return false;
+    }
+
+    private static bool IsTransformScrollContent(UIElement visual)
+    {
+        return visual is IScrollTransformContent or VirtualizingStackPanel;
     }
 
     private static bool TryGetTransformFromVisualToRoot(UIElement element, out Matrix transform)

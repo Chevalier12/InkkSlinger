@@ -11,6 +11,7 @@ public class VirtualizingStackPanel : Panel
 {
     private enum ViewerOwnedOffsetChangeHandling
     {
+        VisualOnly,
         ArrangeOnly,
         InvalidateMeasure
     }
@@ -167,6 +168,8 @@ public class VirtualizingStackPanel : Panel
     private Vector2 _lastArrangeSize;
     private Vector2 _lastArrangeOrigin;
     private float _lastArrangeViewportOffset;
+    private float _lastTryArrangeHorizontalOffset;
+    private float _lastTryArrangeVerticalOffset;
     private bool _hasArrangedRange;
     private int _pendingUnrealizedClearFirst = -1;
     private int _pendingUnrealizedClearLast = -1;
@@ -557,6 +560,13 @@ public class VirtualizingStackPanel : Panel
                 ClearPendingUnrealizedLayoutSlots();
             }
 
+            var ancestorViewer = FindAncestorScrollViewer();
+            if (ancestorViewer != null)
+            {
+                _lastTryArrangeHorizontalOffset = ancestorViewer.HorizontalOffset;
+                _lastTryArrangeVerticalOffset = ancestorViewer.VerticalOffset;
+            }
+
             UpdateViewportFromFinalSize(finalSize);
             return finalSize;
         }
@@ -664,11 +674,34 @@ public class VirtualizingStackPanel : Panel
     protected override bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
     {
         var hasBaseTransform = base.TryGetLocalRenderTransform(out var baseTransform, out var baseInverseTransform);
-        if (FindAncestorScrollViewer() != null)
+        if (FindAncestorScrollViewer() is { } ownerViewer)
         {
-            transform = baseTransform;
-            inverseTransform = baseInverseTransform;
-            return hasBaseTransform;
+            var ownerOffsetX = Orientation == Orientation.Horizontal
+                ? _lastArrangeViewportOffset - ownerViewer.HorizontalOffset
+                : 0f;
+            var ownerOffsetY = Orientation == Orientation.Vertical
+                ? _lastArrangeViewportOffset - ownerViewer.VerticalOffset
+                : 0f;
+            if (!_isVirtualizationActive ||
+                !_hasArrangedRange ||
+                (AreClose(ownerOffsetX, 0f) && AreClose(ownerOffsetY, 0f)))
+            {
+                transform = baseTransform;
+                inverseTransform = baseInverseTransform;
+                return hasBaseTransform;
+            }
+
+            var ownerScrollTransform = Matrix.CreateTranslation(ownerOffsetX, ownerOffsetY, 0f);
+            var ownerScrollInverseTransform = Matrix.CreateTranslation(-ownerOffsetX, -ownerOffsetY, 0f);
+            return TryComposeLocalTransforms(
+                hasPrimaryTransform: ownerScrollTransform != Matrix.Identity,
+                primaryTransform: ownerScrollTransform,
+                primaryInverse: ownerScrollInverseTransform,
+                hasSecondaryTransform: hasBaseTransform,
+                secondaryTransform: baseTransform,
+                secondaryInverse: baseInverseTransform,
+                out transform,
+                out inverseTransform);
         }
 
         var offsetX = -HorizontalOffset;
@@ -807,13 +840,102 @@ public class VirtualizingStackPanel : Panel
         float newVerticalOffset,
         out bool requiresMeasure)
     {
+        return TryHandleViewerOwnedOffsetChange(
+            oldHorizontalOffset,
+            newHorizontalOffset,
+            oldVerticalOffset,
+            newVerticalOffset,
+            out requiresMeasure,
+            out _);
+    }
+
+    internal bool TryHandleViewerOwnedOffsetChange(
+        float oldHorizontalOffset,
+        float newHorizontalOffset,
+        float oldVerticalOffset,
+        float newVerticalOffset,
+        out bool requiresMeasure,
+        out bool visualOnly)
+    {
         var handling = HandleViewerOwnedOffsetChange(
             oldHorizontalOffset,
             newHorizontalOffset,
             oldVerticalOffset,
             newVerticalOffset);
         requiresMeasure = handling == ViewerOwnedOffsetChangeHandling.InvalidateMeasure;
-        return handling == ViewerOwnedOffsetChangeHandling.ArrangeOnly;
+        visualOnly = handling == ViewerOwnedOffsetChangeHandling.VisualOnly;
+        return handling == ViewerOwnedOffsetChangeHandling.ArrangeOnly ||
+               handling == ViewerOwnedOffsetChangeHandling.VisualOnly;
+    }
+
+    internal bool TryArrangeForViewerOwnedOffset(float horizontalOffset, float verticalOffset)
+    {
+        if (!_isVirtualizationActive ||
+            Children.Count == 0 ||
+            !_hasArrangedRange ||
+            _lastArrangedChildOrderVersion != _childOrderVersion ||
+            !_hasMeasuredConstraint)
+        {
+            return false;
+        }
+
+        var viewportPrimary = Orientation == Orientation.Vertical ? _viewportHeight : _viewportWidth;
+        if (!IsFinitePositive(viewportPrimary))
+        {
+            return false;
+        }
+
+        var viewer = FindAncestorScrollViewer();
+        if (viewer != null)
+        {
+            if (Orientation == Orientation.Vertical && !AreClose(horizontalOffset, _lastTryArrangeHorizontalOffset))
+            {
+                return false;
+            }
+
+            if (Orientation == Orientation.Horizontal && !AreClose(verticalOffset, _lastTryArrangeVerticalOffset))
+            {
+                return false;
+            }
+        }
+
+        var offsetPrimary = Orientation == Orientation.Vertical ? verticalOffset : horizontalOffset;
+        var context = CreateViewportContext(viewportPrimary, MathF.Max(0f, offsetPrimary));
+        var first = ResolveStartIndex(context.StartOffset);
+        var last = ResolveEndIndex(context.EndOffset, first);
+        if (first < 0 || last < first)
+        {
+            return false;
+        }
+
+        if (FirstRealizedIndex != first || LastRealizedIndex != last)
+        {
+            return false;
+        }
+
+        var currentOrigin = new Vector2(LayoutSlot.X, LayoutSlot.Y);
+        if (!AreClose(_lastArrangeOrigin, currentOrigin))
+        {
+            return false;
+        }
+
+        if (RangeNeedsArrange(first, last))
+        {
+            ArrangeRange(_lastArrangeSize, first, last, context.OffsetPrimary);
+        }
+        else if (!TryArrangeShiftedRange(_lastArrangeSize, currentOrigin, context.OffsetPrimary, first, last))
+        {
+            ArrangeRange(_lastArrangeSize, first, last, context.OffsetPrimary);
+        }
+
+        _lastArrangedFirst = first;
+        _lastArrangedLast = last;
+        _lastArrangeOrigin = currentOrigin;
+        _lastArrangeViewportOffset = context.OffsetPrimary;
+        _lastArrangedChildOrderVersion = _childOrderVersion;
+        ClearPendingUnrealizedLayoutSlots();
+        UiRoot.Current?.NotifyDirectRenderInvalidation(this);
+        return true;
     }
 
     private ViewerOwnedOffsetChangeHandling HandleViewerOwnedOffsetChange(
@@ -1163,8 +1285,7 @@ public class VirtualizingStackPanel : Panel
         if (!_hasArrangedRange ||
             _lastArrangedChildOrderVersion != _childOrderVersion ||
             !AreClose(_lastArrangeSize, finalSize) ||
-            !AreClose(_lastArrangeOrigin, origin) ||
-            !AreClose(_lastArrangeViewportOffset, viewportOffset))
+            !AreClose(_lastArrangeOrigin, origin))
         {
             return false;
         }
@@ -1179,16 +1300,17 @@ public class VirtualizingStackPanel : Panel
         var reusedAny = false;
         if (first < overlapFirst)
         {
-            return false;
+            ArrangeRange(finalSize, first, overlapFirst - 1, viewportOffset);
+            reusedAny = true;
         }
 
-        if (RangeNeedsArrange(overlapFirst, overlapLast))
+        if (TryArrangeOrTranslateRange(finalSize, overlapFirst, overlapLast, viewportOffset))
         {
-            ArrangeRange(finalSize, overlapFirst, overlapLast, viewportOffset);
+            reusedAny = true;
         }
         else
         {
-            reusedAny = true;
+            ArrangeRange(finalSize, overlapFirst, overlapLast, viewportOffset);
         }
 
         if (overlapLast < last)
@@ -1198,6 +1320,45 @@ public class VirtualizingStackPanel : Panel
         }
 
         return reusedAny;
+    }
+
+    private bool TryArrangeOrTranslateRange(Vector2 finalSize, int firstIndex, int lastIndex, float viewportOffset)
+    {
+        EnsureStartOffsets();
+
+        var first = Math.Max(0, firstIndex);
+        var last = Math.Min(Children.Count - 1, lastIndex);
+        var handledAny = false;
+        for (var i = first; i <= last; i++)
+        {
+            if (Children[i] is not FrameworkElement child)
+            {
+                continue;
+            }
+
+            var primary = ResolvePrimarySizeForArrange(child, i);
+            var start = _startOffsets[i];
+            var nextRect = Orientation == Orientation.Vertical
+                ? new LayoutRect(
+                    LayoutSlot.X,
+                    LayoutSlot.Y + start - viewportOffset,
+                    finalSize.X,
+                    primary)
+                : new LayoutRect(
+                    LayoutSlot.X + start - viewportOffset,
+                    LayoutSlot.Y,
+                    primary,
+                    finalSize.Y);
+
+            if (child.NeedsArrange || !child.TryTranslateArrangedSubtree(nextRect))
+            {
+                child.Arrange(nextRect);
+            }
+
+            handledAny = true;
+        }
+
+        return handledAny;
     }
 
     private void MeasureRange(Vector2 childConstraint, int first, int last, bool forceMeasure = false)
@@ -1366,13 +1527,14 @@ public class VirtualizingStackPanel : Panel
         var windowStart = newOffset;
         var windowEnd = newOffset + viewportPrimary;
         var guardBand = MathF.Max(MathF.Max(1f, _averagePrimarySize) * 4f, viewportPrimary * 0.15f);
-        if (windowStart < realizedStart + guardBand)
+        var scrollingForward = newOffset > oldOffset;
+        if (!scrollingForward && windowStart < realizedStart + guardBand)
         {
             RecordOffsetDecision("window-before-guard-band", viewerOwnedDecision, oldOffset, newOffset, viewportPrimary, realizedStart, realizedEnd, guardBand);
             return true;
         }
 
-        if (windowEnd > realizedEnd - guardBand)
+        if (scrollingForward && windowEnd > realizedEnd - guardBand)
         {
             RecordOffsetDecision("window-after-guard-band", viewerOwnedDecision, oldOffset, newOffset, viewportPrimary, realizedStart, realizedEnd, guardBand);
             return true;
@@ -1410,6 +1572,11 @@ public class VirtualizingStackPanel : Panel
             return ViewerOwnedOffsetChangeHandling.InvalidateMeasure;
         }
 
+        if (!ShouldRelayoutForOffsetChange(oldOffset, newOffset, isVertical, viewerOwnedDecision: true))
+        {
+            return ViewerOwnedOffsetChangeHandling.VisualOnly;
+        }
+
         var nextContext = CreateViewportContext(viewportPrimary, newOffset);
         if (TryRefreshForViewerOwnedOffsetChange(nextContext))
         {
@@ -1421,9 +1588,7 @@ public class VirtualizingStackPanel : Panel
             return ViewerOwnedOffsetChangeHandling.ArrangeOnly;
         }
 
-        return ShouldRelayoutForOffsetChange(oldOffset, newOffset, isVertical, viewerOwnedDecision: true)
-            ? ViewerOwnedOffsetChangeHandling.InvalidateMeasure
-            : ViewerOwnedOffsetChangeHandling.ArrangeOnly;
+        return ViewerOwnedOffsetChangeHandling.InvalidateMeasure;
     }
 
     internal bool TryRefreshForViewerOwnedOffsetCandidate(float horizontalOffset, float verticalOffset)
@@ -1952,9 +2117,14 @@ public class VirtualizingStackPanel : Panel
         _runtimeResolveViewportContextCallCount++;
 
         var fallbackViewer = FindAncestorScrollViewer();
-        var viewportPrimary = Orientation == Orientation.Vertical
-            ? ViewportHeight
-            : ViewportWidth;
+        var availablePrimary = Orientation == Orientation.Vertical
+            ? availableSize.Y
+            : availableSize.X;
+        var viewportPrimary = IsFinitePositive(availablePrimary)
+            ? availablePrimary
+            : Orientation == Orientation.Vertical
+                ? ViewportHeight
+                : ViewportWidth;
 
         var offsetPrimary = Orientation == Orientation.Vertical
             ? VerticalOffset

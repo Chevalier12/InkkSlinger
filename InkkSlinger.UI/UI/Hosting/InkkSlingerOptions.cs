@@ -16,6 +16,8 @@ public sealed class InkkSlingerOptions
 
     public bool AllowUserResizing { get; init; } = true;
 
+    public bool IsBorderless { get; init; }
+
     public int InitialWindowWidth { get; init; } = 1280;
 
     public int InitialWindowHeight { get; init; } = 820;

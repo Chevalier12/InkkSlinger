@@ -484,11 +484,11 @@ public sealed class DesignerSplitterHangCaptureTests
                 return """
                 <UserControl xmlns="urn:inkkslinger-ui"
                                          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                                         Width="760"
+                                         Width="560"
                                          Height="240"
                                          Background="#111827">
-                    <Canvas Width="760" Height="240">
-                        <Border Width="760"
+                    <Canvas Width="560" Height="240">
+                        <Border Width="560"
                                         Height="240"
                                         Background="#182230"
                                         BorderBrush="#35506B"

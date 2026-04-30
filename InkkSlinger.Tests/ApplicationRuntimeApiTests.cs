@@ -97,6 +97,10 @@ public sealed class ApplicationRuntimeApiTests
         public Point Position { get; set; }
         public Rectangle ClientBounds { get; set; } = new(0, 0, 800, 600);
         public IntPtr Handle { get; } = new(42);
+
+        public void EnsureBorderlessChromeStyle(bool isBorderless)
+        {
+        }
     }
 
     private sealed class FakeWindowGraphicsAdapter : IWindowGraphicsAdapter

@@ -46,6 +46,44 @@ public sealed class WindowWrapperEdgeParityTests
     }
 
     [Fact]
+    public void ApplyChanges_ShouldRestoreRequestedBorderlessState_WhenNativeChromeDrifts()
+    {
+        var native = new FakeWindowNativeAdapter();
+        var graphics = new FakeWindowGraphicsAdapter { OnApplyChanges = () => native.IsBorderless = false };
+        var window = new Window(native, graphics)
+        {
+            IsBorderless = true
+        };
+
+        window.SetClientSize(1024, 720);
+
+        Assert.True(window.IsBorderless);
+        Assert.True(native.IsBorderless);
+        Assert.Equal(2, native.EnsureBorderlessChromeStyleCallCount);
+        Assert.True(native.LastEnsuredBorderlessChromeStyle);
+        Assert.Equal(1, graphics.ApplyChangesCallCount);
+    }
+
+    [Fact]
+    public void EnsureNativeChromeState_ShouldRestoreRequestedBorderlessState_WhenFocusChangesDriftNativeState()
+    {
+        var native = new FakeWindowNativeAdapter();
+        var graphics = new FakeWindowGraphicsAdapter();
+        var window = new Window(native, graphics)
+        {
+            IsBorderless = true
+        };
+        native.IsBorderless = false;
+
+        window.EnsureNativeChromeState();
+
+        Assert.True(window.IsBorderless);
+        Assert.True(native.IsBorderless);
+        Assert.Equal(2, native.EnsureBorderlessChromeStyleCallCount);
+        Assert.True(native.LastEnsuredBorderlessChromeStyle);
+    }
+
+    [Fact]
     public void Dispose_ShouldUnhookClientSizeChanged_AndBeIdempotent()
     {
         var native = new FakeWindowNativeAdapter();
@@ -98,11 +136,21 @@ public sealed class WindowWrapperEdgeParityTests
 
         public bool IsBorderless { get; set; }
 
+        public int EnsureBorderlessChromeStyleCallCount { get; private set; }
+
+        public bool LastEnsuredBorderlessChromeStyle { get; private set; }
+
         public Point Position { get; set; }
 
         public Rectangle ClientBounds { get; set; } = new(0, 0, 800, 600);
 
         public IntPtr Handle { get; } = new(1234);
+
+        public void EnsureBorderlessChromeStyle(bool isBorderless)
+        {
+            EnsureBorderlessChromeStyleCallCount++;
+            LastEnsuredBorderlessChromeStyle = isBorderless;
+        }
 
         public void RaiseClientSizeChanged()
         {
@@ -120,9 +168,12 @@ public sealed class WindowWrapperEdgeParityTests
 
         public int ApplyChangesCallCount { get; private set; }
 
+        public Action? OnApplyChanges { get; init; }
+
         public void ApplyChanges()
         {
             ApplyChangesCallCount++;
+            OnApplyChanges?.Invoke();
         }
     }
 }

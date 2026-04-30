@@ -287,6 +287,10 @@ public sealed class AppXmlPhase4CompatibilityTests
 
         public IntPtr Handle { get; } = new(101);
 
+        public void EnsureBorderlessChromeStyle(bool isBorderless)
+        {
+        }
+
         public void RaiseClientSizeChanged()
         {
             ClientSizeChanged?.Invoke(this, EventArgs.Empty);

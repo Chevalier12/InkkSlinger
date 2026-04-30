@@ -92,6 +92,8 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     private DesignerSourceNavigationRequest? _sourceNavigationRequest;
     private DesignerSourceNavigationRequest? _appResourcesNavigationRequest;
     private DesignerDocumentPromptState _workflowPrompt = DesignerDocumentPromptState.None;
+    private DesignerProjectSession? _projectSession;
+    private DesignerProjectNode? _selectedProjectNode;
     private IReadOnlyList<DesignerVisualTreeNodeViewModel> _visualTreeNodes = Array.Empty<DesignerVisualTreeNodeViewModel>();
     private IReadOnlyList<DesignerVisualTreeNodeViewModel> _visualTreeRoots = Array.Empty<DesignerVisualTreeNodeViewModel>();
     private IReadOnlyList<DesignerInspectorSectionViewModel> _inspectorSections = Array.Empty<DesignerInspectorSectionViewModel>();
@@ -104,7 +106,8 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     public DesignerShellViewModel(
         DesignerController? controller = null,
         DesignerDocumentController? documentController = null,
-        DesignerDocumentWorkflowController? workflow = null)
+        DesignerDocumentWorkflowController? workflow = null,
+        DesignerProjectSession? projectSession = null)
     {
         Controller = controller ?? new DesignerController();
         DocumentController = documentController ?? new DesignerDocumentController(DefaultSourceText);
@@ -120,6 +123,8 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         PromptCancelCommand = new RelayCommand(_ => ExecuteWorkflowAction(Workflow.CancelPrompt, syncEditorFirst: false), _ => Workflow.Prompt.IsVisible);
         SelectVisualTreeNodeCommand = new RelayCommand(ExecuteSelectVisualTreeNode);
         ToggleVisualTreeNodeExpansionCommand = new RelayCommand(ExecuteToggleVisualTreeNodeExpansion);
+        BackToStartCommand = new RelayCommand(_ => BackToStartRequested?.Invoke());
+        ProjectSession = projectSession;
 
         RefreshPresentationState(selectDiagnosticsOnError: false);
         RefreshWorkflowPromptState();
@@ -136,6 +141,8 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
 
     public event Action? DeferredAppExitRequested;
 
+    public event Action? BackToStartRequested;
+
     public RelayCommand SaveCommand { get; }
 
     public RelayCommand RefreshCommand { get; }
@@ -150,6 +157,40 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     public RelayCommand SelectVisualTreeNodeCommand { get; }
 
     public RelayCommand ToggleVisualTreeNodeExpansionCommand { get; }
+
+    public RelayCommand BackToStartCommand { get; }
+
+    public DesignerProjectSession? ProjectSession
+    {
+        get => _projectSession;
+        private set
+        {
+            if (!SetField(ref _projectSession, value))
+            {
+                return;
+            }
+
+            SelectedProjectNode = value?.RootNode;
+            OnPropertyChanged(nameof(ProjectRootNode));
+            OnPropertyChanged(nameof(ProjectDisplayName));
+        }
+    }
+
+    public DesignerProjectNode? ProjectRootNode => ProjectSession?.RootNode;
+
+    public string ProjectDisplayName => ProjectSession?.DisplayName ?? "Project";
+
+    public DesignerProjectNode? SelectedProjectNode
+    {
+        get => _selectedProjectNode;
+        private set
+        {
+            if (!SetField(ref _selectedProjectNode, value))
+            {
+                return;
+            }
+        }
+    }
 
     public IReadOnlyList<DesignerRootTemplateViewModel> RootTemplates => _rootTemplates;
 
@@ -366,6 +407,27 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         PromptCancelCommand.RaiseCanExecuteChanged();
     }
 
+    public void SelectProjectNode(DesignerProjectNode? node)
+    {
+        if (node == null)
+        {
+            return;
+        }
+
+        SelectedProjectNode = node;
+        if (node.IsFolder || ProjectSession == null)
+        {
+            return;
+        }
+
+        ProjectSession.OpenDocument(node.FullPath, DocumentController);
+        OnPropertyChanged(nameof(SourceText));
+        SourceNavigationRequest = null;
+        SelectedEditorTabIndex = SourceEditorTabIndex;
+        ClearDocumentStatusOverride();
+        RefreshCommandStates();
+    }
+
     public void SetDocumentStatusOverride(string? message, Color? color)
     {
         _documentStatusOverrideText = string.IsNullOrWhiteSpace(message) ? null : message;
@@ -579,7 +641,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
                     "Preview unavailable",
                     Controller.PreviewFailureMessage ?? "The current XML did not load successfully.",
                     new Color(255, 164, 128),
-                    new Color(212, 226, 238));
+                    new Color(199, 203, 211));
                 PreviewContentVisibility = Visibility.Collapsed;
                 PreviewPlaceholderVisibility = Visibility.Visible;
                 break;
@@ -590,7 +652,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
                     "Preview waiting",
                     "The editor is decoupled from rendering in this slice. Refresh when you want to rebuild the preview.",
                     new Color(111, 183, 255),
-                    new Color(184, 200, 214));
+                    new Color(199, 203, 211));
                 PreviewContentVisibility = Visibility.Collapsed;
                 PreviewPlaceholderVisibility = Visibility.Visible;
                 break;
@@ -798,15 +860,16 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
             });
     }
 
-    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
         OnPropertyChanged(propertyName);
+        return true;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

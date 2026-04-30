@@ -61,6 +61,7 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
                 InkkOopsPipeRequestKinds.GetTargetDiagnostics => await GetTargetDiagnosticsAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.GetHostInfo => GetHostInfo(request),
                 InkkOopsPipeRequestKinds.DragTarget => await ExecuteCommandAsync(request, new InkkOopsDragTargetCommand(CreateTarget(request), request.DeltaX, request.DeltaY), cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.TakeScreenshot => await TakeScreenshotAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.RunScript => await RunScriptAsync(request, cancellationToken).ConfigureAwait(false),
                 _ => Fail(request, $"Unknown live request kind '{request.RequestKind}'.")
             };
@@ -241,6 +242,13 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
         var artifactName = string.IsNullOrWhiteSpace(request.ArtifactName) ? "live-telemetry" : request.ArtifactName;
         var telemetry = await _session.Host.CaptureTelemetryAsync(artifactName, cancellationToken).ConfigureAwait(false);
         return Complete(request, value: telemetry);
+    }
+
+    private async Task<InkkOopsPipeResponse> TakeScreenshotAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)
+    {
+        var artifactName = string.IsNullOrWhiteSpace(request.ArtifactName) ? "screenshot" : request.ArtifactName;
+        await _session.CaptureFrameAsync(artifactName, cancellationToken).ConfigureAwait(false);
+        return Complete(request, value: $"Screenshot saved to artifact '{artifactName}'.");
     }
 
     private async Task<InkkOopsPipeResponse> GetTargetDiagnosticsAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)

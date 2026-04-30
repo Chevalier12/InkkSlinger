@@ -17,12 +17,12 @@
                 Margin="0,0,6,0">
             <Path Data="M 3,3.5 L 13,3.5 M 3,6.5 L 11.5,6.5 M 3,9.5 L 13,9.5 M 3,12.5 L 9.5,12.5"
               Fill="Transparent"
-              Stroke="#74B9FF"
+              Stroke="#C7CBD3"
               StrokeThickness="1.25"
               Stretch="Uniform" />
         </Border>
         <TextBlock Text="{Binding DisplayName}"
-                   Foreground="#F0F7FF"
+                   Foreground="#EEF1F7"
                    FontFamily="Segoe UI"
                    FontSize="12"
                    VerticalAlignment="Center" />
@@ -31,23 +31,23 @@
 
     <Style x:Key="CompletionListBoxItemStyle"
            TargetType="{x:Type ListBoxItem}">
-      <Setter Property="Background" Value="#0B1018" />
-      <Setter Property="SelectedBackground" Value="#094771" />
-      <Setter Property="BorderBrush" Value="#0B1018" />
-      <Setter Property="Foreground" Value="#F0F7FF" />
+      <Setter Property="Background" Value="#24272C" />
+      <Setter Property="SelectedBackground" Value="#31518A" />
+      <Setter Property="BorderBrush" Value="#24272C" />
+      <Setter Property="Foreground" Value="#EEF1F7" />
       <Setter Property="Padding" Value="4,3,8,3" />
       <Style.Triggers>
         <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="Background" Value="#142132" />
-          <Setter Property="BorderBrush" Value="#233449" />
+          <Setter Property="Background" Value="#2A2D33" />
+          <Setter Property="BorderBrush" Value="#3C414A" />
         </Trigger>
       </Style.Triggers>
     </Style>
 
     <Style x:Key="CompletionListBoxStyle"
            TargetType="{x:Type ListBox}">
-      <Setter Property="Background" Value="#0B1018" />
-      <Setter Property="BorderBrush" Value="#233449" />
+      <Setter Property="Background" Value="#24272C" />
+      <Setter Property="BorderBrush" Value="#3C414A" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="SelectionMode" Value="Single" />
@@ -70,39 +70,39 @@
       <Setter Property="CanDragMove" Value="False" />
       <Setter Property="DismissOnOutsideClick" Value="True" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="BorderBrush" Value="#233449" />
-      <Setter Property="Background" Value="#090D13" />
+      <Setter Property="BorderBrush" Value="#3C414A" />
+      <Setter Property="Background" Value="#24272C" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="PlacementMode" Value="Absolute" />
     </Style>
 
     <Style x:Key="DesignerComboBoxItemStyle"
            TargetType="{x:Type ComboBoxItem}">
-      <Setter Property="Background" Value="#090D13" />
-      <Setter Property="SelectedBackground" Value="#1A4A7A" />
-      <Setter Property="BorderBrush" Value="#090D13" />
-      <Setter Property="Foreground" Value="#D8E3EE" />
+      <Setter Property="Background" Value="#24272C" />
+      <Setter Property="SelectedBackground" Value="#31518A" />
+      <Setter Property="BorderBrush" Value="#24272C" />
+      <Setter Property="Foreground" Value="#E5E7EA" />
       <Setter Property="Padding" Value="8,6,8,6" />
       <Setter Property="FontFamily" Value="Consolas" />
       <Setter Property="FontSize" Value="12" />
       <Style.Triggers>
         <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="Background" Value="#142132" />
-          <Setter Property="BorderBrush" Value="#233449" />
+          <Setter Property="Background" Value="#2A2D33" />
+          <Setter Property="BorderBrush" Value="#3C414A" />
         </Trigger>
         <Trigger Property="IsSelected" Value="True">
-          <Setter Property="Background" Value="#1A4A7A" />
-          <Setter Property="BorderBrush" Value="#2D5D8D" />
-          <Setter Property="Foreground" Value="#F0F7FF" />
+          <Setter Property="Background" Value="#31518A" />
+          <Setter Property="BorderBrush" Value="#4A4D54" />
+          <Setter Property="Foreground" Value="#EEF1F7" />
         </Trigger>
       </Style.Triggers>
     </Style>
 
     <Style x:Key="DesignerComboBoxDropDownListStyle"
            TargetType="{x:Type ListBox}">
-      <Setter Property="Background" Value="#090D13" />
-      <Setter Property="Foreground" Value="#D8E3EE" />
-      <Setter Property="BorderBrush" Value="#233449" />
+      <Setter Property="Background" Value="#24272C" />
+      <Setter Property="Foreground" Value="#E5E7EA" />
+      <Setter Property="BorderBrush" Value="#3C414A" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="FontFamily" Value="Consolas" />
@@ -116,16 +116,16 @@
       <Setter Property="CanDragMove" Value="False" />
       <Setter Property="DismissOnOutsideClick" Value="True" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="BorderBrush" Value="#233449" />
-      <Setter Property="Background" Value="#090D13" />
+      <Setter Property="BorderBrush" Value="#3C414A" />
+      <Setter Property="Background" Value="#24272C" />
       <Setter Property="Padding" Value="0" />
     </Style>
 
     <Style x:Key="DesignerInspectorComboBoxStyle"
            TargetType="{x:Type ComboBox}">
-      <Setter Property="Background" Value="#081018" />
-      <Setter Property="Foreground" Value="#D8E3EE" />
-      <Setter Property="BorderBrush" Value="#243342" />
+      <Setter Property="Background" Value="#1D1F22" />
+      <Setter Property="Foreground" Value="#E5E7EA" />
+      <Setter Property="BorderBrush" Value="#3C414A" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Padding" Value="8,5,8,5" />
       <Setter Property="FontFamily" Value="Consolas" />
@@ -134,9 +134,9 @@
 
     <Style x:Key="DesignerInspectorTextBoxStyle"
            TargetType="{x:Type TextBox}">
-      <Setter Property="Background" Value="#081018" />
-      <Setter Property="Foreground" Value="#D8E3EE" />
-      <Setter Property="BorderBrush" Value="#243342" />
+      <Setter Property="Background" Value="#1D1F22" />
+      <Setter Property="Foreground" Value="#E5E7EA" />
+      <Setter Property="BorderBrush" Value="#3C414A" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Padding" Value="8,5,8,5" />
       <Setter Property="FontFamily" Value="Consolas" />
@@ -199,7 +199,7 @@
 
         <StackPanel Grid.Column="0">
           <TextBlock Text="{Binding CompositeComponent1.Label}"
-                     Foreground="#4A6880"
+                     Foreground="#8E939E"
                      FontSize="10"
                      Margin="0,0,0,4" />
           <TextBox Style="{StaticResource DesignerInspectorTextBoxStyle}"
@@ -210,7 +210,7 @@
 
         <StackPanel Grid.Column="2">
           <TextBlock Text="{Binding CompositeComponent2.Label}"
-                     Foreground="#4A6880"
+                     Foreground="#8E939E"
                      FontSize="10"
                      Margin="0,0,0,4" />
           <TextBox Style="{StaticResource DesignerInspectorTextBoxStyle}"
@@ -221,7 +221,7 @@
 
         <StackPanel Grid.Column="4">
           <TextBlock Text="{Binding CompositeComponent3.Label}"
-                     Foreground="#4A6880"
+                     Foreground="#8E939E"
                      FontSize="10"
                      Margin="0,0,0,4" />
           <TextBox Style="{StaticResource DesignerInspectorTextBoxStyle}"
@@ -232,7 +232,7 @@
 
         <StackPanel Grid.Column="6">
           <TextBlock Text="{Binding CompositeComponent4.Label}"
-                     Foreground="#4A6880"
+                     Foreground="#8E939E"
                      FontSize="10"
                      Margin="0,0,0,4" />
           <TextBox Style="{StaticResource DesignerInspectorTextBoxStyle}"
@@ -257,19 +257,19 @@
                                                    ColorTemplate="{StaticResource SourcePropertyColorEditorTemplate}" />
 
     <DataTemplate x:Key="SourcePropertyRowTemplate">
-      <Border Background="#0B1118"
-              BorderBrush="#0F1A26"
+      <Border Background="#18191B"
+              BorderBrush="#2B2D31"
               BorderThickness="0,0,0,1"
               Padding="0,0,0,10"
               Margin="0,0,0,10"
               Visibility="{Binding RowVisibility}">
         <StackPanel>
           <TextBlock Text="{Binding Name}"
-                     Foreground="#C8D8E8"
+                     Foreground="#C7CBD3"
                      FontSize="12"
                      FontWeight="SemiBold" />
           <TextBlock Text="{Binding DescriptionText}"
-                     Foreground="#4A6880"
+                     Foreground="#8E939E"
                      FontSize="10"
                      Margin="0,2,0,6"
                      TextWrapping="Wrap" />
@@ -298,11 +298,11 @@
                   TextChanged="OnSourceEditorTextChanged"
                   ViewportChanged="OnSourceEditorViewportChanged"
                   LayoutUpdated="OnSourceEditorLayoutUpdated"
-                  Background="#0D131A"
+                  Background="#18191B"
                   BorderThickness="0"
-                  Foreground="#D8E3EE"
-                  CaretBrush="#7FD0FF"
-                  SelectionBrush="#1A4A7A"
+                  Foreground="#E5E7EA"
+                  CaretBrush="#EEF1F7"
+                  SelectionBrush="#31518A"
                   Padding="10"
                   HorizontalScrollBarVisibility="Auto"
                   VerticalScrollBarVisibility="Auto"
@@ -311,9 +311,9 @@
                   TextWrapping="NoWrap"
                   FontFamily="Consolas"
                   FontSize="16"
-                  LineNumberBackground="#0A1017"
-                  LineNumberForeground="#4A6880"
-                  LineNumberSeparatorBrush="#1A2637" />
+                  LineNumberBackground="#18191B"
+                  LineNumberForeground="#8E939E"
+                  LineNumberSeparatorBrush="#2B2D31" />
 
       <IDEEditorMinimap x:Name="SourceMinimap"
                         Grid.Column="1"
@@ -322,9 +322,10 @@
 
     <GridSplitter x:Name="SourcePropertyInspectorSplitter"
                   Grid.Column="1"
-                  Background="#0B0F14"
-                  BorderBrush="#1E3450"
-                  BorderThickness="1,0,1,0"
+                  Cursor="SizeWE"
+                  Background="#18191B"
+                  BorderBrush="Transparent"
+                  BorderThickness="0"
                   Margin="1,0"
                   HorizontalAlignment="Stretch"
                   VerticalAlignment="Stretch"
@@ -333,8 +334,8 @@
 
     <Border x:Name="SourcePropertyInspectorBorder"
       Grid.Column="2"
-            Background="#0D131A"
-            BorderBrush="#1A2637"
+            Background="#1D1F22"
+            BorderBrush="#2B2D31"
             BorderThickness="1,0,0,0">
       <Grid>
         <Grid.RowDefinitions>
@@ -343,20 +344,20 @@
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0"
-                BorderBrush="#1A2637"
+                BorderBrush="#2B2D31"
                 BorderThickness="0,0,0,1"
                 Padding="10,8">
           <StackPanel>
             <TextBlock Text="Property Inspector"
-                       Foreground="#C8D8E8"
+                       Foreground="#C7CBD3"
                        FontWeight="SemiBold" />
             <TextBlock x:Name="SourcePropertyInspectorHeaderText"
-                       Foreground="#8DA1B5"
+                       Foreground="#8E939E"
                        FontSize="12"
                        Margin="0,3,0,0"
                        Text="Select a control tag in the source editor." />
             <TextBlock x:Name="SourcePropertyInspectorSummaryText"
-                       Foreground="#4A6880"
+                       Foreground="#8E939E"
                        FontSize="11"
                        Margin="0,3,0,0"
                        Text="Changes update the XML source. Press F5 to refresh the preview." />
@@ -371,20 +372,20 @@
 
           <Border x:Name="SourcePropertyInspectorFilterBorder"
                   Grid.Row="0"
-                  BorderBrush="#1A2637"
+                  BorderBrush="#2B2D31"
                   BorderThickness="0,0,0,1"
                   Padding="8,8,8,6"
                   Visibility="Collapsed">
             <StackPanel>
               <TextBlock Text="Filter properties"
-                         Foreground="#4A6880"
+                         Foreground="#8E939E"
                          FontSize="11"
                          Margin="0,0,0,4" />
               <TextBox x:Name="SourcePropertyInspectorFilterTextBox"
                        TextChanged="OnSourcePropertyInspectorFilterTextChanged"
-                       Background="#081018"
-                       Foreground="#D8E3EE"
-                       BorderBrush="#243342"
+                       Background="#1D1F22"
+                       Foreground="#E5E7EA"
+                       BorderBrush="#3C414A"
                        BorderThickness="1"
                        Padding="8,5,8,5"
                        FontFamily="Consolas" />
@@ -393,7 +394,7 @@
 
           <Grid Grid.Row="1">
             <TextBlock x:Name="SourcePropertyInspectorEmptyState"
-                       Foreground="#4A6880"
+                       Foreground="#8E939E"
                        Margin="12"
                        TextWrapping="Wrap"
                        VerticalAlignment="Top"

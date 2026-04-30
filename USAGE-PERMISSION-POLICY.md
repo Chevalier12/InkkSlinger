@@ -14,6 +14,10 @@ If you make money from a product/project that uses InkkSlinger (directly or
 indirectly), you should assume it is commercial use and that a subscription (or
 waiver/grant) is required. See `LICENSE` for examples.
 
+The examples and scenarios in this repository are not exhaustive. If you are
+unsure how a specific edge case should be classified, discuss it with the
+maintainer before relying on an assumption.
+
 Commercial usage is also available via a one-time perpetual option (see
 `LICENSE`).
 

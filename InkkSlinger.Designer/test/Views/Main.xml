@@ -1,0 +1,6 @@
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <TextBlock Text="Hello from InkkSlinger" />
+    </Grid>
+</UserControl>

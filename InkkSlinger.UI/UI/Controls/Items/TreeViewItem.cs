@@ -7,6 +7,8 @@ namespace InkkSlinger;
 
 public class TreeViewItem : ItemsControl
 {
+    internal event EventHandler? ExpandedStateChanged;
+
     public static readonly DependencyProperty HeaderProperty =
         DependencyProperty.Register(
             nameof(Header),
@@ -62,7 +64,11 @@ public class TreeViewItem : ItemsControl
             typeof(TreeViewItem),
             new FrameworkPropertyMetadata(16f, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
-    protected override bool IncludeGeneratedChildrenInVisualTree => IsExpanded;
+    protected override bool IncludeGeneratedChildrenInVisualTree => IsExpanded && !UseVirtualizedTreeLayout;
+
+    internal bool UseVirtualizedTreeLayout { get; set; }
+
+    internal int VirtualizedTreeDepth { get; set; }
 
     public string Header
     {
@@ -109,6 +115,7 @@ public class TreeViewItem : ItemsControl
             return;
         }
 
+        ExpandedStateChanged?.Invoke(this, EventArgs.Empty);
         UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
     }
 
@@ -142,7 +149,7 @@ public class TreeViewItem : ItemsControl
         var rowHeight = GetRowHeight();
         var rowWidth = MeasureHeaderWidth();
 
-        if (!IsExpanded)
+        if (!IsExpanded || UseVirtualizedTreeLayout)
         {
             return new Vector2(rowWidth, rowHeight);
         }
@@ -169,7 +176,7 @@ public class TreeViewItem : ItemsControl
     {
         var currentY = LayoutSlot.Y + GetRowHeight();
 
-        if (IsExpanded)
+        if (IsExpanded && !UseVirtualizedTreeLayout)
         {
             foreach (var child in ItemContainers)
             {
@@ -208,7 +215,8 @@ public class TreeViewItem : ItemsControl
             //   ▼  down-pointing   →  branch is expanded
             // The glyph is rendered at 65 % of the row's Foreground so it reads
             // as a subtle affordance rather than competing with the label text.
-            var glyphCx = LayoutSlot.X + padding.Left + 7f;   // horizontal centre of the glyph zone
+            var depthOffset = GetVirtualizedDepthOffset();
+            var glyphCx = LayoutSlot.X + depthOffset + padding.Left + 7f;   // horizontal centre of the glyph zone
             var glyphCy = LayoutSlot.Y + (rowHeight / 2f);    // vertical centre of the row
             var glyphColor = Foreground * 0.65f;
 
@@ -238,7 +246,7 @@ public class TreeViewItem : ItemsControl
 
         if (!string.IsNullOrEmpty(Header))
         {
-            var textX = LayoutSlot.X + padding.Left + (HasChildItems() ? 16f : 6f);
+            var textX = LayoutSlot.X + GetVirtualizedDepthOffset() + padding.Left + (HasChildItems() ? 16f : 6f);
             var textY = LayoutSlot.Y + ((rowHeight - UiTextRenderer.GetLineHeight(this, FontSize)) / 2f);
             UiTextRenderer.DrawString(spriteBatch, this, Header, new Vector2(textX, textY), Foreground * Opacity, FontSize, opaqueBackground: true);
         }
@@ -255,7 +263,7 @@ public class TreeViewItem : ItemsControl
         // Hit zone is centred on the glyph centre (glyphCx = X + padding.Left + 7, glyphCy = Y + rowHeight/2)
         // Use a 14×14 box so the small triangle remains easy to click.
         var padding = Padding;
-        var glyphCx = LayoutSlot.X + padding.Left + 7f;
+        var glyphCx = LayoutSlot.X + GetVirtualizedDepthOffset() + padding.Left + 7f;
         var glyphCy = LayoutSlot.Y + (rowHeight / 2f);
         var rect = new LayoutRect(glyphCx - 7f, glyphCy - 7f, 14f, 14f);
         return point.X >= rect.X && point.X <= rect.X + rect.Width && point.Y >= rect.Y && point.Y <= rect.Y + rect.Height;
@@ -292,7 +300,12 @@ public class TreeViewItem : ItemsControl
         var textWidth = !string.IsNullOrEmpty(Header)
             ? UiTextRenderer.MeasureWidth(this, Header, FontSize)
             : 0f;
-        return padding.Horizontal + (HasChildItems() ? 20f : 10f) + textWidth;
+        return padding.Horizontal + GetVirtualizedDepthOffset() + (HasChildItems() ? 20f : 10f) + textWidth;
+    }
+
+    private float GetVirtualizedDepthOffset()
+    {
+        return UseVirtualizedTreeLayout ? MathF.Max(0f, VirtualizedTreeDepth) * Indent : 0f;
     }
 
     private void PropagateTypographyToChildren(

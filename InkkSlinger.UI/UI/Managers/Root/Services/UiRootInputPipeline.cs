@@ -24,6 +24,7 @@ public sealed partial class UiRoot
     private int _lastProcessedInputVisualStructureVersion;
     private string _lastPointerResolvePath = "None";
     private HitTestMetrics? _lastPointerResolveHitTestMetrics;
+    private bool _lastPointerResolveUsedFullHitTest;
     private ContextMenu? _lastKnownOpenContextMenu;
     private int _overlayCandidateVersion;
     private OverlayCandidate _cachedTopOverlayCandidate;
@@ -103,9 +104,9 @@ public sealed partial class UiRoot
         {
             _inputState.LastPointerPosition = delta.Current.PointerPosition;
         }
-
         _lastPointerResolvePath = "None";
         _lastPointerResolveHitTestMetrics = null;
+        _lastPointerResolveUsedFullHitTest = false;
         var pointerStart = Stopwatch.GetTimestamp();
         _inputState.CurrentModifiers = GetModifiers(delta.Current.Keyboard);
         _lastProcessedInputVisualStructureVersion = _visualStructureVersion;
@@ -154,6 +155,16 @@ public sealed partial class UiRoot
                 var sweptHoverStart = Stopwatch.GetTimestamp();
                 UpdateHover(sweptHoverTarget, sweptHoverPointerPosition);
                 hoverTicks += Stopwatch.GetTimestamp() - sweptHoverStart;
+            }
+
+            var exactCurrentHoverTarget = ResolveHoverTargetCandidate(pointerTarget, delta.Current.PointerPosition);
+            if ((exactCurrentHoverTarget == null || !IsHoverHostElement(exactCurrentHoverTarget)) &&
+                !_lastPointerResolveUsedFullHitTest &&
+                !ReferenceEquals(pointerTarget, _inputState.HoveredElement) &&
+                TryResolveSweptHoverTargetAtPoint(delta.Current.PointerPosition, out var preciseHoverTarget) &&
+                preciseHoverTarget != null)
+            {
+                pointerTarget = preciseHoverTarget;
             }
 
             var hoverStart = Stopwatch.GetTimestamp();
@@ -334,6 +345,7 @@ public sealed partial class UiRoot
     {
         _lastPointerResolvePath = "None";
         _lastPointerResolveHitTestMetrics = null;
+        _lastPointerResolveUsedFullHitTest = false;
         var pointerPosition = delta.Current.PointerPosition;
         var requiresPreciseTarget =
             delta.LeftPressed || delta.LeftReleased ||
@@ -422,8 +434,9 @@ public sealed partial class UiRoot
             if (hasOpenContextMenu)
             {
                 _lastInputHitTestCount++;
+                _lastPointerResolveUsedFullHitTest = true;
                 var contextMenuHitTestStart = Stopwatch.GetTimestamp();
-                var contextMenuHit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+                var contextMenuHit = VisualTreeHelper.HitTestIncludingDisabled(_visualRoot, pointerPosition);
                 _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(contextMenuHitTestStart).TotalMilliseconds;
                 return FinalizePointerResolve("ContextMenuOpenHitTest", contextMenuHit);
             }
@@ -435,6 +448,7 @@ public sealed partial class UiRoot
                 (delta.WheelDelta != 0 || ShouldReuseHoveredTargetForPointerMove(_inputState.HoveredElement)) &&
                 PointerInsideHoveredTargetForReuse(_inputState.HoveredElement, pointerPosition);
             _lastInputPointerResolveHoverReuseCheckMs += Stopwatch.GetElapsedTime(hoverReuseCheckStart).TotalMilliseconds;
+
             if (canReuseHoveredTarget)
             {
                 // Do not refresh click-target reuse cache from hover-reuse paths.
@@ -455,6 +469,15 @@ public sealed partial class UiRoot
             hoveredHostTarget != null)
         {
             return FinalizePointerResolve("HoveredHostSubtreeHitTest", hoveredHostTarget, updatePointerCache: false);
+        }
+
+        if (!requiresPreciseTarget &&
+            !delta.PointerMoved && delta.WheelDelta != 0 &&
+            !TryGetTopOverlayCandidate(out _) &&
+            TryResolveWheelScrolledHoverTarget(pointerPosition, out var wheelScrolledTarget) &&
+            wheelScrolledTarget != null)
+        {
+            return FinalizePointerResolve("WheelScrollHitTest", wheelScrolledTarget, updatePointerCache: false);
         }
 
         if (requiresPreciseTarget && !bypassClickTargetShortcuts)
@@ -515,6 +538,7 @@ public sealed partial class UiRoot
         }
 
         _lastInputHitTestCount++;
+        _lastPointerResolveUsedFullHitTest = true;
         if (requiresPreciseTarget)
         {
             _clickCpuResolveHitTestCount++;
@@ -522,7 +546,9 @@ public sealed partial class UiRoot
 
         var finalPath = bypassClickTargetShortcuts ? "OverlayBypassHitTest" : "HitTest";
         var finalHitTestStart = Stopwatch.GetTimestamp();
-        var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var metrics);
+        var hit = requiresPreciseTarget
+            ? VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var metrics)
+            : VisualTreeHelper.HitTestIncludingDisabled(_visualRoot, pointerPosition, out metrics);
         _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(finalHitTestStart).TotalMilliseconds;
         _lastPointerResolveHitTestMetrics = metrics;
         hit = ResolveSubspaceViewport2DClickCandidate(hit, pointerPosition);
@@ -726,7 +752,7 @@ public sealed partial class UiRoot
         target = null;
         _lastInputHitTestCount++;
         var hitTestStart = Stopwatch.GetTimestamp();
-        var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+        var hit = VisualTreeHelper.HitTestIncludingDisabled(_visualRoot, pointerPosition);
         _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
         target = ResolveHoverTargetCandidate(hit, pointerPosition);
         return target != null && IsHoverHostElement(target);
@@ -789,9 +815,18 @@ public sealed partial class UiRoot
             return;
         }
 
+        if (previousHovered is TreeViewItem && hovered is TreeViewItem)
+        {
+            SetHoverState(previousHovered, isMouseOver: false);
+            _inputState.HoveredElement = hovered;
+            SetHoverState(hovered, isMouseOver: true);
+            return;
+        }
+
         SetHoverState(previousHovered, isMouseOver: false);
 
         _inputState.HoveredElement = hovered;
+        ApplySystemCursor(ResolveCursorFromHoveredElement());
         RefreshCachedWheelTargets(hovered);
         RefreshCachedClickTarget(hovered);
         SetHoverState(hovered, isMouseOver: true);
@@ -1774,7 +1809,7 @@ public sealed partial class UiRoot
             return;
         }
 
-        var hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+        var hoverTarget = VisualTreeHelper.HitTestIncludingDisabled(_visualRoot, pointerPosition);
         UpdateHover(hoverTarget);
     }
 
@@ -1788,7 +1823,7 @@ public sealed partial class UiRoot
             return;
         }
 
-        var hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+        var hoverTarget = VisualTreeHelper.HitTestIncludingDisabled(_visualRoot, pointerPosition);
         UpdateHover(hoverTarget, pointerPosition);
     }
 
@@ -1927,7 +1962,6 @@ public sealed partial class UiRoot
 
         if (IsElementConnectedToVisualRoot(hovered) &&
             hovered.IsVisible &&
-            hovered.IsEnabled &&
             hovered.IsHitTestVisible)
         {
             return;
@@ -1955,7 +1989,7 @@ public sealed partial class UiRoot
             return;
         }
 
-        var hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+        var hoverTarget = VisualTreeHelper.HitTestIncludingDisabled(_visualRoot, pointerPosition);
         UpdateHover(hoverTarget, pointerPosition);
     }
 
@@ -1972,12 +2006,12 @@ public sealed partial class UiRoot
         UIElement? hoverTarget = null;
         if (mutationRoot != null && IsElementConnectedToVisualRoot(mutationRoot))
         {
-            hoverTarget = VisualTreeHelper.HitTest(mutationRoot, pointerPosition);
+            hoverTarget = VisualTreeHelper.HitTestIncludingDisabled(mutationRoot, pointerPosition);
         }
 
         if (hoverTarget == null)
         {
-            hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+            hoverTarget = VisualTreeHelper.HitTestIncludingDisabled(_visualRoot, pointerPosition);
         }
 
         UpdateHover(hoverTarget);
@@ -2309,7 +2343,7 @@ public sealed partial class UiRoot
 
         _lastInputHitTestCount++;
         var hostHitTestStart = Stopwatch.GetTimestamp();
-        var hit = VisualTreeHelper.HitTest(hostAnchor, pointerPosition, out var metrics);
+        var hit = VisualTreeHelper.HitTestIncludingDisabled(hostAnchor, pointerPosition, out var metrics);
         _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(hostHitTestStart).TotalMilliseconds;
         _lastPointerResolveHitTestMetrics = metrics;
         if (shouldTrace)
@@ -2324,6 +2358,36 @@ public sealed partial class UiRoot
             return false;
         }
 
+        target = hit;
+        return hit != null;
+    }
+
+    private bool TryResolveWheelScrolledHoverTarget(Vector2 pointerPosition, out UIElement? target)
+    {
+        target = null;
+        var hovered = _inputState.HoveredElement;
+        if (hovered == null || !IsElementConnectedToVisualRoot(hovered))
+        {
+            return false;
+        }
+
+        if (!TryGetHoverHostAnchor(hovered, out var hostAnchor) || hostAnchor == null)
+        {
+            return false;
+        }
+
+        if (!IsElementConnectedToVisualRoot(hostAnchor))
+        {
+            return false;
+        }
+
+        if (!PointerLikelyInsideElement(hostAnchor, pointerPosition))
+        {
+            return false;
+        }
+
+        _lastInputHitTestCount++;
+        var hit = VisualTreeHelper.HitTestIncludingDisabled(hostAnchor, pointerPosition, out _);
         target = hit;
         return hit != null;
     }
@@ -2595,7 +2659,8 @@ public sealed partial class UiRoot
 
         if (hovered is ITextInputControl or
             ListBox or ListView or DataGrid or
-            MenuItem or ComboBoxItem)
+            MenuItem or ComboBoxItem or
+            ListBoxItem or ListViewItem or DataGridRow or TabItem or TreeViewItem)
         {
             return true;
         }

@@ -358,8 +358,17 @@ internal static class PathMarkupParser
                 return;
             }
 
+            // Adaptive tessellation: compute the angular step so that
+            // (a) chord error from straight-line approximation stays under 0.5px,
+            // (b) the bend at segment junctions stays under 5° for smooth joins,
+            // (c) and never exceeds the classic 15° upper bound.
+            var effectiveRadius = MathF.Max(1f, MathF.Min(rx, ry));
+            const float maxChordError = 0.5f;
+            var chordErrorStep = 2f * MathF.Acos(MathF.Max(-1f, 1f - MathF.Min(1f, maxChordError / effectiveRadius)));
             const float maxArcStepRadians = MathF.PI / 12f;
-            var segments = Math.Max(1, (int)MathF.Ceiling(MathF.Abs(deltaTheta) / maxArcStepRadians));
+            const float maxJoinStep = MathF.PI / 36f; // 5° — imperceptible segment bend
+            var stepRadians = MathF.Min(maxArcStepRadians, MathF.Min(maxJoinStep, chordErrorStep));
+            var segments = Math.Max(3, (int)MathF.Ceiling(MathF.Abs(deltaTheta) / stepRadians));
             for (var i = 1; i <= segments; i++)
             {
                 var t = i / (float)segments;

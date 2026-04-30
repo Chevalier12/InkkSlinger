@@ -27,8 +27,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <AdditionalFiles Include="**\*.xml" Exclude="App.xml;bin\**;obj\**" InkkSlingerXamlCompileOptOut="false" />
-    <None Include="**\*.xml" Exclude="App.xml;bin\**;obj\**" CopyToOutputDirectory="PreserveNewest" />
+    <AdditionalFiles Include="DesignerHostView.xml;DesignerShellView.xml;DesignerSourceColorPropertyEditor.xml;DesignerSourceEditorView.xml" InkkSlingerXamlCompileOptOut="false" />
+    <None Include="DesignerHostView.xml;DesignerShellView.xml;DesignerSourceColorPropertyEditor.xml;DesignerSourceEditorView.xml" CopyToOutputDirectory="PreserveNewest" />
     <None Remove="@(XmlCodeBehind->'%(RelativeDir)%(Filename)')" />
     <None Include="App.xml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

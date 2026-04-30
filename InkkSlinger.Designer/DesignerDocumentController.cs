@@ -7,6 +7,11 @@ public interface IDesignerDocumentFileStore
 {
     bool Exists(string path);
 
+    string ReadAllText(string path)
+    {
+        throw new NotSupportedException("This document file store does not support reading text.");
+    }
+
     void WriteAllText(string path, string text);
 }
 
@@ -16,6 +21,12 @@ public sealed class PhysicalDesignerDocumentFileStore : IDesignerDocumentFileSto
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         return File.Exists(path);
+    }
+
+    public string ReadAllText(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        return NormalizeLineEndings(File.ReadAllText(path));
     }
 
     public void WriteAllText(string path, string text)
@@ -102,6 +113,21 @@ public sealed class DesignerDocumentController
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         _fileStore.WriteAllText(path, CurrentText);
         CurrentPath = path;
+        IsDirty = false;
+    }
+
+    public void OpenPath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        CurrentText = NormalizeLineEndings(_fileStore.ReadAllText(path));
+        CurrentPath = path;
+        IsDirty = false;
+    }
+
+    public void Reset(string text)
+    {
+        CurrentText = NormalizeLineEndings(text);
+        CurrentPath = null;
         IsDirty = false;
     }
 

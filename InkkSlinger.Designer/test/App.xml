@@ -1,0 +1,7 @@
+<Application xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="Views/Main.xml">
+    <Application.Resources>
+        <ResourceDictionary />
+    </Application.Resources>
+</Application>

@@ -554,6 +554,28 @@ public sealed partial class UiRoot
             parentNode = _retainedRenderList[parentNodeIndex];
         }
 
+        if (CanUseScrollTranslationFastPath(visual))
+        {
+            var updatedForTranslation = CreateRenderNode(
+                visual,
+                previous.TraversalOrder,
+                previous.Depth,
+                previous.SubtreeEndIndexExclusive,
+                parentNode);
+            if (previous.IsEffectivelyVisible == updatedForTranslation.IsEffectivelyVisible &&
+                TryUpdateRenderNodeSubtreeForScrollTranslation(
+                    renderNodeIndex,
+                    visual,
+                    previous,
+                    updatedForTranslation,
+                    out subtreeMetadataChanged))
+            {
+                _lastRetainedShallowSuccessCount++;
+                _lastRetainedShallowSyncMs += Stopwatch.GetElapsedTime(shallowStart).TotalMilliseconds;
+                return true;
+            }
+        }
+
         if (!TryUpdateRetainedSubtreeNodesInPlace(
                 visual,
                 renderNodeIndex,
@@ -621,30 +643,18 @@ public sealed partial class UiRoot
             subtreeEndIndexExclusive,
             previous.HasSubtreeBoundsSnapshot,
             TranslateRect(previous.SubtreeBoundsSnapshot, translationX, translationY),
-            updated.SubtreeVisualCount,
-            updated.SubtreeHighCostVisualCount,
-            updated.SubtreeRenderVersionStamp,
-            updated.SubtreeLayoutVersionStamp);
+            previous.SubtreeVisualCount,
+            previous.SubtreeHighCostVisualCount,
+            previous.SubtreeRenderVersionStamp,
+            previous.SubtreeLayoutVersionStamp);
+        var totalTranslationX = previous.HasScrollTranslation
+            ? previous.ScrollTranslationX + translationX
+            : translationX;
+        var totalTranslationY = previous.HasScrollTranslation
+            ? previous.ScrollTranslationY + translationY
+            : translationY;
+        translatedRoot = translatedRoot.WithScrollTranslation(totalTranslationX, totalTranslationY);
         _retainedRenderList[renderNodeIndex] = translatedRoot;
-
-        var ancestry = new List<(int Depth, RenderNode Node)>(8)
-        {
-            (translatedRoot.Depth, translatedRoot)
-        };
-
-        for (var nodeIndex = renderNodeIndex + 1; nodeIndex < subtreeEndIndexExclusive; nodeIndex++)
-        {
-            var node = _retainedRenderList[nodeIndex];
-            while (ancestry.Count > 0 && ancestry[^1].Depth >= node.Depth)
-            {
-                ancestry.RemoveAt(ancestry.Count - 1);
-            }
-
-            RenderNode? parentNode = ancestry.Count > 0 ? ancestry[^1].Node : null;
-            var translatedNode = TranslateRetainedSubtreeNode(node, parentNode, translationX, translationY);
-            _retainedRenderList[nodeIndex] = translatedNode;
-            ancestry.Add((translatedNode.Depth, translatedNode));
-        }
 
         subtreeMetadataChanged = !HasEquivalentSubtreeMetadata(previous, translatedRoot);
         return true;
@@ -712,12 +722,33 @@ public sealed partial class UiRoot
             previous.SubtreeVisualCount,
             previous.SubtreeHighCostVisualCount,
             previous.SubtreeRenderVersionStamp,
-            previous.SubtreeLayoutVersionStamp);
+            previous.SubtreeLayoutVersionStamp,
+            previous.HasScrollTranslation,
+            previous.ScrollTranslationX,
+            previous.ScrollTranslationY);
     }
 
     private static bool IsScrollTranslationFastPathCandidate(UIElement visual)
     {
-        return visual is IScrollTransformContent;
+        return visual is IScrollTransformContent or VirtualizingStackPanel;
+    }
+
+    private static bool CanUseScrollTranslationFastPath(UIElement visual)
+    {
+        if (!IsScrollTranslationFastPathCandidate(visual))
+        {
+            return false;
+        }
+
+        foreach (var child in visual.GetRetainedRenderChildren())
+        {
+            if (child.SubtreeDirty)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool TryGetTranslationDelta(RenderNode previous, RenderNode updated, out float translationX, out float translationY)
@@ -777,6 +808,62 @@ public sealed partial class UiRoot
     private static LayoutRect TranslateRect(LayoutRect rect, float translationX, float translationY)
     {
         return new LayoutRect(rect.X + translationX, rect.Y + translationY, rect.Width, rect.Height);
+    }
+
+    private LayoutRect ApplyScrollTranslationFromAncestors(UIElement visual, LayoutRect bounds)
+    {
+        if (TryGetScrollTranslationOffsetFromAncestors(visual, out var translationX, out var translationY))
+        {
+            return TranslateRect(bounds, translationX, translationY);
+        }
+
+        return bounds;
+    }
+
+    private bool TryGetScrollTranslationOffsetFromAncestors(UIElement visual, out float translationX, out float translationY)
+    {
+        translationX = 0f;
+        translationY = 0f;
+        var hasOffset = false;
+        for (var current = visual.VisualParent; current != null; current = current.VisualParent)
+        {
+            if (!_renderNodeIndices.TryGetValue(current, out var nodeIndex))
+            {
+                continue;
+            }
+
+            var node = _retainedRenderList[nodeIndex];
+            if (!node.HasScrollTranslation)
+            {
+                continue;
+            }
+
+            translationX += node.ScrollTranslationX;
+            translationY += node.ScrollTranslationY;
+            hasOffset = true;
+        }
+
+        return hasOffset;
+    }
+
+    private static RenderNode TranslateRetainedNodeBounds(RenderNode node, float translationX, float translationY)
+    {
+        if (AreClose(translationX, 0f) && AreClose(translationY, 0f))
+        {
+            return node;
+        }
+
+        var boundsSnapshot = node.HasBoundsSnapshot
+            ? TranslateRect(node.BoundsSnapshot, translationX, translationY)
+            : node.BoundsSnapshot;
+        var subtreeBoundsSnapshot = node.HasSubtreeBoundsSnapshot
+            ? TranslateRect(node.SubtreeBoundsSnapshot, translationX, translationY)
+            : node.SubtreeBoundsSnapshot;
+        return node.WithBoundsSnapshots(
+            boundsSnapshot,
+            node.HasBoundsSnapshot,
+            subtreeBoundsSnapshot,
+            node.HasSubtreeBoundsSnapshot);
     }
 
     private static bool AreClose(float left, float right)
@@ -1070,6 +1157,8 @@ public sealed partial class UiRoot
                 expectedDepth: 0,
                 mismatches,
                 Math.Max(1, maxMismatches),
+            ancestorScrollTranslationX: 0f,
+            ancestorScrollTranslationY: 0f,
                 ref expectedTraversalOrder,
                 ref expectedRenderNodeIndex,
                 out _))
@@ -1094,6 +1183,8 @@ public sealed partial class UiRoot
         int expectedDepth,
         List<string> mismatches,
         int maxMismatches,
+        float ancestorScrollTranslationX,
+        float ancestorScrollTranslationY,
         ref int expectedTraversalOrder,
         ref int expectedRenderNodeIndex,
         out RenderNode current)
@@ -1113,6 +1204,7 @@ public sealed partial class UiRoot
         }
 
         var retained = _retainedRenderList[expectedRenderNodeIndex];
+        var retainedForCompare = TranslateRetainedNodeBounds(retained, ancestorScrollTranslationX, ancestorScrollTranslationY);
         if (!ReferenceEquals(retained.Visual, visual))
         {
             mismatches.Add(
@@ -1131,6 +1223,13 @@ public sealed partial class UiRoot
             parentNode);
 
         var metadata = CreateSubtreeMetadataForNode(current);
+        var childScrollTranslationX = ancestorScrollTranslationX;
+        var childScrollTranslationY = ancestorScrollTranslationY;
+        if (retained.HasScrollTranslation)
+        {
+            childScrollTranslationX += retained.ScrollTranslationX;
+            childScrollTranslationY += retained.ScrollTranslationY;
+        }
         foreach (var child in visual.GetRetainedRenderChildren())
         {
             if (!TryValidateRetainedSubtreeRecursive(
@@ -1139,6 +1238,8 @@ public sealed partial class UiRoot
                     expectedDepth + 1,
                     mismatches,
                     maxMismatches,
+                    childScrollTranslationX,
+                    childScrollTranslationY,
                     ref expectedTraversalOrder,
                     ref expectedRenderNodeIndex,
                     out var currentChild))
@@ -1165,7 +1266,7 @@ public sealed partial class UiRoot
             metadata.RenderVersionStamp,
             metadata.LayoutVersionStamp);
 
-        RecordRetainedNodeMismatchIfNeeded(retained, current, mismatches, maxMismatches);
+        RecordRetainedNodeMismatchIfNeeded(retainedForCompare, current, mismatches, maxMismatches);
         return mismatches.Count < maxMismatches;
     }
 
@@ -1260,7 +1361,10 @@ public sealed partial class UiRoot
             1,
             IsHighCostVisual(visual) ? 1 : 0,
             MixHash(17, visual.RenderVersionStamp),
-            MixHash(17, visual.LayoutVersionStamp));
+            MixHash(17, visual.LayoutVersionStamp),
+            false,
+            0f,
+            0f);
     }
 
     private static bool TryComputeBoundsFromParentState(
@@ -1484,7 +1588,10 @@ public sealed partial class UiRoot
             int subtreeVisualCount,
             int subtreeHighCostVisualCount,
             int subtreeRenderVersionStamp,
-            int subtreeLayoutVersionStamp)
+            int subtreeLayoutVersionStamp,
+            bool hasScrollTranslation,
+            float scrollTranslationX,
+            float scrollTranslationY)
         {
             Visual = visual;
             TraversalOrder = traversalOrder;
@@ -1507,6 +1614,9 @@ public sealed partial class UiRoot
             SubtreeHighCostVisualCount = subtreeHighCostVisualCount;
             SubtreeRenderVersionStamp = subtreeRenderVersionStamp;
             SubtreeLayoutVersionStamp = subtreeLayoutVersionStamp;
+            HasScrollTranslation = hasScrollTranslation;
+            ScrollTranslationX = scrollTranslationX;
+            ScrollTranslationY = scrollTranslationY;
         }
 
         public UIElement Visual { get; }
@@ -1534,6 +1644,12 @@ public sealed partial class UiRoot
         public bool HasTransformFromThisToRoot { get; }
 
         public Matrix TransformFromThisToRoot { get; }
+
+        public bool HasScrollTranslation { get; }
+
+        public float ScrollTranslationX { get; }
+
+        public float ScrollTranslationY { get; }
 
         public bool IsEffectivelyVisible { get; }
 
@@ -1581,9 +1697,77 @@ public sealed partial class UiRoot
                 subtreeVisualCount,
                 subtreeHighCostVisualCount,
                 subtreeRenderVersionStamp,
-                subtreeLayoutVersionStamp);
+                subtreeLayoutVersionStamp,
+                HasScrollTranslation,
+                ScrollTranslationX,
+                ScrollTranslationY);
+        }
+
+        public RenderNode WithBoundsSnapshots(
+            LayoutRect boundsSnapshot,
+            bool hasBoundsSnapshot,
+            LayoutRect subtreeBoundsSnapshot,
+            bool hasSubtreeBoundsSnapshot)
+        {
+            return new RenderNode(
+                Visual,
+                TraversalOrder,
+                Depth,
+                boundsSnapshot,
+                hasBoundsSnapshot,
+                HasLocalClip,
+                LocalClipRect,
+                HasLocalTransform,
+                LocalTransform,
+                RenderStateSignature,
+                LocalRenderStateSignature,
+                HasTransformFromThisToRoot,
+                TransformFromThisToRoot,
+                IsEffectivelyVisible,
+                SubtreeEndIndexExclusive,
+                hasSubtreeBoundsSnapshot,
+                subtreeBoundsSnapshot,
+                SubtreeVisualCount,
+                SubtreeHighCostVisualCount,
+                SubtreeRenderVersionStamp,
+                SubtreeLayoutVersionStamp,
+                HasScrollTranslation,
+                ScrollTranslationX,
+                ScrollTranslationY);
+        }
+
+        public RenderNode WithScrollTranslation(float scrollTranslationX, float scrollTranslationY)
+        {
+            var hasScrollTranslation = MathF.Abs(scrollTranslationX) > 0.0001f || MathF.Abs(scrollTranslationY) > 0.0001f;
+            return new RenderNode(
+                Visual,
+                TraversalOrder,
+                Depth,
+                BoundsSnapshot,
+                HasBoundsSnapshot,
+                HasLocalClip,
+                LocalClipRect,
+                HasLocalTransform,
+                LocalTransform,
+                RenderStateSignature,
+                LocalRenderStateSignature,
+                HasTransformFromThisToRoot,
+                TransformFromThisToRoot,
+                IsEffectivelyVisible,
+                SubtreeEndIndexExclusive,
+                HasSubtreeBoundsSnapshot,
+                SubtreeBoundsSnapshot,
+                SubtreeVisualCount,
+                SubtreeHighCostVisualCount,
+                SubtreeRenderVersionStamp,
+                SubtreeLayoutVersionStamp,
+                hasScrollTranslation,
+                scrollTranslationX,
+                scrollTranslationY);
         }
     }
+
+    private readonly record struct ScrollTranslationFrame(int Depth, float TranslationX, float TranslationY);
 
     private readonly record struct SubtreeMetadata(
         bool HasBoundsSnapshot,

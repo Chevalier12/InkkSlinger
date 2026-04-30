@@ -13,6 +13,12 @@ InkkSlinger.Designer/
   DesignerController.cs
   DesignerDocumentController.cs
   DesignerDocumentWorkflow.cs
+  DesignerHostView.xml
+  DesignerHostView.xml.cs
+  DesignerHostViewModel.cs
+  DesignerProjectFileStore.cs
+  DesignerProjectSession.cs
+  DesignerRecentProjectStore.cs
   DesignerShellPresentationModels.cs
   DesignerShellView.xml
   DesignerShellView.xml.cs
@@ -24,6 +30,7 @@ InkkSlinger.Designer/
   DesignerSourceNavigationRequest.cs
   DesignerSourcePropertyInspector.cs
   DesignerSourcePropertyInspectorPresentation.cs
+  DesignerStarterProjectScaffolder.cs
   DesignerXmlEditorLanguageService.cs
   DesignerXmlSyntaxHighlighter.cs
   IDE_EDITOR_QOL_TODO.md

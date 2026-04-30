@@ -51,6 +51,69 @@ public sealed class GridSplitterInputTests
     }
 
     [Fact]
+    public void PointerDragRelease_DoesNotLeavePseudoHoveredState()
+    {
+        // Repro: after a drag ends and the pointer does not move,
+        // the GridSplitter must NOT remain pseudo-hovered.
+        // The input pipeline only calls SetMouseOverFromInput when
+        // the hovered element CHANGES (UpdateHover -> ReferenceEquals check),
+        // so after EndDrag clears IsMouseOver, the stale true can stick.
+        var (uiRoot, _, splitter) = CreateColumnSplitterFixture();
+
+        var inside = GetCenter(splitter.LayoutSlot);
+
+        // 1) Enter hover
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(inside, pointerMoved: true));
+        Assert.True(splitter.IsMouseOver);
+
+        // 2) Mouse down on splitter -> start drag
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(inside, leftPressed: true));
+        Assert.True(splitter.IsDragging);
+        Assert.True(splitter.IsMouseOver);  // still over the element
+
+        // 3) Drag a bit
+        var dragged = new Vector2(inside.X + 20f, inside.Y);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(dragged, pointerMoved: true));
+        Assert.True(splitter.IsDragging);
+
+        // 4) Release (pointer up) -> EndDrag must clear IsMouseOver
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(dragged, leftReleased: true));
+        Assert.False(splitter.IsDragging);
+        Assert.False(splitter.IsMouseOver,
+            "BUG: After EndDrag, IsMouseOver must be false. " +
+            "If this assertion fails, EndDrag did not clear IsMouseOver.");
+
+        // 5) Simulate additional frames with NO mouse movement.
+        //    The input pipeline's UpdateHover short-circuits via
+        //    ReferenceEquals(previousHovered, hovered) and does NOT
+        //    call SetMouseOverFromInput.  IsMouseOver must remain false.
+        for (var i = 0; i < 5; i++)
+        {
+            uiRoot.RunInputDeltaForTests(new InputDelta
+            {
+                Previous = new InputSnapshot(default, default, dragged),
+                Current = new InputSnapshot(default, default, dragged),
+                PressedKeys = new List<Keys>(),
+                ReleasedKeys = new List<Keys>(),
+                TextInput = new List<char>(),
+                PointerMoved = false,
+                WheelDelta = 0,
+                LeftPressed = false,
+                LeftReleased = false,
+                RightPressed = false,
+                RightReleased = false,
+                MiddlePressed = false,
+                MiddleReleased = false
+            });
+        }
+
+        Assert.False(splitter.IsMouseOver,
+            "BUG: IsMouseOver spontaneously re-activated without pointer movement. " +
+            "The input pipeline must not call SetMouseOverFromInput(true) when " +
+            "the hovered element has not changed.");
+    }
+
+    [Fact]
     public void KeyboardArrowInput_UsesKeyboardIncrement()
     {
         var (uiRoot, grid, splitter) = CreateColumnSplitterFixture();

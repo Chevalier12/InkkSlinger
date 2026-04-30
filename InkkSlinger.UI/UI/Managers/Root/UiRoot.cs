@@ -611,7 +611,7 @@ public sealed partial class UiRoot
     {
         return new UiRootTelemetrySnapshot(
             (int)_telemetryUpdateCallCount,
-            _telemetryUpdateElapsedTicks * 1_000_000.0 / Stopwatch.Frequency,
+            _telemetryUpdateElapsedTicks * 1_000.0 / Stopwatch.Frequency,
             (int)_telemetryEnqueueDeferredOperationCallCount,
             (int)_telemetryEnqueueTextInputCallCount,
             (int)_telemetryForceFullRedrawForSurfaceResetCallCount,

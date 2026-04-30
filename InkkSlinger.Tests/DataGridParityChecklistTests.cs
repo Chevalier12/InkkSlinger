@@ -791,8 +791,15 @@ public sealed class DataGridParityChecklistTests
         var frozenX = row.Cells[0].LayoutSlot.X;
         var scrollingX = row.Cells[1].LayoutSlot.X;
 
+        System.Diagnostics.Debug.WriteLine($"DEBUG PRE-SCROLL: row.LayoutSlot={row.LayoutSlot}, rowHeaderX={rowHeaderX}, frozenX={frozenX}, scrollingX={scrollingX}, header[0].X={grid.ColumnHeadersForTesting[0].LayoutSlot.X}, header[1].X={grid.ColumnHeadersForTesting[1].LayoutSlot.X}");
+        System.Diagnostics.Debug.WriteLine($"DEBUG PRE-SCROLL: VSP LayoutSlot={grid.RowsHostForTesting.LayoutSlot}, ScrollViewer.HorizontalOffset={grid.ScrollViewerForTesting.HorizontalOffset}");
+
         grid.ScrollViewerForTesting.ScrollToHorizontalOffset(60f);
         RunLayout(uiRoot, width: 260, height: 300);
+
+        System.Diagnostics.Debug.WriteLine($"DEBUG POST-SCROLL: row.LayoutSlot={row.LayoutSlot}, rowHeader.X={row.RowHeaderForTesting.LayoutSlot.X}, cell[0].X={row.Cells[0].LayoutSlot.X}, cell[1].X={row.Cells[1].LayoutSlot.X}");
+        System.Diagnostics.Debug.WriteLine($"DEBUG POST-SCROLL: header[0].X={grid.ColumnHeadersForTesting[0].LayoutSlot.X}, header[1].X={grid.ColumnHeadersForTesting[1].LayoutSlot.X}");
+        System.Diagnostics.Debug.WriteLine($"DEBUG POST-SCROLL: VSP LayoutSlot={grid.RowsHostForTesting.LayoutSlot}, ScrollViewer.HorizontalOffset={grid.ScrollViewerForTesting.HorizontalOffset}");
 
         Assert.Equal(rowHeaderX, row.RowHeaderForTesting.LayoutSlot.X);
         Assert.Equal(frozenX, row.Cells[0].LayoutSlot.X);

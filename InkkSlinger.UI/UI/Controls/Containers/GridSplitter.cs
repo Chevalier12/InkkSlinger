@@ -346,25 +346,58 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
         try
         {
             var slot = LayoutSlot;
-            Color fill;
+            if (slot.Width <= 0f || slot.Height <= 0f)
+            {
+                return;
+            }
+
+            // Always draw the full slot with Background to overwrite any leftover
+            // pixels from a previous hover/drag render frame.  Background.A must
+            // be non-zero or DrawFilledRect returns early (alpha-blend preserve).
+            UiDrawing.DrawFilledRect(spriteBatch, slot, Background, Opacity);
+
+            Color accentColor;
+            float barThickness;
             if (IsDragging)
             {
                 IncrementMetric(ref _runtimeRenderDraggingFillCount, ref _diagRenderDraggingFillCount);
-                fill = new Color(112, 170, 220);
+                accentColor = new Color(80, 150, 230);
+                barThickness = 4f;
             }
             else if (IsMouseOver)
             {
                 IncrementMetric(ref _runtimeRenderHoverFillCount, ref _diagRenderHoverFillCount);
-                fill = new Color(104, 104, 104);
+                accentColor = new Color(60, 130, 220);
+                barThickness = 2f;
             }
             else
             {
                 IncrementMetric(ref _runtimeRenderBackgroundFillCount, ref _diagRenderBackgroundFillCount);
-                fill = Background;
+                // Only the background fill was drawn above — no accent bar.
+                return;
             }
 
-            UiDrawing.DrawFilledRect(spriteBatch, slot, fill, Opacity);
-            UiDrawing.DrawRectStroke(spriteBatch, slot, 1f, BorderBrush, Opacity);
+            // Draw a thin centered bar (VS Code style) on top of the background fill.
+            // The bar rect is clamped to the slot so it never overflows and leaves
+            // orphaned pixels on adjacent panel surfaces.
+            if (slot.Width <= slot.Height)
+            {
+                // Vertical splitter (column resize): thin vertical bar centered horizontally
+                var centerX = slot.X + slot.Width * 0.5f;
+                var barX = Math.Max(slot.X, centerX - barThickness * 0.5f);
+                var barWidth = Math.Min(slot.Width, barThickness);
+                var bar = new LayoutRect(barX, slot.Y, barWidth, slot.Height);
+                UiDrawing.DrawFilledRect(spriteBatch, bar, accentColor, Opacity);
+            }
+            else
+            {
+                // Horizontal splitter (row resize): thin horizontal bar centered vertically
+                var centerY = slot.Y + slot.Height * 0.5f;
+                var barY = Math.Max(slot.Y, centerY - barThickness * 0.5f);
+                var barHeight = Math.Min(slot.Height, barThickness);
+                var bar = new LayoutRect(slot.X, barY, slot.Width, barHeight);
+                UiDrawing.DrawFilledRect(spriteBatch, bar, accentColor, Opacity);
+            }
         }
         finally
         {
@@ -612,6 +645,7 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
         IncrementMetric(ref _runtimeEndDragCallCount, ref _diagEndDragCallCount);
         PrimeRenderDirtyBoundsHint();
         IsDragging = false;
+        IsMouseOver = false;
         _activeGrid = null;
         _activeDirection = GridResizeDirection.Auto;
         _definitionIndexA = -1;

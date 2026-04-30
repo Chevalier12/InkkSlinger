@@ -2,20 +2,20 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Application.Resources>
     <ResourceDictionary>
-      <Color x:Key="DesignerPanelBackground">#0D131A</Color>
-      <Color x:Key="DesignerInputBackground">#081018</Color>
-      <Color x:Key="DesignerPopupBackground">#090D13</Color>
-      <Color x:Key="DesignerPopupItemHoverBackground">#142132</Color>
-      <Color x:Key="DesignerPopupItemSelectedBackground">#1A4A7A</Color>
-      <Color x:Key="DesignerChromeBorder">#1A2637</Color>
-      <Color x:Key="DesignerInputBorder">#243342</Color>
-      <Color x:Key="DesignerPopupBorder">#233449</Color>
-      <Color x:Key="DesignerTextPrimary">#D8E3EE</Color>
-      <Color x:Key="DesignerTextMuted">#8DA1B5</Color>
+      <Color x:Key="DesignerPanelBackground">#1D1F22</Color>
+      <Color x:Key="DesignerInputBackground">#1D1F22</Color>
+      <Color x:Key="DesignerPopupBackground">#24272C</Color>
+      <Color x:Key="DesignerPopupItemHoverBackground">#2A2D33</Color>
+      <Color x:Key="DesignerPopupItemSelectedBackground">#31518A</Color>
+      <Color x:Key="DesignerChromeBorder">#2B2D31</Color>
+      <Color x:Key="DesignerInputBorder">#3C414A</Color>
+      <Color x:Key="DesignerPopupBorder">#3C414A</Color>
+      <Color x:Key="DesignerTextPrimary">#E5E7EA</Color>
+      <Color x:Key="DesignerTextMuted">#8E939E</Color>
 
       <Style TargetType="{x:Type Window}">
-        <Setter Property="Background" Value="#0B0F14" />
-        <Setter Property="Foreground" Value="#E7EDF5" />
+        <Setter Property="Background" Value="#18191B" />
+        <Setter Property="Foreground" Value="#EEF1F7" />
         <Setter Property="FontFamily" Value="Segoe UI" />
         <Setter Property="FontSize" Value="14" />
       </Style>
@@ -25,9 +25,9 @@
       <!-- ═══════════════════════════════════════════════════════════════ -->
       <Style TargetType="{x:Type ScrollBar}">
         <!-- Track background: barely-visible dark trough -->
-        <Setter Property="Background" Value="#111822" />
-        <!-- Thumb fill: muted steel-blue that fits #1A2637–#35506B range -->
-        <Setter Property="Foreground" Value="#2E4A6A" />
+        <Setter Property="Background" Value="#1D1F22" />
+        <!-- Thumb fill: neutral gray matching #2B2D31 border palette -->
+        <Setter Property="Foreground" Value="#2B2D31" />
         <!-- No border on track or thumb -->
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
@@ -84,8 +84,8 @@
           </Trigger>
           <Trigger Property="IsSelected" Value="True">
             <Setter Property="Background" Value="{StaticResource DesignerPopupItemSelectedBackground}" />
-            <Setter Property="BorderBrush" Value="#2D5D8D" />
-            <Setter Property="Foreground" Value="#F0F7FF" />
+            <Setter Property="BorderBrush" Value="#4A4D54" />
+            <Setter Property="Foreground" Value="#EEF1F7" />
           </Trigger>
         </Style.Triggers>
       </Style>

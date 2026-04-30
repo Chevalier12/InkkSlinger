@@ -35,12 +35,31 @@ public static class VisualTreeHelper
             hasAncestorTransformToRoot: false,
             rootToAncestorInverse: Matrix.Identity,
             hasRootToAncestorInverse: false,
-                hasClipInAncestry: false,
-                acceptancePredicate: null);
+            hasClipInAncestry: false,
+            excludeDisabledElements: true,
+            acceptancePredicate: null);
     }
 
-            public static UIElement? HitTest(UIElement root, Vector2 position, Func<UIElement, bool> acceptancePredicate)
-            {
+    public static UIElement? HitTestIncludingDisabled(UIElement root, Vector2 position)
+    {
+        return HitTestCore(
+            root,
+            position,
+            0f,
+            0f,
+            collector: null,
+            depth: 0,
+            ancestorTransformToRoot: Matrix.Identity,
+            hasAncestorTransformToRoot: false,
+            rootToAncestorInverse: Matrix.Identity,
+            hasRootToAncestorInverse: false,
+            hasClipInAncestry: false,
+            excludeDisabledElements: false,
+            acceptancePredicate: null);
+    }
+
+    public static UIElement? HitTest(UIElement root, Vector2 position, Func<UIElement, bool> acceptancePredicate)
+    {
             return HitTestCore(
                 root,
                 position,
@@ -53,6 +72,7 @@ public static class VisualTreeHelper
                 rootToAncestorInverse: Matrix.Identity,
                 hasRootToAncestorInverse: false,
                 hasClipInAncestry: false,
+                excludeDisabledElements: true,
                 acceptancePredicate);
     }
 
@@ -72,6 +92,30 @@ public static class VisualTreeHelper
             rootToAncestorInverse: Matrix.Identity,
             hasRootToAncestorInverse: false,
             hasClipInAncestry: false,
+            excludeDisabledElements: true,
+            acceptancePredicate: null);
+        var totalMs = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+        metrics = collector.ToMetrics(totalMs);
+        return hit;
+    }
+
+    public static UIElement? HitTestIncludingDisabled(UIElement root, Vector2 position, out HitTestMetrics metrics)
+    {
+        var collector = new HitTestMetricsCollector();
+        var hitTestStart = Stopwatch.GetTimestamp();
+        var hit = HitTestCore(
+            root,
+            position,
+            0f,
+            0f,
+            collector,
+            depth: 0,
+            ancestorTransformToRoot: Matrix.Identity,
+            hasAncestorTransformToRoot: false,
+            rootToAncestorInverse: Matrix.Identity,
+            hasRootToAncestorInverse: false,
+            hasClipInAncestry: false,
+            excludeDisabledElements: false,
             acceptancePredicate: null);
         var totalMs = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
         metrics = collector.ToMetrics(totalMs);
@@ -94,6 +138,7 @@ public static class VisualTreeHelper
             rootToAncestorInverse: Matrix.Identity,
             hasRootToAncestorInverse: false,
             hasClipInAncestry: false,
+            excludeDisabledElements: true,
             acceptancePredicate);
         var totalMs = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
         metrics = collector.ToMetrics(totalMs);
@@ -112,6 +157,7 @@ public static class VisualTreeHelper
         Matrix rootToAncestorInverse,
         bool hasRootToAncestorInverse,
         bool hasClipInAncestry,
+        bool excludeDisabledElements,
         Func<UIElement, bool>? acceptancePredicate)
     {
         var nodeStart = collector?.StartNode(root, depth) ?? 0L;
@@ -143,7 +189,7 @@ public static class VisualTreeHelper
                 hasNextAncestorTransformToRoot = true;
             }
 
-            if (!root.IsVisible || !root.IsEnabled || !root.IsHitTestVisible)
+            if (!root.IsVisible || (excludeDisabledElements && !root.IsEnabled) || !root.IsHitTestVisible)
             {
                 collector?.RecordReject("HiddenOrDisabled");
                 _visibilityRejectCount++;
@@ -172,7 +218,7 @@ public static class VisualTreeHelper
                 {
                     _simpleSlotHitCount++;
                     collector?.RecordTraversal("SimpleSlotBounds");
-                    isWithinSelfBounds = FastBoundsHit(frameworkElement, position, accumulatedHorizontalOffset, accumulatedVerticalOffset);
+                    isWithinSelfBounds = FastBoundsHit(frameworkElement, position, accumulatedHorizontalOffset, accumulatedVerticalOffset, excludeDisabledElements);
                 }
                 else
                 {
@@ -202,7 +248,7 @@ public static class VisualTreeHelper
                     return null;
                 }
             }
-            else if (!(isWithinSelfBounds = root.HitTest(position)))
+            else if (!(isWithinSelfBounds = excludeDisabledElements ? root.HitTest(position) : root.HitTestIncludingDisabled(position)))
             {
                 collector?.RecordReject("LeafHitTestMiss");
                 return null;
@@ -231,6 +277,7 @@ public static class VisualTreeHelper
                         currentRootToThisInverse,
                         hasCurrentRootToThisInverse,
                         hasClipInChain,
+                        excludeDisabledElements,
                         out var indexedHit))
                 {
                     return indexedHit;
@@ -252,6 +299,7 @@ public static class VisualTreeHelper
                             currentRootToThisInverse,
                             hasCurrentRootToThisInverse,
                             hasClipInChain,
+                            excludeDisabledElements,
                             collector))
                     {
                         continue;
@@ -269,6 +317,7 @@ public static class VisualTreeHelper
                         currentRootToThisInverse,
                         hasCurrentRootToThisInverse,
                         hasClipInChain,
+                        excludeDisabledElements,
                         acceptancePredicate);
                     if (hit != null)
                     {
@@ -338,6 +387,7 @@ public static class VisualTreeHelper
                     currentRootToThisInverse,
                     hasCurrentRootToThisInverse,
                     hasClipInChain,
+                    excludeDisabledElements,
                     acceptancePredicate);
                 if (hit != null)
                 {
@@ -379,6 +429,7 @@ public static class VisualTreeHelper
                                 currentRootToThisInverse,
                                 hasCurrentRootToThisInverse,
                                 hasClipInChain,
+                                excludeDisabledElements,
                                 acceptancePredicate);
                             if (hit != null)
                             {
@@ -421,6 +472,7 @@ public static class VisualTreeHelper
                                 currentRootToThisInverse,
                                 hasCurrentRootToThisInverse,
                                 hasClipInChain,
+                                excludeDisabledElements,
                                 acceptancePredicate);
                             if (hit != null)
                             {
@@ -457,6 +509,7 @@ public static class VisualTreeHelper
                         currentRootToThisInverse,
                         hasCurrentRootToThisInverse,
                         hasClipInChain,
+                        excludeDisabledElements,
                         acceptancePredicate);
                     if (hit != null)
                     {
@@ -480,6 +533,7 @@ public static class VisualTreeHelper
                         currentRootToThisInverse,
                         hasCurrentRootToThisInverse,
                         hasClipInChain,
+                        excludeDisabledElements,
                         acceptancePredicate);
                     if (hit != null)
                     {
@@ -537,6 +591,7 @@ public static class VisualTreeHelper
                                     currentRootToThisInverse,
                                     hasCurrentRootToThisInverse,
                                     hasClipInChain,
+                                    excludeDisabledElements,
                                     collector))
                             {
                                 continue;
@@ -554,6 +609,7 @@ public static class VisualTreeHelper
                                 currentRootToThisInverse,
                                 hasCurrentRootToThisInverse,
                                 hasClipInChain,
+                                excludeDisabledElements,
                                 acceptancePredicate);
                             if (hit != null)
                             {
@@ -585,6 +641,7 @@ public static class VisualTreeHelper
                             currentRootToThisInverse,
                             hasCurrentRootToThisInverse,
                             hasClipInChain,
+                            excludeDisabledElements,
                             collector))
                     {
                         continue;
@@ -602,6 +659,7 @@ public static class VisualTreeHelper
                         currentRootToThisInverse,
                         hasCurrentRootToThisInverse,
                         hasClipInChain,
+                        excludeDisabledElements,
                         acceptancePredicate);
                     if (hit != null)
                     {
@@ -651,6 +709,7 @@ public static class VisualTreeHelper
                             currentRootToThisInverse,
                             hasCurrentRootToThisInverse,
                             hasClipInChain,
+                            excludeDisabledElements,
                             acceptancePredicate);
                         if (hit != null)
                         {
@@ -677,6 +736,7 @@ public static class VisualTreeHelper
                             currentRootToThisInverse,
                             hasCurrentRootToThisInverse,
                             hasClipInChain,
+                            excludeDisabledElements,
                             collector))
                     {
                         continue;
@@ -694,6 +754,7 @@ public static class VisualTreeHelper
                         currentRootToThisInverse,
                         hasCurrentRootToThisInverse,
                         hasClipInChain,
+                        excludeDisabledElements,
                         acceptancePredicate);
                     if (hit != null)
                     {
@@ -727,6 +788,7 @@ public static class VisualTreeHelper
         Matrix rootToAncestorInverse,
         bool hasRootToAncestorInverse,
         bool hasClipInAncestry,
+        bool excludeDisabledElements,
         out UIElement? hit)
     {
         hit = null;
@@ -788,6 +850,7 @@ public static class VisualTreeHelper
             rootToAncestorInverse,
             hasRootToAncestorInverse,
             hasClipInAncestry,
+            excludeDisabledElements,
             acceptancePredicate: null);
         if (hit != null)
         {
@@ -820,6 +883,7 @@ public static class VisualTreeHelper
                         rootToAncestorInverse,
                         hasRootToAncestorInverse,
                         hasClipInAncestry,
+                        excludeDisabledElements,
                         acceptancePredicate: null);
                     if (hit != null)
                     {
@@ -854,6 +918,7 @@ public static class VisualTreeHelper
                         rootToAncestorInverse,
                         hasRootToAncestorInverse,
                         hasClipInAncestry,
+                        excludeDisabledElements,
                         acceptancePredicate: null);
                     if (hit != null)
                     {
@@ -890,9 +955,10 @@ public static class VisualTreeHelper
         Matrix rootToAncestorInverse,
         bool hasRootToAncestorInverse,
         bool hasClipInAncestry,
+        bool excludeDisabledElements,
         HitTestMetricsCollector? collector)
     {
-        if (!child.IsVisible || !child.IsEnabled || !child.IsHitTestVisible)
+        if (!child.IsVisible || (excludeDisabledElements && !child.IsEnabled) || !child.IsHitTestVisible)
         {
             collector?.RecordReject("ChildHiddenOrDisabled");
             return false;
@@ -934,7 +1000,7 @@ public static class VisualTreeHelper
 
         var canUseSimpleSlotHit = !hasTransformInChain && !hasClipInChain;
         var isWithinChildBounds = canUseSimpleSlotHit
-            ? FastBoundsHit(frameworkChild, position, childHorizontalOffset, childVerticalOffset)
+            ? FastBoundsHit(frameworkChild, position, childHorizontalOffset, childVerticalOffset, excludeDisabledElements)
             : ContainsPoint(
                 hasLocalTransform && hasAncestorTransformToRoot
                     ? TransformRect(frameworkChild.LayoutSlot, localTransform * ancestorTransformToRoot)
@@ -1375,9 +1441,10 @@ public static class VisualTreeHelper
         FrameworkElement element,
         Vector2 pointerPosition,
         float accumulatedHorizontalOffset,
-        float accumulatedVerticalOffset)
+        float accumulatedVerticalOffset,
+        bool excludeDisabledElements)
     {
-        if (!element.IsVisible || !element.IsEnabled || !element.IsHitTestVisible)
+        if (!element.IsVisible || (excludeDisabledElements && !element.IsEnabled) || !element.IsHitTestVisible)
         {
             return false;
         }

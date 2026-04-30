@@ -1959,24 +1959,31 @@ public class ScrollViewer : ContentControl
         WriteOffsetProperties(nextHorizontal, nextVertical);
         ViewportChanged?.Invoke(this, EventArgs.Empty);
 
-        var isViewerOwnedVirtualizingScroll = ContentElement is VirtualizingStackPanel;
-        if (isViewerOwnedVirtualizingScroll)
-        {
-            InvalidateVisual();
-        }
-
         if (!NeedsMeasure &&
             !NeedsArrange)
         {
             if (ContentElement is VirtualizingStackPanel virtualizingStackPanel)
             {
-                if (virtualizingStackPanel.TryHandleViewerOwnedOffsetChange(beforeHorizontal, nextHorizontal, beforeVertical, nextVertical, out var requiresMeasure))
+                if (virtualizingStackPanel.TryHandleViewerOwnedOffsetChange(
+                        beforeHorizontal,
+                        nextHorizontal,
+                        beforeVertical,
+                        nextVertical,
+                        out var requiresMeasure,
+                        out var visualOnly))
                 {
                     SyncViewerOwnedVirtualizingScrollMetrics(virtualizingStackPanel);
                     _diagSetOffsetsVirtualizingArrangeOnlyPathCount++;
                     _runtimeSetOffsetsVirtualizingArrangeOnlyPathCount++;
-                    virtualizingStackPanel.InvalidateArrange();
-                    InvalidateArrange();
+                    if (visualOnly)
+                    {
+                        UiRoot.Current?.NotifyDirectRenderInvalidation(virtualizingStackPanel);
+                    }
+                    else if (!virtualizingStackPanel.TryArrangeForViewerOwnedOffset(nextHorizontal, nextVertical))
+                    {
+                        virtualizingStackPanel.InvalidateArrange();
+                        InvalidateArrange();
+                    }
                 }
                 else if (requiresMeasure)
                 {
@@ -1989,8 +1996,11 @@ public class ScrollViewer : ContentControl
                     SyncViewerOwnedVirtualizingScrollMetrics(virtualizingStackPanel);
                     _diagSetOffsetsVirtualizingArrangeOnlyPathCount++;
                     _runtimeSetOffsetsVirtualizingArrangeOnlyPathCount++;
-                    virtualizingStackPanel.InvalidateArrange();
-                    InvalidateArrange();
+                    if (!virtualizingStackPanel.TryArrangeForViewerOwnedOffset(nextHorizontal, nextVertical))
+                    {
+                        virtualizingStackPanel.InvalidateArrange();
+                        InvalidateArrange();
+                    }
                 }
             }
             else if (UsesTransformBasedContentScrolling())

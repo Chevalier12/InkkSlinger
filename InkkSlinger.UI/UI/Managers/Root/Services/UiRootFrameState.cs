@@ -492,7 +492,7 @@ public sealed partial class UiRoot
 
     private static bool IsTransformScrollRetainedSyncCandidate(UIElement element)
     {
-        return element is IScrollTransformContent;
+        return element is IScrollTransformContent or VirtualizingStackPanel;
     }
 
     private static UIElement? FindEscapingRenderClipAncestor(UIElement source)

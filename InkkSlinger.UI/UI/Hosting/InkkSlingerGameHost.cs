@@ -45,6 +45,7 @@ public class InkkSlingerGameHost : Game
         Content.RootDirectory = "Content";
         _window.IsMouseVisible = _options.IsMouseVisible;
         _window.AllowUserResizing = _options.AllowUserResizing;
+        _window.IsBorderless = _options.IsBorderless;
         _window.SetClientSize(_options.InitialWindowWidth, _options.InitialWindowHeight);
         _window.Title = _options.WindowTitle;
         UiApplication.Current.AttachMainWindow(
@@ -102,6 +103,7 @@ public class InkkSlingerGameHost : Game
 
     protected override void Update(GameTime gameTime)
     {
+        _window.EnsureNativeChromeState();
         EnsureBackBufferMatchesClientSize();
         var viewport = EnsureViewportMatchesBackBuffer();
 

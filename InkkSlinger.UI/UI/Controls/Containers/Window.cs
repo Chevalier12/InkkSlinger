@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -14,6 +15,8 @@ internal interface IWindowNativeAdapter
     bool AllowUserResizing { get; set; }
 
     bool IsBorderless { get; set; }
+
+    void EnsureBorderlessChromeStyle(bool isBorderless);
 
     Point Position { get; set; }
 
@@ -51,7 +54,11 @@ internal sealed class GameWindowNativeAdapter : IWindowNativeAdapter
     public string Title
     {
         get => _window.Title;
-        set => _window.Title = value ?? string.Empty;
+        set
+        {
+            _window.Title = value ?? string.Empty;
+            EnsureBorderlessChromeStyle(_window.IsBorderless);
+        }
     }
 
     public bool AllowUserResizing
@@ -63,7 +70,23 @@ internal sealed class GameWindowNativeAdapter : IWindowNativeAdapter
     public bool IsBorderless
     {
         get => _window.IsBorderless;
-        set => _window.IsBorderless = value;
+        set
+        {
+            _window.IsBorderless = value;
+            EnsureBorderlessChromeStyle(value);
+        }
+    }
+
+    public void EnsureBorderlessChromeStyle(bool isBorderless)
+    {
+        if (!OperatingSystem.IsWindows() || _window.Handle == IntPtr.Zero || !isBorderless)
+        {
+            return;
+        }
+
+        Window.EnsureSdlWindowBorderless(_window.Handle);
+        var hwnd = Window.ResolveWin32WindowHandle(_window.Handle);
+        Window.EnsureWin32BorderlessChrome(hwnd);
     }
 
     public Point Position
@@ -117,6 +140,9 @@ public sealed class Window : DependencyObject, IDisposable
     private const int SmCySizeFrame = 33;
     private const int SmCyCaption = 4;
     private const int SmCxPaddedBorder = 92;
+    private const int SwMinimize = 6;
+    private const int WmNclButtonDown = 0x00A1;
+    private const int HtCaption = 2;
 
     public static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
@@ -180,6 +206,10 @@ public sealed class Window : DependencyObject, IDisposable
     private readonly IWindowGraphicsAdapter _graphics;
     private Style? _activeImplicitStyle;
     private bool _isApplyingImplicitStyle;
+    private bool _requestedIsBorderless;
+    private Point _preMaximizePosition;
+    private Point _preMaximizeSize;
+    private bool _isMaximized;
     private bool _disposed;
 
     public Window(Game game, GraphicsDeviceManager graphics)
@@ -203,6 +233,7 @@ public sealed class Window : DependencyObject, IDisposable
         _game = game;
         _nativeWindow = nativeWindow;
         _graphics = graphics;
+        _requestedIsBorderless = _nativeWindow.IsBorderless;
         _nativeWindow.ClientSizeChanged += OnClientSizeChanged;
         UiApplication.Current.Resources.Changed += OnApplicationResourcesChanged;
         UpdateImplicitStyle();
@@ -226,7 +257,11 @@ public sealed class Window : DependencyObject, IDisposable
     public string Title
     {
         get => _nativeWindow.Title;
-        set => _nativeWindow.Title = value ?? string.Empty;
+        set
+        {
+            _nativeWindow.Title = value ?? string.Empty;
+            EnsureNativeChromeState();
+        }
     }
 
     public bool AllowUserResizing
@@ -237,8 +272,13 @@ public sealed class Window : DependencyObject, IDisposable
 
     public bool IsBorderless
     {
-        get => _nativeWindow.IsBorderless;
-        set => _nativeWindow.IsBorderless = value;
+        get => _requestedIsBorderless;
+        set
+        {
+            _requestedIsBorderless = value;
+            _nativeWindow.IsBorderless = value;
+            EnsureNativeChromeState();
+        }
     }
 
     public Point Position
@@ -282,6 +322,8 @@ public sealed class Window : DependencyObject, IDisposable
         get => _graphics.IsFullScreen;
         set => SetFullScreen(value);
     }
+
+    public bool IsMaximized => _isMaximized;
 
     public bool IsMouseVisible
     {
@@ -357,6 +399,7 @@ public sealed class Window : DependencyObject, IDisposable
         if (applyChanges)
         {
             _graphics.ApplyChanges();
+            EnsureNativeChromeState();
         }
     }
 
@@ -366,6 +409,7 @@ public sealed class Window : DependencyObject, IDisposable
         if (applyChanges)
         {
             _graphics.ApplyChanges();
+            EnsureNativeChromeState();
         }
     }
 
@@ -375,6 +419,7 @@ public sealed class Window : DependencyObject, IDisposable
         if (applyChanges)
         {
             _graphics.ApplyChanges();
+            EnsureNativeChromeState();
         }
     }
 
@@ -394,6 +439,15 @@ public sealed class Window : DependencyObject, IDisposable
             throw new PlatformNotSupportedException("Window maximization is currently only implemented on Windows.");
         }
 
+        if (_isMaximized)
+        {
+            Restore();
+            return;
+        }
+
+        _preMaximizePosition = Position;
+        _preMaximizeSize = ClientSize;
+
         var clientSize = ClientSize;
         var centerPoint = new NativeMethods.POINT
         {
@@ -404,12 +458,16 @@ public sealed class Window : DependencyObject, IDisposable
         var monitor = NativeMethods.MonitorFromPoint(centerPoint, MonitorDefaultToNearest);
         if (monitor == IntPtr.Zero)
         {
+            _preMaximizePosition = default;
+            _preMaximizeSize = default;
             throw new InvalidOperationException("Unable to resolve the target monitor for window maximization.");
         }
 
         var monitorInfo = NativeMethods.MONITORINFO.Create();
         if (!NativeMethods.GetMonitorInfo(monitor, ref monitorInfo))
         {
+            _preMaximizePosition = default;
+            _preMaximizeSize = default;
             throw new InvalidOperationException("Unable to read monitor bounds for window maximization.");
         }
 
@@ -418,6 +476,8 @@ public sealed class Window : DependencyObject, IDisposable
         var height = workArea.Bottom - workArea.Top;
         if (width <= 0 || height <= 0)
         {
+            _preMaximizePosition = default;
+            _preMaximizeSize = default;
             throw new InvalidOperationException("Monitor work area reported an invalid size for window maximization.");
         }
 
@@ -437,17 +497,163 @@ public sealed class Window : DependencyObject, IDisposable
         var clientHeight = Math.Max(1, height - verticalChrome);
         if (clientWidth <= 0 || clientHeight <= 0)
         {
+            _preMaximizePosition = default;
+            _preMaximizeSize = default;
             throw new InvalidOperationException("Native window maximization produced an invalid client size.");
         }
 
         Position = new Point(workArea.Left, workArea.Top);
         SetClientSize(clientWidth, clientHeight, applyChanges: true);
         Position = new Point(workArea.Left, workArea.Top);
+        _isMaximized = true;
+    }
+
+    public void Restore()
+    {
+        if (!_isMaximized)
+        {
+            return;
+        }
+
+        Position = _preMaximizePosition;
+        SetClientSize(_preMaximizeSize.X, _preMaximizeSize.Y, applyChanges: true);
+        _isMaximized = false;
+        _preMaximizePosition = default;
+        _preMaximizeSize = default;
+    }
+
+    public void Minimize()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("Window minimization is currently only implemented on Windows.");
+        }
+
+        var hwnd = ResolveWin32WindowHandle(Handle);
+        if (hwnd == IntPtr.Zero)
+        {
+            throw new InvalidOperationException("Native window handle is unavailable for minimization.");
+        }
+
+        NativeMethods.ShowWindow(hwnd, SwMinimize);
+    }
+
+    public void BeginDragMove()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("Window drag move is currently only implemented on Windows.");
+        }
+
+        var hwnd = ResolveWin32WindowHandle(Handle);
+        if (hwnd == IntPtr.Zero)
+        {
+            throw new InvalidOperationException("Native window handle is unavailable for drag move.");
+        }
+
+        NativeMethods.ReleaseCapture();
+        NativeMethods.GetCursorPos(out var cursorPosition);
+        NativeMethods.SendMessage(hwnd, WmNclButtonDown, new IntPtr(HtCaption), PackLParam(cursorPosition.X, cursorPosition.Y));
+    }
+
+    private static IntPtr PackLParam(int lowWord, int highWord)
+    {
+        return new IntPtr((highWord << 16) | (lowWord & 0xFFFF));
     }
 
     public void ApplyChanges()
     {
         _graphics.ApplyChanges();
+        EnsureNativeChromeState();
+    }
+
+    public void EnsureNativeChromeState()
+    {
+        if (_nativeWindow.IsBorderless != _requestedIsBorderless)
+        {
+            _nativeWindow.IsBorderless = _requestedIsBorderless;
+        }
+
+        _nativeWindow.EnsureBorderlessChromeStyle(_requestedIsBorderless);
+    }
+
+    internal static void EnsureWin32BorderlessChrome(IntPtr handle)
+    {
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var style = NativeMethods.GetWindowLongPtr(handle, NativeMethods.GwlStyle);
+        if (style == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var styleValue = style.ToInt64();
+        var borderlessStyleValue = styleValue & ~NativeMethods.BorderlessChromeStyleMask;
+        var exStyle = NativeMethods.GetWindowLongPtr(handle, NativeMethods.GwlExStyle);
+        var exStyleValue = exStyle.ToInt64();
+        var borderlessExStyleValue = exStyleValue & ~NativeMethods.BorderlessChromeExStyleMask;
+        if (borderlessStyleValue == styleValue && borderlessExStyleValue == exStyleValue)
+        {
+            NativeMethods.EnsureBorderlessWindowSubclass(handle);
+            return;
+        }
+
+        if (borderlessStyleValue != styleValue)
+        {
+            _ = NativeMethods.SetWindowLongPtr(handle, NativeMethods.GwlStyle, new IntPtr(borderlessStyleValue));
+        }
+
+        if (borderlessExStyleValue != exStyleValue)
+        {
+            _ = NativeMethods.SetWindowLongPtr(handle, NativeMethods.GwlExStyle, new IntPtr(borderlessExStyleValue));
+        }
+
+        _ = NativeMethods.SetWindowPos(
+            handle,
+            IntPtr.Zero,
+            0,
+            0,
+            0,
+            0,
+            NativeMethods.SwpNoMove |
+            NativeMethods.SwpNoSize |
+            NativeMethods.SwpNoZOrder |
+            NativeMethods.SwpNoActivate |
+            NativeMethods.SwpFrameChanged);
+            NativeMethods.EnsureBorderlessWindowSubclass(handle);
+    }
+
+    internal static IntPtr ResolveWin32WindowHandle(IntPtr nativeHandle)
+    {
+        if (!OperatingSystem.IsWindows() || nativeHandle == IntPtr.Zero)
+        {
+            return nativeHandle;
+        }
+
+        if (NativeMethods.TryGetSdlWindowWin32Handle(nativeHandle, out var hwnd) && hwnd != IntPtr.Zero)
+        {
+            return hwnd;
+        }
+
+        if (NativeMethods.TryFindCurrentProcessSdlWindow(out hwnd) && hwnd != IntPtr.Zero)
+        {
+            return hwnd;
+        }
+
+        return nativeHandle;
+    }
+
+    internal static void EnsureSdlWindowBorderless(IntPtr nativeHandle)
+    {
+        if (!OperatingSystem.IsWindows() || nativeHandle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        NativeMethods.TrySetSdlWindowBordered(nativeHandle, bordered: false);
     }
 
     public void Dispose()
@@ -549,6 +755,25 @@ public sealed class Window : DependencyObject, IDisposable
 
     private static class NativeMethods
     {
+        private static readonly object BorderlessSubclassLock = new();
+        private static readonly Dictionary<IntPtr, BorderlessSubclassState> BorderlessSubclasses = new();
+
+        public const int GwlStyle = -16;
+        public const int GwlExStyle = -20;
+        public const int GwlWndProc = -4;
+        public const uint SwpNoSize = 0x0001;
+        public const uint SwpNoMove = 0x0002;
+        public const uint SwpNoZOrder = 0x0004;
+        public const uint SwpNoActivate = 0x0010;
+        public const uint SwpFrameChanged = 0x0020;
+        public const long BorderlessChromeStyleMask = 0x00C00000L | 0x00040000L;
+        public const long BorderlessChromeExStyleMask = 0x00000001L | 0x00000200L | 0x00010000L;
+        public const int WmNcCalcSize = 0x0083;
+        public const int WmNcActivate = 0x0086;
+        public const int WmNcPaint = 0x0085;
+        public const int WmActivateApp = 0x001C;
+        public const int WmWindowPosChanged = 0x0047;
+
         [DllImport("user32.dll")]
         public static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
 
@@ -558,6 +783,282 @@ public sealed class Window : DependencyObject, IDisposable
 
         [DllImport("user32.dll", SetLastError = true)]
         public static extern int GetSystemMetrics(int nIndex);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool ReleaseCapture();
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetCursorPos(out POINT lpPoint);
+
+        [DllImport("kernel32.dll")]
+        public static extern uint GetCurrentProcessId();
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern int GetClassName(IntPtr hWnd, char[] lpClassName, int nMaxCount);
+
+        [DllImport("SDL2.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "SDL_GetVersion")]
+        private static extern void SdlGetVersion(out SDL_VERSION version);
+
+        [DllImport("SDL2.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "SDL_GetWindowWMInfo")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SdlGetWindowWMInfo(IntPtr window, ref SDL_SYS_WM_INFO info);
+
+        [DllImport("SDL2.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "SDL_SetWindowBordered")]
+        private static extern void SdlSetWindowBordered(IntPtr window, int bordered);
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
+        private static extern int GetWindowLong32(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+        private static extern IntPtr GetWindowLongPtr64(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongW", SetLastError = true)]
+        private static extern int SetWindowLong32(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+        private static extern IntPtr SetWindowLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetWindowPos(
+            IntPtr hWnd,
+            IntPtr hWndInsertAfter,
+            int x,
+            int y,
+            int cx,
+            int cy,
+            uint uFlags);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        public static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+        public static IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex)
+        {
+            if (IntPtr.Size == 8)
+            {
+                return GetWindowLongPtr64(hWnd, nIndex);
+            }
+
+            return new IntPtr(GetWindowLong32(hWnd, nIndex));
+        }
+
+        public static IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong)
+        {
+            if (IntPtr.Size == 8)
+            {
+                return SetWindowLongPtr64(hWnd, nIndex, dwNewLong);
+            }
+
+            return new IntPtr(SetWindowLong32(hWnd, nIndex, dwNewLong.ToInt32()));
+        }
+
+        public static void EnsureBorderlessWindowSubclass(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            lock (BorderlessSubclassLock)
+            {
+                if (BorderlessSubclasses.ContainsKey(hwnd))
+                {
+                    return;
+                }
+
+                WndProc wndProc = BorderlessWindowProc;
+                var oldWndProc = SetWindowLongPtr(hwnd, GwlWndProc, Marshal.GetFunctionPointerForDelegate(wndProc));
+                if (oldWndProc == IntPtr.Zero)
+                {
+                    return;
+                }
+
+                BorderlessSubclasses[hwnd] = new BorderlessSubclassState(oldWndProc, wndProc);
+            }
+        }
+
+        private static IntPtr BorderlessWindowProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam)
+        {
+            if (msg is WmNcCalcSize or WmNcActivate or WmNcPaint or WmActivateApp or WmWindowPosChanged)
+            {
+                ApplyBorderlessChromeStyle(hwnd);
+            }
+
+            return msg switch
+            {
+                WmNcCalcSize => IntPtr.Zero,
+                WmNcActivate => new IntPtr(1),
+                WmNcPaint => IntPtr.Zero,
+                _ => CallPreviousWindowProc(hwnd, msg, wParam, lParam)
+            };
+        }
+
+        private static void ApplyBorderlessChromeStyle(IntPtr hwnd)
+        {
+            var style = GetWindowLongPtr(hwnd, GwlStyle).ToInt64();
+            var borderlessStyle = style & ~BorderlessChromeStyleMask;
+            if (borderlessStyle != style)
+            {
+                _ = SetWindowLongPtr(hwnd, GwlStyle, new IntPtr(borderlessStyle));
+            }
+
+            var exStyle = GetWindowLongPtr(hwnd, GwlExStyle).ToInt64();
+            var borderlessExStyle = exStyle & ~BorderlessChromeExStyleMask;
+            if (borderlessExStyle != exStyle)
+            {
+                _ = SetWindowLongPtr(hwnd, GwlExStyle, new IntPtr(borderlessExStyle));
+            }
+        }
+
+        private static IntPtr CallPreviousWindowProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam)
+        {
+            lock (BorderlessSubclassLock)
+            {
+                if (BorderlessSubclasses.TryGetValue(hwnd, out var state))
+                {
+                    return CallWindowProc(state.OldWndProc, hwnd, msg, wParam, lParam);
+                }
+            }
+
+            return IntPtr.Zero;
+        }
+
+        public delegate IntPtr WndProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+        private sealed record BorderlessSubclassState(IntPtr OldWndProc, WndProc WndProc);
+
+        public static bool TryGetSdlWindowWin32Handle(IntPtr sdlWindow, out IntPtr hwnd)
+        {
+            hwnd = IntPtr.Zero;
+            if (sdlWindow == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            try
+            {
+                SdlGetVersion(out var version);
+                var info = new SDL_SYS_WM_INFO
+                {
+                    Version = version
+                };
+                if (!SdlGetWindowWMInfo(sdlWindow, ref info) || info.Subsystem != SDL_SYS_WM_TYPE.Windows)
+                {
+                    return false;
+                }
+
+                hwnd = info.Window;
+                return hwnd != IntPtr.Zero;
+            }
+            catch (DllNotFoundException)
+            {
+                return false;
+            }
+            catch (EntryPointNotFoundException)
+            {
+                return false;
+            }
+        }
+
+        public static void TrySetSdlWindowBordered(IntPtr sdlWindow, bool bordered)
+        {
+            if (sdlWindow == IntPtr.Zero)
+            {
+                return;
+            }
+
+            try
+            {
+                SdlSetWindowBordered(sdlWindow, bordered ? 1 : 0);
+            }
+            catch (DllNotFoundException)
+            {
+            }
+            catch (EntryPointNotFoundException)
+            {
+            }
+        }
+
+        public static bool TryFindCurrentProcessSdlWindow(out IntPtr hwnd)
+        {
+            var finder = new CurrentProcessWindowFinder(GetCurrentProcessId());
+            EnumWindows(finder.Visit, IntPtr.Zero);
+            hwnd = finder.BestHandle;
+            return hwnd != IntPtr.Zero;
+        }
+
+        public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        private sealed class CurrentProcessWindowFinder
+        {
+            private readonly uint _processId;
+            private int _bestArea;
+
+            public CurrentProcessWindowFinder(uint processId)
+            {
+                _processId = processId;
+            }
+
+            public IntPtr BestHandle { get; private set; }
+
+            public bool Visit(IntPtr hwnd, IntPtr lParam)
+            {
+                _ = lParam;
+                if (hwnd == IntPtr.Zero || GetWindowThreadProcessId(hwnd, out var processId) == 0 || processId != _processId)
+                {
+                    return true;
+                }
+
+                if (!GetWindowRect(hwnd, out var rect))
+                {
+                    return true;
+                }
+
+                var width = rect.Right - rect.Left;
+                var height = rect.Bottom - rect.Top;
+                if (width <= 0 || height <= 0)
+                {
+                    return true;
+                }
+
+                var className = GetWindowClassName(hwnd);
+                var area = width * height;
+                if (string.Equals(className, "SDL_app", StringComparison.Ordinal) || area > _bestArea)
+                {
+                    BestHandle = hwnd;
+                    _bestArea = area;
+                }
+
+                return !string.Equals(className, "SDL_app", StringComparison.Ordinal);
+            }
+
+            private static string GetWindowClassName(IntPtr hwnd)
+            {
+                var buffer = new char[256];
+                var length = GetClassName(hwnd, buffer, buffer.Length);
+                return length <= 0 ? string.Empty : new string(buffer, 0, length);
+            }
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct POINT
@@ -590,6 +1091,43 @@ public sealed class Window : DependencyObject, IDisposable
                     cbSize = Marshal.SizeOf<MONITORINFO>()
                 };
             }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SDL_VERSION
+        {
+            public byte Major;
+            public byte Minor;
+            public byte Patch;
+        }
+
+        public enum SDL_SYS_WM_TYPE
+        {
+            Unknown,
+            Windows,
+            X11,
+            Directfb,
+            Cocoa,
+            UiKit,
+            Wayland,
+            Mir,
+            WinRt,
+            Android,
+            Vivante,
+            Os2,
+            Haiku,
+            KmsDrm,
+            RiscOs
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SDL_SYS_WM_INFO
+        {
+            public SDL_VERSION Version;
+            public SDL_SYS_WM_TYPE Subsystem;
+            public IntPtr Window;
+            public IntPtr Hdc;
+            public IntPtr HInstance;
         }
     }
 }

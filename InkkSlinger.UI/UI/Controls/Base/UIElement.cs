@@ -639,7 +639,17 @@ public class UIElement : DependencyObject
 
     public virtual bool HitTest(Vector2 point)
     {
-        if (!IsVisible || !IsEnabled || !IsHitTestVisible)
+        return HitTestCore(point, excludeDisabledElements: true);
+    }
+
+    internal bool HitTestIncludingDisabled(Vector2 point)
+    {
+        return HitTestCore(point, excludeDisabledElements: false);
+    }
+
+    private bool HitTestCore(Vector2 point, bool excludeDisabledElements)
+    {
+        if (!IsVisible || (excludeDisabledElements && !IsEnabled) || !IsHitTestVisible)
         {
             return false;
         }

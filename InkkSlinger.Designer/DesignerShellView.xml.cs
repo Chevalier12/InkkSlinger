@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using InkkSlinger;
 using Microsoft.Xna.Framework.Input;
 
@@ -12,13 +13,23 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
     public DesignerShellView(
         DesignerDocumentController? documentController = null,
         DesignerDocumentWorkflowController? workflow = null,
-        Action? requestAppExit = null)
+        Action? requestAppExit = null,
+        DesignerProjectSession? projectSession = null,
+        Action? requestStartPage = null)
     {
         InitializeComponent();
         _requestAppExit = requestAppExit ?? DefaultRequestAppExit;
-        _viewModel = new DesignerShellViewModel(documentController: documentController, workflow: workflow);
+        _viewModel = new DesignerShellViewModel(documentController: documentController, workflow: workflow, projectSession: projectSession);
         DataContext = _viewModel;
         _viewModel.DeferredAppExitRequested += OnViewModelDeferredAppExitRequested;
+        if (requestStartPage != null)
+        {
+            _viewModel.BackToStartRequested += requestStartPage;
+        }
+
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ProjectExplorerTree.SelectedItemChanged += OnProjectExplorerSelectedItemChanged;
+        RebuildProjectExplorerTree();
         InputBindings.Add(new KeyBinding
         {
             Key = Keys.F5,
@@ -71,6 +82,79 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
     private void OnViewModelDeferredAppExitRequested()
     {
         _requestAppExit();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(DesignerShellViewModel.ProjectRootNode))
+        {
+            RebuildProjectExplorerTree();
+        }
+    }
+
+    private void OnProjectExplorerSelectedItemChanged(object? sender, RoutedSimpleEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        if (ProjectExplorerTree.SelectedItem is TreeViewItem { Tag: DesignerProjectNode node })
+        {
+            _viewModel.SelectProjectNode(node);
+        }
+    }
+
+    private void RebuildProjectExplorerTree()
+    {
+        var selectedPath = _viewModel.SelectedProjectNode?.FullPath;
+        ProjectExplorerTree.Items.Clear();
+        if (_viewModel.ProjectRootNode == null)
+        {
+            return;
+        }
+
+        var rootItem = BuildProjectExplorerTreeItem(_viewModel.ProjectRootNode);
+        ProjectExplorerTree.Items.Add(rootItem);
+        ProjectExplorerTree.SelectItem(FindProjectExplorerTreeItem(rootItem, selectedPath) ?? rootItem);
+    }
+
+    private static TreeViewItem BuildProjectExplorerTreeItem(DesignerProjectNode node)
+    {
+        var item = new TreeViewItem
+        {
+            Header = (node.IsFolder ? "[+] " : "    ") + node.Name,
+            IsExpanded = node.IsFolder,
+            Tag = node
+        };
+
+        foreach (var child in node.Children)
+        {
+            item.Items.Add(BuildProjectExplorerTreeItem(child));
+        }
+
+        return item;
+    }
+
+    private static TreeViewItem? FindProjectExplorerTreeItem(TreeViewItem item, string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        if (item.Tag is DesignerProjectNode node && string.Equals(node.FullPath, path, StringComparison.OrdinalIgnoreCase))
+        {
+            return item;
+        }
+
+        foreach (var child in item.GetChildTreeItems())
+        {
+            var match = FindProjectExplorerTreeItem(child, path);
+            if (match != null)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 
     private static void DefaultRequestAppExit()

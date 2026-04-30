@@ -56,10 +56,10 @@ public sealed class DesignerSourceLineNumberViewModel : INotifyPropertyChanged
 
 public sealed class DesignerVisualTreeNodeViewModel : INotifyPropertyChanged
 {
-    private static readonly Color DefaultForeground = new(216, 227, 238);
-    private static readonly Color SelectedForeground = new(231, 237, 245);
-    private static readonly Color SelectedBackground = new(16, 34, 54);
-    private static readonly Color SelectedBorderBrush = new(30, 74, 120);
+    private static readonly Color DefaultForeground = new(229, 231, 234);
+    private static readonly Color SelectedForeground = new(238, 241, 247);
+    private static readonly Color SelectedBackground = new(49, 81, 138);
+    private static readonly Color SelectedBorderBrush = new(74, 77, 84);
 
     private bool _isExpanded;
     private bool _isSelected;

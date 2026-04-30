@@ -571,16 +571,39 @@ internal static class UiDrawing
 
         var angle = System.MathF.Atan2(direction.Y, direction.X);
         var texture = GetSolidTexture(spriteBatch.GraphicsDevice);
-        spriteBatch.Draw(
-            texture,
-            transformedStart,
-            null,
-            color * opacity,
-            angle,
-            new Vector2(0f, 0.5f),
-            new Vector2(length, thickness),
-            SpriteEffects.None,
-            0f);
+
+        // Anti-aliased two-pass rendering: wide faint glow + crisp core
+        if (opacity > 0f)
+        {
+            // Outer glow pass (wider, lower alpha)
+            var glowAlpha = opacity * 0.25f;
+            if (glowAlpha > 0.001f)
+            {
+                var glowThickness = MathF.Min(thickness + 2f, thickness * 3f);
+                spriteBatch.Draw(
+                    texture,
+                    transformedStart,
+                    null,
+                    color * glowAlpha,
+                    angle,
+                    new Vector2(0f, 0.5f),
+                    new Vector2(length, glowThickness),
+                    SpriteEffects.None,
+                    0f);
+            }
+
+            // Core pass (exact thickness, full alpha)
+            spriteBatch.Draw(
+                texture,
+                transformedStart,
+                null,
+                color * opacity,
+                angle,
+                new Vector2(0f, 0.5f),
+                new Vector2(length, thickness),
+                SpriteEffects.None,
+                0f);
+        }
     }
 
     public static void DrawPolyline(
@@ -589,7 +612,8 @@ internal static class UiDrawing
         bool closed,
         float thickness,
         Color color,
-        float opacity = 1f)
+        float opacity = 1f,
+        StrokeLineJoin lineJoin = StrokeLineJoin.Round)
     {
         if (points.Count < 2 || thickness <= 0f || color.A == 0)
         {
@@ -605,6 +629,101 @@ internal static class UiDrawing
         {
             DrawLine(spriteBatch, points[^1], points[0], thickness, color, opacity);
         }
+
+        // Line joins at interior vertices
+        if (points.Count > 2)
+        {
+            var offset = thickness / 2f;
+            for (var i = 1; i < points.Count - 1; i++)
+            {
+                DrawLineJoin(spriteBatch, points[i - 1], points[i], points[i + 1], offset, color, opacity, lineJoin);
+            }
+
+            if (closed && points.Count > 2)
+            {
+                DrawLineJoin(spriteBatch, points[^1], points[0], points[1], offset, color, opacity, lineJoin);
+            }
+        }
+    }
+
+    private static void DrawLineJoin(
+        SpriteBatch spriteBatch,
+        Vector2 prev, Vector2 curr, Vector2 next,
+        float offset, Color color, float opacity,
+        StrokeLineJoin lineJoin)
+    {
+        var dIn = curr - prev;
+        var dOut = next - curr;
+        var dInLen = dIn.Length();
+        var dOutLen = dOut.Length();
+        if (dInLen < 0.0001f || dOutLen < 0.0001f)
+        {
+            return;
+        }
+
+        dIn /= dInLen;
+        dOut /= dOutLen;
+        var nIn = new Vector2(-dIn.Y, dIn.X);
+        var nOut = new Vector2(-dOut.Y, dOut.X);
+
+        switch (lineJoin)
+        {
+            case StrokeLineJoin.Round:
+                DrawFilledCircle(spriteBatch, curr, offset, color, opacity);
+                return;
+
+            case StrokeLineJoin.Bevel:
+            {
+                // Left bevel: triangle (curr, leftIn, leftOut)
+                var leftIn = curr + (nIn * offset);
+                var leftOut = curr + (nOut * offset);
+                DrawFilledTriangle(spriteBatch, curr, leftIn, leftOut, color, opacity);
+                // Right bevel: triangle (curr, rightIn, rightOut)
+                var rightIn = curr - (nIn * offset);
+                var rightOut = curr - (nOut * offset);
+                DrawFilledTriangle(spriteBatch, curr, rightIn, rightOut, color, opacity);
+                return;
+            }
+
+            case StrokeLineJoin.Miter:
+            {
+                var cross = (dIn.X * dOut.Y) - (dIn.Y * dOut.X);
+                if (MathF.Abs(cross) < 0.001f)
+                {
+                    // Nearly collinear — no visible join needed; the overlapping
+                    // stroke quads already cover the gap. Fall back to bevel
+                    // for narrowly concave turns where a gap would appear.
+                    goto case StrokeLineJoin.Bevel;
+                }
+
+                // Left miter: intersection of the two left-offset lines
+                var nDiff = nOut - nIn;
+                var t = ((nDiff.X * dOut.Y) - (nDiff.Y * dOut.X)) * offset / cross;
+                var leftMiter = curr + (nIn * offset) + (dIn * t);
+
+                // Right miter: intersection of the two right-offset lines
+                var nDiffR = -nDiff;
+                var tR = ((nDiffR.X * dOut.Y) - (nDiffR.Y * dOut.X)) * offset / cross;
+                var rightMiter = curr - (nIn * offset) + (dIn * tR);
+
+                DrawFilledTriangle(spriteBatch, curr + (nIn * offset), curr + (nOut * offset), leftMiter, color, opacity);
+                DrawFilledTriangle(spriteBatch, curr - (nIn * offset), curr - (nOut * offset), rightMiter, color, opacity);
+                return;
+            }
+
+            default:
+                DrawFilledCircle(spriteBatch, curr, offset, color, opacity);
+                return;
+        }
+    }
+
+    private static void DrawFilledTriangle(
+        SpriteBatch spriteBatch,
+        Vector2 a, Vector2 b, Vector2 c,
+        Color color, float opacity)
+    {
+        Span<Vector2> points = stackalloc Vector2[3] { a, b, c };
+        DrawFilledPolygon(spriteBatch, points, color, opacity);
     }
 
     public static void DrawFilledPolygon(
@@ -672,6 +791,7 @@ internal static class UiDrawing
         var scanMin = (int)System.MathF.Floor(minY);
         var scanMax = (int)System.MathF.Ceiling(maxY);
         var intersectionBuffer = GetPolygonIntersectionBuffer(spriteBatch.GraphicsDevice, pointCount);
+        var texture = GetSolidTexture(spriteBatch.GraphicsDevice);
         for (var y = scanMin; y <= scanMax; y++)
         {
             var intersectionCount = 0;
@@ -715,16 +835,148 @@ internal static class UiDrawing
                     continue;
                 }
 
-                var width = end - start;
-                var texture = GetSolidTexture(spriteBatch.GraphicsDevice);
-                spriteBatch.Draw(
-                    texture,
-                    new Rectangle(
-                        (int)System.MathF.Round(start),
-                        y,
-                        System.Math.Max(1, (int)System.MathF.Round(width)),
-                        1),
-                    color * opacity);
+                DrawAntiAliasedHorizontalSpan(spriteBatch, texture, y, start, end, color, opacity);
+            }
+        }
+    }
+
+    private static void DrawAntiAliasedHorizontalSpan(
+        SpriteBatch spriteBatch,
+        Texture2D texture,
+        int y,
+        float start,
+        float end,
+        Color color,
+        float opacity)
+    {
+        // Left edge partial pixel (coverage may overflow Draw bounds for negative x — GPU clips naturally)
+        var startFloor = (int)System.MathF.Floor(start);
+        if (start < startFloor + 1)
+        {
+            var leftCoverage = startFloor + 1 - start;
+            if (leftCoverage > 0.001f && leftCoverage < 0.999f)
+            {
+                spriteBatch.Draw(texture, new Rectangle(startFloor, y, 1, 1), color * (opacity * leftCoverage));
+            }
+        }
+
+        // Fully covered middle pixels
+        var fullStart = (int)System.MathF.Ceiling(start);
+        var fullEnd = (int)System.MathF.Floor(end);
+        if (fullEnd > fullStart)
+        {
+            spriteBatch.Draw(texture, new Rectangle(fullStart, y, fullEnd - fullStart, 1), color * opacity);
+        }
+
+        // Right edge partial pixel (end may already be on an integer boundary — same guard as left edge)
+        if (fullEnd < end)
+        {
+            var rightCoverage = end - fullEnd;
+            if (rightCoverage > 0.001f)
+            {
+                spriteBatch.Draw(texture, new Rectangle(fullEnd, y, 1, 1), color * (opacity * rightCoverage));
+            }
+        }
+    }
+
+    public static void DrawFilledPolygonCombined(
+        SpriteBatch spriteBatch,
+        IReadOnlyList<IReadOnlyList<Vector2>> polygons,
+        Color color,
+        float opacity = 1f)
+    {
+        if (polygons.Count == 0 || color.A == 0)
+        {
+            return;
+        }
+
+        // Transform all points and compute total point count
+        var totalPoints = 0;
+        for (var pi = 0; pi < polygons.Count; pi++)
+        {
+            totalPoints += polygons[pi].Count;
+        }
+
+        if (totalPoints < 3)
+        {
+            return;
+        }
+
+        var graphicsDevice = spriteBatch.GraphicsDevice;
+        var allTransformed = GetPolygonVertexBuffer(graphicsDevice, totalPoints);
+        var offsets = new int[polygons.Count];
+        var offsetAccum = 0;
+        var minY = float.PositiveInfinity;
+        var maxY = float.NegativeInfinity;
+        for (var pi = 0; pi < polygons.Count; pi++)
+        {
+            offsets[pi] = offsetAccum;
+            var poly = polygons[pi];
+            for (var i = 0; i < poly.Count; i++)
+            {
+                var point = TransformPoint(spriteBatch, poly[i]);
+                allTransformed[offsetAccum + i] = point;
+                minY = System.MathF.Min(minY, point.Y);
+                maxY = System.MathF.Max(maxY, point.Y);
+            }
+
+            offsetAccum += poly.Count;
+        }
+
+        // Even-odd fill across ALL polygons: collect all edges, sort intersections, fill between pairs
+        var scanMin = (int)System.MathF.Floor(minY);
+        var scanMax = (int)System.MathF.Ceiling(maxY);
+        var intersectionBuffer = GetPolygonIntersectionBuffer(graphicsDevice, totalPoints);
+        var texture = GetSolidTexture(graphicsDevice);
+        for (var y = scanMin; y <= scanMax; y++)
+        {
+            var intersectionCount = 0;
+            for (var pi = 0; pi < polygons.Count; pi++)
+            {
+                var polyStart = offsets[pi];
+                var polyCount = polygons[pi].Count;
+                for (var i = 0; i < polyCount; i++)
+                {
+                    var a = allTransformed[polyStart + i];
+                    var b = allTransformed[polyStart + ((i + 1) % polyCount)];
+                    if (System.MathF.Abs(a.Y - b.Y) < 0.0001f)
+                    {
+                        continue;
+                    }
+
+                    var minEdgeY = System.MathF.Min(a.Y, b.Y);
+                    var maxEdgeY = System.MathF.Max(a.Y, b.Y);
+                    if (y < minEdgeY || y >= maxEdgeY)
+                    {
+                        continue;
+                    }
+
+                    var t = (y - a.Y) / (b.Y - a.Y);
+                    if (intersectionCount >= intersectionBuffer.Length)
+                    {
+                        intersectionBuffer = GrowPolygonIntersectionBuffer(graphicsDevice, intersectionBuffer.Length * 2);
+                    }
+
+                    intersectionBuffer[intersectionCount++] = a.X + (t * (b.X - a.X));
+                }
+            }
+
+            if (intersectionCount < 2)
+            {
+                continue;
+            }
+
+            Array.Sort(intersectionBuffer, 0, intersectionCount);
+            for (var i = 0; i + 1 < intersectionCount; i += 2)
+            {
+                var start = intersectionBuffer[i];
+                var end = intersectionBuffer[i + 1];
+                if (end <= start)
+                {
+                    continue;
+                }
+
+                DrawAntiAliasedHorizontalSpan(spriteBatch, texture, y, start, end, color, opacity);
             }
         }
     }

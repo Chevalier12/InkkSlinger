@@ -38,6 +38,22 @@ public sealed class InkkOopsCommandIntegrationTests
     }
 
     [Fact]
+    public void TargetResolver_ContentText_DoesNotThrowWhenElementTypeHidesContentProperty()
+    {
+        var root = new Canvas();
+        var hiddenContent = new HiddenContentControl { Content = "Hidden", Width = 120f, Height = 32f };
+        var target = new Button { Content = "Target", Width = 120f, Height = 32f };
+        root.AddChild(hiddenContent);
+        root.AddChild(target);
+        using var host = new InkkOopsTestHost(root);
+
+        var report = InkkOopsTargetResolver.Resolve(host, new InkkOopsTargetReference("Target"));
+
+        Assert.Equal(InkkOopsTargetResolutionStatus.Resolved, report.Status);
+        Assert.Same(target, report.Element);
+    }
+
+    [Fact]
     public async Task Hover_And_Click_Commands_Update_Button_State()
     {
         var button = new Button
@@ -484,6 +500,11 @@ public sealed class InkkOopsCommandIntegrationTests
         Assert.True(viewer.TryGetContentViewportClipRect(out var viewportBounds));
         Assert.True(targetBounds.Y >= viewportBounds.Y - 0.5f);
         Assert.True(targetBounds.Y + targetBounds.Height <= viewportBounds.Y + viewportBounds.Height + 0.5f);
+    }
+
+    private sealed class HiddenContentControl : Button
+    {
+        public new string? Content { get; set; }
     }
 }
 

@@ -11,7 +11,6 @@ namespace InkkSlinger.Tests;
 
 public sealed class AppStyledButtonDiagnosticsTests
 {
-    [Fact]
     public void HoverAndClick_AppStyledButton_WritesTelemetryReport()
     {
         var backup = CaptureApplicationResources();

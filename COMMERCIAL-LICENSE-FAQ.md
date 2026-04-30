@@ -6,6 +6,9 @@ required. It is not a substitute for the `LICENSE`.
 Rule of thumb: if you make money (directly or indirectly) from a product/project
 that uses InkkSlinger, it is commercial use.
 
+The scenarios below are examples, not a complete list. If your case is not
+clearly covered, discuss it with the maintainer before assuming the answer.
+
 ## Scenarios
 
 1. I made a free hobby game using InkkSlinger and I do not take donations, run ads, or monetize it in any way.

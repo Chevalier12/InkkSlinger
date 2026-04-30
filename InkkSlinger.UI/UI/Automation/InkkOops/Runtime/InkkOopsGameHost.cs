@@ -348,7 +348,13 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
                 var viewport = _viewportAccessor();
                 var hovered = UiRoot.GetHoveredElementForDiagnostics();
                 var focused = FocusManager.GetFocusedElement();
+                var rootMetrics = UiRoot.GetMetricsSnapshot();
                 var uiRootTelemetry = UiRoot.GetUiRootTelemetrySnapshot();
+                var inputTelemetry = UiRoot.GetInputMetricsSnapshot();
+                var pointerTelemetry = UiRoot.GetPointerMoveTelemetrySnapshotForTests();
+                var performanceTelemetry = UiRoot.GetPerformanceTelemetrySnapshotForTests();
+                var renderTelemetry = UiRoot.GetRenderTelemetrySnapshotForTests();
+                var invalidationTelemetry = UiRoot.GetRenderInvalidationDebugSnapshotForTests();
                 var frameworkTelemetry = FrameworkElement.GetAggregateTelemetrySnapshotForDiagnostics();
                 var controlTelemetry = Control.GetAggregateTelemetrySnapshotForDiagnostics();
                 var buttonTelemetry = Button.GetAggregateTelemetrySnapshotForDiagnostics();
@@ -365,9 +371,48 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
                 builder.AppendLine($"retained_nodes={UiRoot.RetainedRenderNodeCount}");
                 builder.AppendLine($"retained_tree_validation={UiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests()}");
                 builder.AppendLine($"uiRootLayoutExecutedFrameCount={UiRoot.LayoutExecutedFrameCount}");
+                builder.AppendLine($"appDisplayedFps={InkkSlingerGameHost.ExtractDisplayedFpsFromWindowTitle(_window.Title)}");
+                builder.AppendLine($"uiRootLastUpdateMs={UiRoot.LastUpdateMs:0.###}");
+                builder.AppendLine($"uiRootLastDrawMs={UiRoot.LastDrawMs:0.###}");
                 builder.AppendLine($"uiRootUpdateCallCount={uiRootTelemetry.UpdateCallCount}");
                 builder.AppendLine($"uiRootUpdateElapsedMs={uiRootTelemetry.UpdateElapsedMs:0.###}");
                 builder.AppendLine($"uiRootForceFullRedrawForDiagnosticsCaptureCallCount={uiRootTelemetry.ForceFullRedrawForDiagnosticsCaptureCallCount}");
+                builder.AppendLine($"lastDirtyRectCount={rootMetrics.LastDirtyRectCount}");
+                builder.AppendLine($"lastDirtyAreaPercentage={rootMetrics.LastDirtyAreaPercentage:0.###}");
+                builder.AppendLine($"lastInputPhaseMs={inputTelemetry.LastInputPhaseMilliseconds:0.###}");
+                builder.AppendLine($"lastInputPointerDispatchMs={inputTelemetry.LastInputPointerDispatchMilliseconds:0.###}");
+                builder.AppendLine($"lastInputPointerTargetResolveMs={inputTelemetry.LastInputPointerTargetResolveMilliseconds:0.###}");
+                builder.AppendLine($"lastInputHoverUpdateMs={inputTelemetry.LastInputHoverUpdateMilliseconds:0.###}");
+                builder.AppendLine($"lastInputPointerRouteMs={inputTelemetry.LastInputPointerRouteMilliseconds:0.###}");
+                builder.AppendLine($"lastInputHitTestCount={inputTelemetry.HitTestCount}");
+                builder.AppendLine($"lastInputRoutedEventCount={inputTelemetry.RoutedEventCount}");
+                builder.AppendLine($"lastInputPointerEventCount={inputTelemetry.PointerEventCount}");
+                builder.AppendLine($"lastPointerResolvePath={pointerTelemetry.PointerResolvePath}");
+                builder.AppendLine($"lastPointerResolveHoverReuseCheckMs={pointerTelemetry.PointerResolveHoverReuseCheckMilliseconds:0.###}");
+                builder.AppendLine($"lastPointerResolveFinalHitTestMs={pointerTelemetry.PointerResolveFinalHitTestMilliseconds:0.###}");
+                builder.AppendLine($"lastPerformanceInputMs={performanceTelemetry.InputPhaseMilliseconds:0.###}");
+                builder.AppendLine($"lastPerformanceLayoutMs={performanceTelemetry.LayoutPhaseMilliseconds:0.###}");
+                builder.AppendLine($"lastPerformanceRenderSchedulingMs={performanceTelemetry.RenderSchedulingPhaseMilliseconds:0.###}");
+                builder.AppendLine($"lastPerformanceVisualUpdateMs={performanceTelemetry.VisualUpdateMilliseconds:0.###}");
+                builder.AppendLine($"lastPerformanceRetainedSubtreeUpdateMs={performanceTelemetry.RetainedSubtreeUpdateMilliseconds:0.###}");
+                builder.AppendLine($"lastPerformanceRetainedShallowSyncMs={performanceTelemetry.RetainedShallowSyncMilliseconds:0.###}");
+                builder.AppendLine($"lastPerformanceRetainedDeepSyncMs={performanceTelemetry.RetainedDeepSyncMilliseconds:0.###}");
+                builder.AppendLine($"lastPerformanceRetainedForceDeepSyncCount={performanceTelemetry.RetainedForceDeepSyncCount}");
+                builder.AppendLine($"lastPerformanceRetainedShallowSuccessCount={performanceTelemetry.RetainedShallowSuccessCount}");
+                builder.AppendLine($"lastRenderRetainedNodesVisited={renderTelemetry.RetainedNodesVisited}");
+                builder.AppendLine($"lastRenderRetainedNodesDrawn={renderTelemetry.RetainedNodesDrawn}");
+                builder.AppendLine($"lastRenderRetainedTraversalCount={renderTelemetry.RetainedTraversalCount}");
+                builder.AppendLine($"lastRenderDirtyRegionTraversalCount={renderTelemetry.DirtyRegionTraversalCount}");
+                builder.AppendLine($"lastRenderDirtyRootCount={renderTelemetry.DirtyRootCount}");
+                builder.AppendLine($"lastRenderDirtyDecisionReason={renderTelemetry.LastDirtyDrawDecisionReason}");
+                builder.AppendLine($"lastDirtyBoundsVisual={invalidationTelemetry.DirtyBoundsVisualType}#{invalidationTelemetry.DirtyBoundsVisualName}");
+                builder.AppendLine($"lastDirtyBoundsSourceResolution={invalidationTelemetry.DirtyBoundsSourceResolution}");
+                builder.AppendLine($"lastDirtyBoundsUsedHint={invalidationTelemetry.DirtyBoundsUsedHint}");
+                builder.AppendLine($"lastDirtyBounds={FormatLayoutRectForTelemetry(invalidationTelemetry.DirtyBounds)}");
+                builder.AppendLine($"lastDrawVisualTreeMs={renderTelemetry.DrawVisualTreeMilliseconds:0.###}");
+                builder.AppendLine($"lastDrawClearMs={renderTelemetry.DrawClearMilliseconds:0.###}");
+                builder.AppendLine($"lastDrawCursorMs={renderTelemetry.DrawCursorMilliseconds:0.###}");
+                builder.AppendLine($"lastDrawFinalBatchEndMs={renderTelemetry.DrawFinalBatchEndMilliseconds:0.###}");
                 builder.AppendLine($"frameworkMeasureCallCount={frameworkTelemetry.MeasureCallCount}");
                 builder.AppendLine($"frameworkMeasureMilliseconds={frameworkTelemetry.MeasureMilliseconds:0.###}");
                 builder.AppendLine($"frameworkArrangeCallCount={frameworkTelemetry.ArrangeCallCount}");
@@ -801,6 +846,11 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
         return element is FrameworkElement { Name.Length: > 0 } frameworkElement
             ? $"{element.GetType().Name}#{frameworkElement.Name}"
             : element.GetType().Name;
+    }
+
+    private static string FormatLayoutRectForTelemetry(LayoutRect rect)
+    {
+        return $"{rect.X:0.##},{rect.Y:0.##},{rect.Width:0.##},{rect.Height:0.##}";
     }
 
     private readonly record struct PendingFrameGate(int RemainingFrames, TaskCompletionSource Completion);

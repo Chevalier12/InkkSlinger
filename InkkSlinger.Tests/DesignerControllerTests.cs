@@ -573,6 +573,7 @@ public class DesignerControllerTests
         var shell = new InkkSlinger.Designer.DesignerShellView();
 
         var previewDockSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewDockSplitter"));
+        var projectExplorerSplitter = Assert.IsType<GridSplitter>(shell.FindName("ProjectExplorerSplitter"));
         var previewSourceSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewSourceSplitter"));
         var sourcePropertyInspectorSplitter = Assert.IsType<GridSplitter>(shell.SourceEditorView.FindName("SourcePropertyInspectorSplitter"));
         var sourcePropertyInspectorBorder = Assert.IsType<Border>(shell.SourceEditorView.FindName("SourcePropertyInspectorBorder"));
@@ -603,7 +604,13 @@ public class DesignerControllerTests
         Assert.NotNull(sourceLineNumberBorder.Child);
         Assert.True(GetRenderedLineNumberCount(sourceLineNumberPanel) > 0);
 
-        Assert.Equal(1, Grid.GetColumn(previewDockSplitter));
+        Assert.Equal(1, Grid.GetColumn(projectExplorerSplitter));
+        Assert.Equal(GridResizeDirection.Columns, projectExplorerSplitter.ResizeDirection);
+        Assert.Equal(GridResizeBehavior.PreviousAndNext, projectExplorerSplitter.ResizeBehavior);
+        Assert.Equal(HorizontalAlignment.Stretch, projectExplorerSplitter.HorizontalAlignment);
+        Assert.Equal(VerticalAlignment.Stretch, projectExplorerSplitter.VerticalAlignment);
+
+        Assert.Equal(3, Grid.GetColumn(previewDockSplitter));
         Assert.Equal(GridResizeDirection.Columns, previewDockSplitter.ResizeDirection);
         Assert.Equal(GridResizeBehavior.PreviousAndNext, previewDockSplitter.ResizeBehavior);
         Assert.Equal(HorizontalAlignment.Stretch, previewDockSplitter.HorizontalAlignment);
@@ -3209,6 +3216,387 @@ public class DesignerControllerTests
 
     var hoverChrome = FindDescendant<Border>(diagnosticButton, border => border.Name == "HoverChrome");
     Assert.Equal(new Color(19, 33, 49), Assert.IsType<SolidColorBrush>(hoverChrome.Background).Color);
+    }
+
+    [Fact]
+    public async Task HostView_TitleBarButtons_UseContiguousStableHitBoxes_AndTopBandStaysDraggable()
+    {
+        var view = new InkkSlinger.Designer.DesignerHostView();
+        using var automationHost = new InkkOopsTestHost(view, 1200, 740);
+        await automationHost.AdvanceFrameAsync(3);
+
+        var titleBar = Assert.IsType<Border>(view.FindName("DesignerTitleBar"));
+        var dragSurface = Assert.IsType<Border>(view.FindName("DesignerTitleBarDragSurface"));
+        var minimizeButton = Assert.IsType<Button>(view.FindName("DesignerMinimizeButton"));
+        var maximizeButton = Assert.IsType<Button>(view.FindName("DesignerMaximizeButton"));
+        var closeButton = Assert.IsType<Button>(view.FindName("DesignerCloseButton"));
+        var minimizeIcon = Assert.IsType<PathShape>(view.FindName("DesignerMinimizeIcon"));
+
+        Assert.Equal(0f, titleBar.LayoutSlot.Y, precision: 3);
+        Assert.Equal(34f, titleBar.LayoutSlot.Height, precision: 3);
+        Assert.Equal(0f, dragSurface.LayoutSlot.Y, precision: 3);
+        Assert.Equal(34f, dragSurface.LayoutSlot.Height, precision: 3);
+
+        AssertTitleBarButtonSlot(minimizeButton, titleBar, expectedWidth: 46f);
+        AssertTitleBarButtonSlot(maximizeButton, titleBar, expectedWidth: 46f);
+        AssertTitleBarButtonSlot(closeButton, titleBar, expectedWidth: 46f);
+        Assert.Equal(minimizeButton.LayoutSlot.X + minimizeButton.LayoutSlot.Width, maximizeButton.LayoutSlot.X, precision: 3);
+        Assert.Equal(maximizeButton.LayoutSlot.X + maximizeButton.LayoutSlot.Width, closeButton.LayoutSlot.X, precision: 3);
+        Assert.Equal(titleBar.LayoutSlot.X + titleBar.LayoutSlot.Width, closeButton.LayoutSlot.X + closeButton.LayoutSlot.Width, precision: 3);
+        Assert.Same(minimizeButton, FindSelfOrAncestor<Button>(minimizeIcon));
+        Assert.Equal(12f, minimizeIcon.LayoutSlot.Width, precision: 3);
+        Assert.Equal(12f, minimizeIcon.LayoutSlot.Height, precision: 3);
+        Assert.True(
+            minimizeIcon.LayoutSlot.X >= minimizeButton.LayoutSlot.X &&
+            minimizeIcon.LayoutSlot.X + minimizeIcon.LayoutSlot.Width <= minimizeButton.LayoutSlot.X + minimizeButton.LayoutSlot.Width,
+            $"Expected minimize icon to render inside its right-side button instead of the title text area. icon={FormatRect(minimizeIcon.LayoutSlot)}, button={FormatRect(minimizeButton.LayoutSlot)}.");
+        Assert.True(
+            minimizeIcon.LayoutSlot.X > titleBar.LayoutSlot.X + 100f,
+            $"Expected minimize icon away from the top-left title text. icon={FormatRect(minimizeIcon.LayoutSlot)}, titleBar={FormatRect(titleBar.LayoutSlot)}.");
+
+        foreach (var button in new[] { minimizeButton, maximizeButton, closeButton })
+        {
+            var center = GetCenter(button.LayoutSlot);
+            await automationHost.MovePointerAsync(new System.Numerics.Vector2(center.X, center.Y));
+            await automationHost.AdvanceFrameAsync(2);
+            Assert.Same(button, FindSelfOrAncestor<Button>(automationHost.UiRoot.GetHoveredElementForDiagnostics()));
+        }
+
+        var topDragPoint = new Vector2(dragSurface.LayoutSlot.X + 320f, titleBar.LayoutSlot.Y + 1f);
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(topDragPoint.X, topDragPoint.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        var hoveredBorder = FindSelfOrAncestor<Border>(automationHost.UiRoot.GetHoveredElementForDiagnostics());
+        Assert.True(
+            ReferenceEquals(dragSurface, hoveredBorder) || ReferenceEquals(titleBar, hoveredBorder),
+            $"Expected the top titlebar edge to stay inside the draggable chrome. hovered={DescribeElement(automationHost.UiRoot.GetHoveredElementForDiagnostics())}, titleBar={FormatRect(titleBar.LayoutSlot)}, dragSurface={FormatRect(dragSurface.LayoutSlot)}, pointer={topDragPoint}.");
+    }
+
+    [Fact]
+    public void HostView_TitleBarPressOnSampledVectors_ShouldRequestWindowDragMove()
+    {
+        var dragMoveRequests = 0;
+        var view = new InkkSlinger.Designer.DesignerHostView(beginWindowDragMoveOverride: () =>
+        {
+            dragMoveRequests++;
+            return true;
+        });
+        var uiRoot = new UiRoot(view);
+        RunLayout(uiRoot, 1200, 740, 16);
+        RunLayout(uiRoot, 1200, 740, 16);
+
+        var titleBar = Assert.IsType<Border>(view.FindName("DesignerTitleBar"));
+        var dragSurface = Assert.IsType<Border>(view.FindName("DesignerTitleBarDragSurface"));
+        var centerY = titleBar.LayoutSlot.Y + (titleBar.LayoutSlot.Height * 0.5f);
+        var sampledPoints = new (string Name, Vector2 Point)[]
+        {
+            ("UpperBand", new Vector2(dragSurface.LayoutSlot.X + 320f, titleBar.LayoutSlot.Y + 1f)),
+            ("MiddleBand", new Vector2(dragSurface.LayoutSlot.X + 320f, centerY)),
+            ("LowerBand", new Vector2(dragSurface.LayoutSlot.X + 320f, titleBar.LayoutSlot.Y + titleBar.LayoutSlot.Height - 1f)),
+            ("TitleText", new Vector2(dragSurface.LayoutSlot.X + 24f, centerY)),
+            ("NearButtons", new Vector2(dragSurface.LayoutSlot.X + dragSurface.LayoutSlot.Width - 2f, centerY))
+        };
+
+        for (var i = 0; i < sampledPoints.Length; i++)
+        {
+            var sampledPoint = sampledPoints[i];
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(sampledPoint.Point, pointerMoved: true));
+            RunLayout(uiRoot, 1200, 740, 16);
+
+            var hoveredElement = uiRoot.GetHoveredElementForDiagnostics();
+            Assert.True(
+                ReferenceEquals(dragSurface, FindSelfOrAncestor<Border>(hoveredElement)) ||
+                ReferenceEquals(titleBar, FindSelfOrAncestor<Border>(hoveredElement)),
+                $"Expected sampled point '{sampledPoint.Name}' to hover the draggable title bar, but hovered={DescribeElement(hoveredElement)} point={sampledPoint.Point}.");
+
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(sampledPoint.Point, leftPressed: true, pointerMoved: false));
+            RunLayout(uiRoot, 1200, 740, 16);
+            Assert.Equal(i + 1, dragMoveRequests);
+
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(sampledPoint.Point, leftReleased: true, pointerMoved: false));
+            RunLayout(uiRoot, 1200, 740, 16);
+        }
+    }
+
+    [Fact]
+    public void HostView_TitleBarButtons_PressShouldNotRequestWindowDragMove()
+    {
+        var dragMoveRequests = 0;
+        var view = new InkkSlinger.Designer.DesignerHostView(beginWindowDragMoveOverride: () =>
+        {
+            dragMoveRequests++;
+            return true;
+        });
+        var uiRoot = new UiRoot(view);
+        RunLayout(uiRoot, 1200, 740, 16);
+        RunLayout(uiRoot, 1200, 740, 16);
+
+        var buttons = new[]
+        {
+            Assert.IsType<Button>(view.FindName("DesignerMinimizeButton")),
+            Assert.IsType<Button>(view.FindName("DesignerMaximizeButton")),
+            Assert.IsType<Button>(view.FindName("DesignerCloseButton"))
+        };
+
+        foreach (var button in buttons)
+        {
+            var point = GetCenter(button.LayoutSlot);
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(point, pointerMoved: true));
+            RunLayout(uiRoot, 1200, 740, 16);
+            Assert.Same(button, FindSelfOrAncestor<Button>(uiRoot.GetHoveredElementForDiagnostics()));
+
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(point, leftPressed: true, pointerMoved: false));
+            RunLayout(uiRoot, 1200, 740, 16);
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(point, leftReleased: true, pointerMoved: false));
+            RunLayout(uiRoot, 1200, 740, 16);
+        }
+
+        Assert.Equal(0, dragMoveRequests);
+    }
+
+    [Fact]
+    public void HostView_StartPage_SearchPlaceholder_HidesWhenSearchTextIsTyped()
+    {
+        var viewModel = CreateHostViewModelWithRecentProject("C:/RiderProjects/HoverProject/HoverProject.sln");
+        var view = new InkkSlinger.Designer.DesignerHostView(viewModel);
+        var placeholder = Assert.IsType<TextBlock>(view.FindName("SearchProjectPlaceholder"));
+
+        Assert.Equal(Visibility.Visible, placeholder.Visibility);
+
+        viewModel.OpenProjectPathText = "C:/RiderProjects";
+
+        Assert.Equal(Visibility.Collapsed, placeholder.Visibility);
+
+        viewModel.OpenProjectPathText = string.Empty;
+
+        Assert.Equal(Visibility.Visible, placeholder.Visibility);
+    }
+
+    [Fact]
+    public void HostView_StartPage_SearchPlaceholder_HidesWhenTextBoxTextChangesWithoutLosingFocus()
+    {
+        var viewModel = CreateHostViewModelWithRecentProject("C:/RiderProjects/HoverProject/HoverProject.sln");
+        var view = new InkkSlinger.Designer.DesignerHostView(viewModel);
+        var textBox = Assert.IsType<TextBox>(view.FindName("OpenProjectPathTextBox"));
+        var placeholder = Assert.IsType<TextBlock>(view.FindName("SearchProjectPlaceholder"));
+
+        Assert.Equal(string.Empty, viewModel.OpenProjectPathText);
+        Assert.Equal(Visibility.Visible, placeholder.Visibility);
+
+        textBox.Text = "C:/typed/from/textbox";
+
+        Assert.Equal("C:/typed/from/textbox", viewModel.OpenProjectPathText);
+        Assert.Equal(Visibility.Collapsed, placeholder.Visibility);
+    }
+
+    [Fact]
+    public void HostView_SearchProjectsTextBox_CursorPropertyIsIBeam()
+    {
+        var view = new InkkSlinger.Designer.DesignerHostView();
+        var textBox = Assert.IsType<TextBox>(view.FindName("OpenProjectPathTextBox"));
+        Assert.Equal("IBeam", textBox.Cursor);
+    }
+
+    [Fact]
+    public async Task HostView_SearchProjectsTextBox_HoverResolvesToTextBox_AndCursorIsStillIBeam()
+    {
+        var viewModel = CreateHostViewModelWithRecentProject("C:/projects/Sample/Sample.sln");
+        var view = new InkkSlinger.Designer.DesignerHostView(viewModel);
+        using var automationHost = new InkkOopsTestHost(view, 784, 642);
+        await automationHost.AdvanceFrameAsync(3);
+
+        var textBox = Assert.IsType<TextBox>(view.FindName("OpenProjectPathTextBox"));
+        Assert.Equal("IBeam", textBox.Cursor);
+
+        var hoverPoint = GetCenter(textBox.LayoutSlot);
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(hoverPoint.X, hoverPoint.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        var hoveredElement = automationHost.UiRoot.GetHoveredElementForDiagnostics();
+        Assert.True(
+            ReferenceEquals(textBox, hoveredElement) ||
+            FindSelfOrAncestor<TextBox>(hoveredElement) == textBox,
+            $"Expected hover to resolve to OpenProjectPathTextBox, but hovered={DescribeElement(hoveredElement)}.");
+
+        Assert.Equal("IBeam", textBox.Cursor);
+    }
+
+    [Fact]
+    public async Task HostView_StartPage_SearchPlaceholder_IsVerticallyCenteredInSearchBox()
+    {
+        var viewModel = CreateHostViewModelWithRecentProject("C:/RiderProjects/HoverProject/HoverProject.sln");
+        var view = new InkkSlinger.Designer.DesignerHostView(viewModel);
+        using var automationHost = new InkkOopsTestHost(view, 784, 642);
+        await automationHost.AdvanceFrameAsync(3);
+
+        var textBox = Assert.IsType<TextBox>(view.FindName("OpenProjectPathTextBox"));
+        var placeholder = Assert.IsType<TextBlock>(view.FindName("SearchProjectPlaceholder"));
+        var textBoxCenter = GetCenter(textBox.LayoutSlot);
+        var placeholderCenter = GetCenter(placeholder.LayoutSlot);
+
+        Assert.True(
+            Math.Abs(textBoxCenter.Y - placeholderCenter.Y) <= 1.5f,
+            $"Expected search placeholder to stay vertically centered in the search box. textBox={FormatRect(textBox.LayoutSlot)}, placeholder={FormatRect(placeholder.LayoutSlot)}.");
+    }
+
+    [Fact]
+    public async Task HostView_StartPage_RecentProjectRows_ShowHoverChrome()
+    {
+        const string recentPath = "C:/RiderProjects/HoverProject/HoverProject.sln";
+        var viewModel = CreateHostViewModelWithRecentProject(recentPath);
+        var view = new InkkSlinger.Designer.DesignerHostView(viewModel);
+        using var automationHost = new InkkOopsTestHost(view, 784, 642);
+        await automationHost.AdvanceFrameAsync(3);
+
+        var recentButton = FindDescendant<Button>(view, button => string.Equals(button.CommandParameter as string, recentPath, StringComparison.Ordinal));
+        var recentProjectsItemsControl = Assert.IsType<ItemsControl>(view.FindName("RecentProjectsItemsControl"));
+        var contentGrid = FindDescendant<Grid>(recentButton, grid => grid.Name == "RecentProjectContentGrid");
+        Assert.True(recentButton.LayoutSlot.Width >= 500f, $"Expected recent row hover width to stretch across the list pane, got {FormatRect(recentButton.LayoutSlot)}.");
+        Assert.True(recentButton.LayoutSlot.Width <= recentProjectsItemsControl.LayoutSlot.Width + 0.5f, $"Expected recent row width to stay within the list pane. row={FormatRect(recentButton.LayoutSlot)}, list={FormatRect(recentProjectsItemsControl.LayoutSlot)}.");
+        Assert.True(recentButton.LayoutSlot.Height <= 60.5f, $"Expected recent row hover height to stay constrained, got {FormatRect(recentButton.LayoutSlot)}.");
+        Assert.True(contentGrid.LayoutSlot.X >= recentButton.LayoutSlot.X + 17.5f, $"Expected recent row content to have left inset inside hover chrome. content={FormatRect(contentGrid.LayoutSlot)}, row={FormatRect(recentButton.LayoutSlot)}.");
+        Assert.True(contentGrid.LayoutSlot.X + contentGrid.LayoutSlot.Width <= recentButton.LayoutSlot.X + recentButton.LayoutSlot.Width - 17.5f, $"Expected recent row content to have right inset inside hover chrome. content={FormatRect(contentGrid.LayoutSlot)}, row={FormatRect(recentButton.LayoutSlot)}.");
+        Assert.Equal(Color.Transparent, recentButton.Background);
+        Assert.Equal(Color.Transparent, recentButton.BorderBrush);
+
+        var hoverPoint = GetCenter(recentButton.LayoutSlot);
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(hoverPoint.X, hoverPoint.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        Assert.True(recentButton.IsMouseOver);
+        Assert.Equal(new Color(36, 39, 44), recentButton.Background);
+        Assert.Equal(new Color(60, 65, 74), recentButton.BorderBrush);
+        Assert.Same(recentButton, FindSelfOrAncestor<Button>(automationHost.UiRoot.GetHoveredElementForDiagnostics()));
+
+        var hoverNearRightEdge = new Vector2(recentButton.LayoutSlot.X + recentButton.LayoutSlot.Width - 12f, hoverPoint.Y);
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(hoverNearRightEdge.X, hoverNearRightEdge.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        Assert.True(recentButton.IsMouseOver);
+        Assert.Same(recentButton, FindSelfOrAncestor<Button>(automationHost.UiRoot.GetHoveredElementForDiagnostics()));
+
+        var outsideRowPoint = new Vector2(recentButton.LayoutSlot.X + recentButton.LayoutSlot.Width + 24f, hoverPoint.Y);
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(outsideRowPoint.X, outsideRowPoint.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        Assert.False(recentButton.IsMouseOver);
+        Assert.NotSame(recentButton, FindSelfOrAncestor<Button>(automationHost.UiRoot.GetHoveredElementForDiagnostics()));
+    }
+
+    [Fact]
+    public async Task HostView_StartPage_RecentProjectRows_ShowRemoveButtonOnHover_AndHideItOtherwise()
+    {
+        const string recentPath = "C:/RiderProjects/HoverProject/HoverProject.sln";
+        var viewModel = CreateHostViewModelWithRecentProject(recentPath);
+        var view = new InkkSlinger.Designer.DesignerHostView(viewModel);
+        using var automationHost = new InkkOopsTestHost(view, 784, 642);
+        await automationHost.AdvanceFrameAsync(3);
+
+        var recentButton = FindDescendant<Button>(view, button => string.Equals(button.CommandParameter as string, recentPath, StringComparison.Ordinal));
+        var removeButton = FindDescendant<Button>(view, button => button.Name == "RecentProjectRemoveButton");
+
+        Assert.Equal(Visibility.Collapsed, removeButton.Visibility);
+
+        var hoverPoint = GetCenter(recentButton.LayoutSlot);
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(hoverPoint.X, hoverPoint.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        Assert.Equal(Visibility.Visible, removeButton.Visibility);
+        Assert.True(removeButton.LayoutSlot.X + removeButton.LayoutSlot.Width <= recentButton.LayoutSlot.X + recentButton.LayoutSlot.Width + 0.5f,
+            $"Expected remove button to stay aligned to the far right of the recent row. remove={FormatRect(removeButton.LayoutSlot)}, row={FormatRect(recentButton.LayoutSlot)}.");
+
+        var outsideRowPoint = new Vector2(recentButton.LayoutSlot.X + recentButton.LayoutSlot.Width + 24f, hoverPoint.Y);
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(outsideRowPoint.X, outsideRowPoint.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        Assert.Equal(Visibility.Collapsed, removeButton.Visibility);
+    }
+
+    [Fact]
+    public async Task HostView_StartPage_RecentProjectRowHoverChrome_StaysActiveWhileHoveringRemoveButton()
+    {
+        const string recentPath = "C:/RiderProjects/HoverProject/HoverProject.sln";
+        var viewModel = CreateHostViewModelWithRecentProject(recentPath);
+        var view = new InkkSlinger.Designer.DesignerHostView(viewModel);
+        using var automationHost = new InkkOopsTestHost(view, 784, 642);
+        await automationHost.AdvanceFrameAsync(3);
+
+        var recentButton = FindDescendant<Button>(view, button => string.Equals(button.CommandParameter as string, recentPath, StringComparison.Ordinal));
+        var removeButton = FindDescendant<Button>(view, button => button.Name == "RecentProjectRemoveButton");
+
+        var hoverPoint = GetCenter(recentButton.LayoutSlot);
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(hoverPoint.X, hoverPoint.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        Assert.Equal(new Color(36, 39, 44), recentButton.Background);
+        Assert.Equal(new Color(60, 65, 74), recentButton.BorderBrush);
+        Assert.Equal(Visibility.Visible, removeButton.Visibility);
+
+        var removeHoverPoint = GetCenter(removeButton.LayoutSlot);
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(removeHoverPoint.X, removeHoverPoint.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        Assert.Equal(Visibility.Visible, removeButton.Visibility);
+        Assert.Equal(new Color(36, 39, 44), recentButton.Background);
+        Assert.Equal(new Color(60, 65, 74), recentButton.BorderBrush);
+    }
+
+    [Fact]
+    public async Task HostView_StartPage_RemoveButton_KeepsBackgroundFlat_AndCentersLighterIconOnHover()
+    {
+        const string recentPath = "C:/RiderProjects/HoverProject/HoverProject.sln";
+        var viewModel = CreateHostViewModelWithRecentProject(recentPath);
+        var view = new InkkSlinger.Designer.DesignerHostView(viewModel);
+        using var automationHost = new InkkOopsTestHost(view, 784, 642);
+        await automationHost.AdvanceFrameAsync(3);
+
+        var recentButton = FindDescendant<Button>(view, button => string.Equals(button.CommandParameter as string, recentPath, StringComparison.Ordinal));
+        var removeButton = FindDescendant<Button>(view, button => button.Name == "RecentProjectRemoveButton");
+        var removeIcon = FindDescendant<PathShape>(view, shape => shape.Name == "RecentProjectRemoveIcon");
+
+        var rowHoverPoint = GetCenter(recentButton.LayoutSlot);
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(rowHoverPoint.X, rowHoverPoint.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        var buttonCenter = GetCenter(removeButton.LayoutSlot);
+        var iconCenter = GetCenter(removeIcon.LayoutSlot);
+        Assert.True(Math.Abs(buttonCenter.X - iconCenter.X) <= 1f, $"Expected trash icon to be horizontally centered in its button. button={FormatRect(removeButton.LayoutSlot)}, icon={FormatRect(removeIcon.LayoutSlot)}.");
+        Assert.True(Math.Abs(buttonCenter.Y - iconCenter.Y) <= 1f, $"Expected trash icon to be vertically centered in its button. button={FormatRect(removeButton.LayoutSlot)}, icon={FormatRect(removeIcon.LayoutSlot)}.");
+
+        var removeHoverPoint = GetCenter(removeButton.LayoutSlot);
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(removeHoverPoint.X, removeHoverPoint.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        Assert.Equal(new Color(0, 0, 0, 1), removeButton.Background);
+        Assert.Equal(new Color(243, 245, 248), removeButton.Foreground);
+        Assert.Equal(removeButton.Foreground, removeIcon.Stroke);
+    }
+
+    private static InkkSlinger.Designer.DesignerHostViewModel CreateHostViewModelWithRecentProject(string recentPath)
+    {
+        var fileStore = new InkkSlinger.Designer.PhysicalDesignerProjectFileStore();
+        var recentPersistence = new InlineRecentProjectPersistenceStore(
+            "[\n" +
+            "  {\n" +
+            $"    \"Path\": \"{recentPath}\",\n" +
+            "    \"DisplayName\": \"HoverProject\",\n" +
+            "    \"LastOpenedAt\": \"2026-04-28T09:00:00+00:00\"\n" +
+            "  }\n" +
+            "]\n");
+        return new InkkSlinger.Designer.DesignerHostViewModel(
+            fileStore,
+            new InkkSlinger.Designer.DesignerRecentProjectStore(recentPersistence),
+            new InkkSlinger.Designer.DesignerDocumentController("<UserControl />", fileStore));
+    }
+
+    private static void AssertTitleBarButtonSlot(Button button, Border titleBar, float expectedWidth)
+    {
+        Assert.Equal(titleBar.LayoutSlot.Y, button.LayoutSlot.Y, precision: 3);
+        Assert.Equal(titleBar.LayoutSlot.Height, button.LayoutSlot.Height, precision: 3);
+        Assert.Equal(expectedWidth, button.LayoutSlot.Width, precision: 3);
+        Assert.True(
+            button.LayoutSlot.X >= titleBar.LayoutSlot.X && button.LayoutSlot.X + button.LayoutSlot.Width <= titleBar.LayoutSlot.X + titleBar.LayoutSlot.Width,
+            $"Expected titlebar button to stay inside titlebar. button={FormatRect(button.LayoutSlot)}, titleBar={FormatRect(titleBar.LayoutSlot)}.");
     }
 
     [Fact]
@@ -7445,6 +7833,19 @@ public class DesignerControllerTests
         public void WriteAllText(string path, string text)
         {
             WrittenTexts[path] = text;
+        }
+    }
+
+    private sealed class InlineRecentProjectPersistenceStore(string text) : InkkSlinger.Designer.IDesignerRecentProjectPersistenceStore
+    {
+        public string? ReadAllText()
+        {
+            return text;
+        }
+
+        public void WriteAllText(string value)
+        {
+            _ = value;
         }
     }
 
