@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Text;
 using System.Threading;
@@ -43,8 +44,9 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
                 InkkOopsPipeRequestKinds.AssertProperty => await AssertPropertyAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.AssertExists => await ExecuteCommandAsync(request, new InkkOopsAssertExistsCommand(CreateTarget(request)), cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.AssertNotExists => await ExecuteCommandAsync(request, new InkkOopsAssertNotExistsCommand(CreateTarget(request)), cancellationToken).ConfigureAwait(false),
-                InkkOopsPipeRequestKinds.HoverTarget => await ExecuteCommandAsync(request, new InkkOopsHoverTargetCommand(CreateTarget(request)), cancellationToken).ConfigureAwait(false),
-                InkkOopsPipeRequestKinds.ClickTarget => await ExecuteCommandAsync(request, new InkkOopsClickTargetCommand(CreateTarget(request)), cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.MovePointer => await MovePointerAsync(request, cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.HoverTarget => await ExecuteCommandAsync(request, new InkkOopsHoverTargetCommand(CreateTarget(request), CreateAnchor(request), request.DwellFrames, CreateMotion(request)), cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.ClickTarget => await ExecuteCommandAsync(request, new InkkOopsClickTargetCommand(CreateTarget(request), CreateAnchor(request), motion: CreateMotion(request)), cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.InvokeTarget => await ExecuteCommandAsync(request, new InkkOopsInvokeTargetCommand(CreateTarget(request)), cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.WaitFrames => await WaitFramesAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.WaitForElement => await WaitForTargetAsync(request, InkkOopsWaitCondition.Exists, cancellationToken).ConfigureAwait(false),
@@ -60,7 +62,7 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
                 InkkOopsPipeRequestKinds.GetTelemetry => await GetTelemetryAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.GetTargetDiagnostics => await GetTargetDiagnosticsAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.GetHostInfo => GetHostInfo(request),
-                InkkOopsPipeRequestKinds.DragTarget => await ExecuteCommandAsync(request, new InkkOopsDragTargetCommand(CreateTarget(request), request.DeltaX, request.DeltaY), cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.DragTarget => await ExecuteCommandAsync(request, new InkkOopsDragTargetCommand(CreateTarget(request), request.DeltaX, request.DeltaY, CreateAnchor(request), motion: CreateMotion(request)), cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.TakeScreenshot => await TakeScreenshotAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.RunScript => await RunScriptAsync(request, cancellationToken).ConfigureAwait(false),
                 _ => Fail(request, $"Unknown live request kind '{request.RequestKind}'.")
@@ -124,6 +126,27 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
         return Complete(request);
     }
 
+    private async Task<InkkOopsPipeResponse> MovePointerAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(request.TargetName))
+        {
+            await new InkkOopsMovePointerTargetCommand(CreateTarget(request), CreateAnchor(request), CreateMotion(request))
+                .ExecuteAsync(_session, cancellationToken)
+                .ConfigureAwait(false);
+            return Complete(request);
+        }
+
+        if (request.X is not float x || request.Y is not float y)
+        {
+            throw new ArgumentException("Either TargetName or both X and Y are required for move-pointer.", nameof(request));
+        }
+
+        await new InkkOopsMovePointerCommand(new Vector2(x, y), CreateMotion(request))
+            .ExecuteAsync(_session, cancellationToken)
+            .ConfigureAwait(false);
+        return Complete(request);
+    }
+
     private async Task<InkkOopsPipeResponse> WaitFramesAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)
     {
         await _session.WaitFramesAsync(Math.Max(0, request.FrameCount), cancellationToken).ConfigureAwait(false);
@@ -137,7 +160,7 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
             throw new ArgumentException("TargetName is required for this request.", nameof(request));
         }
 
-        var command = new InkkOopsWaitForElementCommand(CreateTarget(request), Math.Max(1, request.FrameCount), condition);
+        var command = new InkkOopsWaitForElementCommand(CreateTarget(request), Math.Max(1, request.FrameCount), condition, CreateAnchor(request));
         await command.ExecuteAsync(_session, cancellationToken).ConfigureAwait(false);
         return Complete(request, value: request.FrameCount.ToString(CultureInfo.InvariantCulture));
     }
@@ -150,7 +173,7 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
         }
         else
         {
-            await new InkkOopsWheelTargetCommand(CreateTarget(request), request.WheelDelta)
+            await new InkkOopsWheelTargetCommand(CreateTarget(request), request.WheelDelta, CreateAnchor(request), CreateMotion(request))
                 .ExecuteAsync(_session, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -258,7 +281,7 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
             throw new ArgumentException("TargetName is required for this request.", nameof(request));
         }
 
-        var state = _session.EvaluateTargetState(CreateTarget(request));
+        var state = _session.EvaluateTargetState(CreateTarget(request), CreateAnchor(request));
         var counterNames = ParseCounterNames(request.CounterNames);
         var runtimeDiagnostics = await _session.QueryOnUiThreadAsync(
             () => CaptureRuntimeDiagnosticsText(state.Element, request.Compact, counterNames),
@@ -356,6 +379,78 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
     private static InkkOopsTargetReference CreateOwnerTarget(InkkOopsPipeRequest request)
     {
         return new InkkOopsTargetReference(request.OwnerTargetName);
+    }
+
+    private static InkkOopsPointerAnchor CreateAnchor(InkkOopsPipeRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.Anchor) &&
+            request.Anchor.Trim().Equals("offset", StringComparison.OrdinalIgnoreCase))
+        {
+            return InkkOopsPointerAnchor.OffsetBy(request.OffsetX, request.OffsetY);
+        }
+
+        if (request.OffsetX != 0f || request.OffsetY != 0f)
+        {
+            return InkkOopsPointerAnchor.OffsetBy(request.OffsetX, request.OffsetY);
+        }
+
+        return NormalizeAnchorName(request.Anchor) switch
+        {
+            "top-left" => InkkOopsPointerAnchor.TopLeft,
+            "topleft" => InkkOopsPointerAnchor.TopLeft,
+            "top-right" => InkkOopsPointerAnchor.TopRight,
+            "topright" => InkkOopsPointerAnchor.TopRight,
+            "bottom-left" => InkkOopsPointerAnchor.BottomLeft,
+            "bottomleft" => InkkOopsPointerAnchor.BottomLeft,
+            "bottom-right" => InkkOopsPointerAnchor.BottomRight,
+            "bottomright" => InkkOopsPointerAnchor.BottomRight,
+            _ => InkkOopsPointerAnchor.Center
+        };
+    }
+
+    private static string NormalizeAnchorName(string? anchor)
+    {
+        return string.IsNullOrWhiteSpace(anchor)
+            ? string.Empty
+            : anchor.Trim().ToLowerInvariant();
+    }
+
+    private static InkkOopsPointerMotion CreateMotion(InkkOopsPipeRequest request)
+    {
+        var easing = ParseEasing(request.Easing);
+        if (request.TravelFrames > 0)
+        {
+            return InkkOopsPointerMotion.WithTravelFrames(request.TravelFrames, easing, ResolveStepDistance(request));
+        }
+
+        if (request.StepDistance > 0f)
+        {
+            return InkkOopsPointerMotion.WithStepDistance(request.StepDistance, easing);
+        }
+
+        return string.IsNullOrWhiteSpace(request.Easing)
+            ? InkkOopsPointerMotion.Default
+            : InkkOopsPointerMotion.WithStepDistance(InkkOopsPointerMotion.Default.StepDistance, easing);
+    }
+
+    private static float ResolveStepDistance(InkkOopsPipeRequest request)
+    {
+        return request.StepDistance > 0f ? request.StepDistance : InkkOopsPointerMotion.Default.StepDistance;
+    }
+
+    private static InkkOopsPointerEasing ParseEasing(string? easing)
+    {
+        if (string.IsNullOrWhiteSpace(easing))
+        {
+            return InkkOopsPointerEasing.Linear;
+        }
+
+        return easing.Trim().ToLowerInvariant() switch
+        {
+            "ease-in-out" => InkkOopsPointerEasing.EaseInOut,
+            "easeinout" => InkkOopsPointerEasing.EaseInOut,
+            _ => InkkOopsPointerEasing.Linear
+        };
     }
 
     private static string FormatTargetDiagnostics(InkkOopsTargetStateSnapshot state, string runtimeDiagnostics, bool compact)

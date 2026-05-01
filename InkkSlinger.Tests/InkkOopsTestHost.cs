@@ -71,6 +71,11 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
         return _displayedFps;
     }
 
+    public string GetLastPointerMotionTelemetrySummary()
+    {
+        return "motion=none";
+    }
+
     public Task ResizeWindowAsync(int width, int height, CancellationToken cancellationToken = default)
     {
         _width = width;

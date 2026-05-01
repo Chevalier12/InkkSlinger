@@ -64,9 +64,11 @@ public sealed partial class UiRoot
     private int _cachedPointerResolveStateStamp;
     private bool _hasCachedPointerResolveTarget;
     private UIElement? _lastClickDownTarget;
+    private string _lastClickDownResolvePath = "None";
     private Vector2 _lastClickDownPointerPosition;
     private bool _hasLastClickDownPointerPosition;
     private UIElement? _lastClickUpTarget;
+    private string _lastClickUpResolvePath = "None";
     private Vector2 _lastClickUpPointerPosition;
     private bool _hasLastClickUpPointerPosition;
     private UIElement? _cachedWheelTextInputTarget;
@@ -396,6 +398,10 @@ public sealed partial class UiRoot
     internal bool HasPendingForcedDrawForInkkOops => _mustDrawNextFrame;
 
     internal string LastPointerResolvePathForDiagnostics => _lastPointerResolvePath;
+
+    internal string LastClickDownResolvePathForDiagnostics => _lastClickDownResolvePath;
+
+    internal string LastClickUpResolvePathForDiagnostics => _lastClickUpResolvePath;
 
     internal double LastPointerTargetResolveMsForDiagnostics => _lastInputPointerTargetResolveMs;
 

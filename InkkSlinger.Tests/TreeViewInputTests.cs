@@ -625,6 +625,238 @@ public sealed class TreeViewInputTests
         Assert.NotEqual("HoverReuse", afterScrollWheelPath);
     }
 
+    [Fact]
+    public void ClickingNestedTreeViewItemAfterScroll_ShouldSelectClickedVisibleRow()
+    {
+        var host = new Canvas
+        {
+            Width = 460f,
+            Height = 320f
+        };
+
+        var treeView = new TreeView
+        {
+            Width = 340f,
+            Height = 120f
+        };
+
+        var root = new TreeViewItem
+        {
+            Header = "InkkSlinger",
+            IsExpanded = true
+        };
+
+        for (var i = 0; i < 18; i++)
+        {
+            root.Items.Add(new TreeViewItem { Header = $"Before {i:00}" });
+        }
+
+        var git = new TreeViewItem
+        {
+            Header = ".git",
+            IsExpanded = true
+        };
+        var hooks = new TreeViewItem
+        {
+            Header = "hooks",
+            IsExpanded = true
+        };
+        var preCommit = new TreeViewItem { Header = "prepare-commit-msg.sample" };
+        var preMerge = new TreeViewItem { Header = "pre-merge-commit.sample" };
+        var prePush = new TreeViewItem { Header = "pre-push.sample" };
+        hooks.Items.Add(preCommit);
+        hooks.Items.Add(preMerge);
+        hooks.Items.Add(prePush);
+        git.Items.Add(hooks);
+        root.Items.Add(git);
+
+        for (var i = 0; i < 18; i++)
+        {
+            root.Items.Add(new TreeViewItem { Header = $"After {i:00}" });
+        }
+
+        treeView.Items.Add(root);
+        host.AddChild(treeView);
+        Canvas.SetLeft(treeView, 20f);
+        Canvas.SetTop(treeView, 20f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(treeView.GetVisualChildren()));
+        scrollViewer.ScrollToVerticalOffset(425f);
+        RunLayout(uiRoot);
+
+        var targetPoint = new Vector2(prePush.LayoutSlot.X + 40f, prePush.LayoutSlot.Y + 8f);
+        var hit = VisualTreeHelper.HitTest(host, targetPoint);
+        Assert.True(
+            IsDescendantOrSelf(prePush, hit),
+            $"Expected direct hit under pre-push. hit={hit?.GetType().Name ?? "<null>"}, prePushSlot={prePush.LayoutSlot}, point={targetPoint}, offset={scrollViewer.VerticalOffset:0.###}.");
+
+        ClickWithoutPointerMove(uiRoot, targetPoint);
+
+        Assert.Same(prePush, treeView.SelectedItem);
+        Assert.True(prePush.IsSelected);
+        Assert.False(preCommit.IsSelected);
+        Assert.False(preMerge.IsSelected);
+        Assert.False(hooks.IsSelected);
+    }
+
+    [Fact]
+    public void InkkOopsActionPoint_ForScrolledVirtualizedTreeViewItem_ShouldClickVisibleRow()
+    {
+        var host = new Canvas
+        {
+            Width = 460f,
+            Height = 320f
+        };
+
+        var treeView = new TreeView
+        {
+            Width = 340f,
+            Height = 120f
+        };
+
+        var root = new TreeViewItem
+        {
+            Header = "InkkSlinger",
+            IsExpanded = true
+        };
+
+        for (var i = 0; i < 18; i++)
+        {
+            root.Items.Add(new TreeViewItem { Header = $"Before {i:00}" });
+        }
+
+        var git = new TreeViewItem
+        {
+            Header = ".git",
+            IsExpanded = true
+        };
+        var hooks = new TreeViewItem
+        {
+            Header = "hooks",
+            IsExpanded = true
+        };
+        var preCommit = new TreeViewItem { Header = "prepare-commit-msg.sample" };
+        var preMerge = new TreeViewItem { Header = "pre-merge-commit.sample" };
+        var prePush = new TreeViewItem { Header = "pre-push.sample" };
+        hooks.Items.Add(preCommit);
+        hooks.Items.Add(preMerge);
+        hooks.Items.Add(prePush);
+        git.Items.Add(hooks);
+        root.Items.Add(git);
+
+        for (var i = 0; i < 18; i++)
+        {
+            root.Items.Add(new TreeViewItem { Header = $"After {i:00}" });
+        }
+
+        treeView.Items.Add(root);
+        host.AddChild(treeView);
+        Canvas.SetLeft(treeView, 20f);
+        Canvas.SetTop(treeView, 20f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(treeView.GetVisualChildren()));
+        scrollViewer.ScrollToVerticalOffset(360f);
+        RunLayout(uiRoot);
+
+        Assert.True(prePush.TryGetRenderBoundsInRootSpace(out var bounds));
+        var viewport = host.LayoutSlot;
+        var actionPoint = InkkOopsCommandUtilities.GetPreferredActionPoint(prePush, bounds, viewport, InkkOopsPointerAnchor.Center);
+        var hit = VisualTreeHelper.HitTest(host, actionPoint);
+        Assert.True(
+            IsDescendantOrSelf(prePush, hit),
+            $"Expected InkkOops action point to hit pre-push. hit={hit?.GetType().Name ?? "<null>"}, prePushSlot={prePush.LayoutSlot}, bounds={bounds}, actionPoint={actionPoint}, offset={scrollViewer.VerticalOffset:0.###}.");
+
+        ClickWithoutPointerMove(uiRoot, actionPoint);
+
+        Assert.Same(prePush, treeView.SelectedItem);
+        Assert.True(prePush.IsSelected);
+        Assert.False(preCommit.IsSelected);
+        Assert.False(preMerge.IsSelected);
+        Assert.False(hooks.IsSelected);
+    }
+
+    [Fact]
+    public void StationaryClickAfterTreeViewScroll_ShouldResolveRowNowUnderPointer()
+    {
+        var host = new Canvas
+        {
+            Width = 460f,
+            Height = 320f
+        };
+
+        var treeView = new TreeView
+        {
+            Width = 340f,
+            Height = 120f
+        };
+
+        var root = new TreeViewItem
+        {
+            Header = "InkkSlinger",
+            IsExpanded = true
+        };
+
+        for (var i = 0; i < 18; i++)
+        {
+            root.Items.Add(new TreeViewItem { Header = $"Before {i:00}" });
+        }
+
+        var git = new TreeViewItem
+        {
+            Header = ".git",
+            IsExpanded = true
+        };
+        var hooks = new TreeViewItem
+        {
+            Header = "hooks",
+            IsExpanded = true
+        };
+        var prePush = new TreeViewItem { Header = "pre-push.sample" };
+        hooks.Items.Add(new TreeViewItem { Header = "prepare-commit-msg.sample" });
+        hooks.Items.Add(new TreeViewItem { Header = "pre-merge-commit.sample" });
+        hooks.Items.Add(prePush);
+        git.Items.Add(hooks);
+        root.Items.Add(git);
+
+        for (var i = 0; i < 18; i++)
+        {
+            root.Items.Add(new TreeViewItem { Header = $"After {i:00}" });
+        }
+
+        treeView.Items.Add(root);
+        host.AddChild(treeView);
+        Canvas.SetLeft(treeView, 20f);
+        Canvas.SetTop(treeView, 20f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        var initialPointer = new Vector2(treeView.LayoutSlot.X + 40f, treeView.LayoutSlot.Y + 44f);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(initialPointer, pointerMoved: true));
+        var initiallyHovered = uiRoot.GetHoveredElementForDiagnostics();
+        Assert.IsType<TreeViewItem>(initiallyHovered);
+        Assert.NotSame(prePush, initiallyHovered);
+
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(treeView.GetVisualChildren()));
+        scrollViewer.ScrollToVerticalOffset(425f);
+        RunLayout(uiRoot);
+
+        var scrolledPoint = new Vector2(prePush.LayoutSlot.X + 40f, prePush.LayoutSlot.Y + 8f);
+        Assert.InRange(MathF.Abs(scrolledPoint.Y - initialPointer.Y), 0f, 18f);
+        var hit = VisualTreeHelper.HitTest(host, scrolledPoint);
+        Assert.True(IsDescendantOrSelf(prePush, hit));
+
+        ClickWithoutPointerMove(uiRoot, scrolledPoint);
+
+        Assert.Same(prePush, treeView.SelectedItem);
+    }
+
     private static InputDelta CreatePointerDeltaNoMove(
         Vector2 pointer,
         bool leftPressed = false,

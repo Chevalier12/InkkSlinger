@@ -208,6 +208,7 @@ public sealed partial class UiRoot
             DismissToolTipForPointerInteraction();
             _suppressCurrentLeftPressGesture = false;
             _lastClickDownTarget = pointerTarget;
+            _lastClickDownResolvePath = _lastPointerResolvePath;
             _lastClickDownPointerPosition = pressedPointerPosition;
             _hasLastClickDownPointerPosition = true;
             var routeStart = Stopwatch.GetTimestamp();
@@ -227,6 +228,7 @@ public sealed partial class UiRoot
         if (delta.LeftReleased)
         {
             var routeStart = Stopwatch.GetTimestamp();
+            _lastClickUpResolvePath = _lastPointerResolvePath;
             DispatchMouseUp(pointerTarget, delta.Current.PointerPosition, MouseButton.Left);
             RefreshHoverAfterClick(delta.Current.PointerPosition);
             clickResolveHitTests = 0;
@@ -381,8 +383,6 @@ public sealed partial class UiRoot
             {
                 return FinalizePointerResolve("ReuseLastClickUp", reusedClickUpTarget);
             }
-
-            return FinalizePointerResolve("ReuseLastClickUp", _lastClickUpTarget);
         }
 
         if (delta.LeftReleased &&
@@ -398,8 +398,6 @@ public sealed partial class UiRoot
             {
                 return FinalizePointerResolve("ReuseLastClickDown", reusedClickDownTarget);
             }
-
-            return FinalizePointerResolve("ReuseLastClickDown", _lastClickDownTarget);
         }
 
         var bypassClickTargetShortcuts = requiresPreciseTarget && ShouldBypassClickTargetShortcuts(pointerPosition);
@@ -422,8 +420,6 @@ public sealed partial class UiRoot
             {
                 return FinalizePointerResolve("PointerResolveCacheReuse", resolvedCachedPointerTarget);
             }
-
-            return FinalizePointerResolve("PointerResolveCacheReuse", cachedPointerTarget);
         }
 
         if (!requiresPreciseTarget)
@@ -465,6 +461,15 @@ public sealed partial class UiRoot
         if (!requiresPreciseTarget &&
             delta.PointerMoved &&
             !TryGetTopOverlayCandidate(out _) &&
+            TryResolveItemsHostContainerTarget(pointerPosition, out var pointerMoveContainerTarget, out _, out _) &&
+            pointerMoveContainerTarget != null)
+        {
+            return FinalizePointerResolve("ItemsHostContainerPointerMoveFastPath", pointerMoveContainerTarget, updatePointerCache: false);
+        }
+
+        if (!requiresPreciseTarget &&
+            delta.PointerMoved &&
+            !TryGetTopOverlayCandidate(out _) &&
             TryResolvePointerMoveWithinHoveredHostSubtree(pointerPosition, out var hoveredHostTarget) &&
             hoveredHostTarget != null)
         {
@@ -486,6 +491,12 @@ public sealed partial class UiRoot
                 fastContainerTarget != null)
             {
                 _clickCpuResolveCachedCount++;
+                if (TryResolvePreciseTreeViewItemContainerFromFullHitTest(fastContainerTarget, pointerPosition, out var preciseTreeViewTarget) &&
+                    preciseTreeViewTarget != null)
+                {
+                    return FinalizePointerResolve("ItemsHostContainerValidatedHitTest", preciseTreeViewTarget);
+                }
+
                 return FinalizePointerResolve("ItemsHostContainerFastPath", fastContainerTarget);
             }
 
@@ -1181,17 +1192,33 @@ public sealed partial class UiRoot
         }
 
         var dispatchStart = Stopwatch.GetTimestamp();
-        _lastInputPointerEventCount++;
-        var routedEventsStart = Stopwatch.GetTimestamp();
-        _lastInputRoutedEventCount += 2;
-        var previewStart = Stopwatch.GetTimestamp();
-        var mouseMoveArgs = new MouseRoutedEventArgs(UIElement.PreviewMouseMoveEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers);
-        routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseMoveEvent, mouseMoveArgs);
-        _lastInputPointerMovePreviewEventMs += Stopwatch.GetElapsedTime(previewStart).TotalMilliseconds;
-        var bubbleStart = Stopwatch.GetTimestamp();
-        routedTarget.RaiseRoutedEventInternal(UIElement.MouseMoveEvent, mouseMoveArgs);
-        _lastInputPointerMoveBubbleEventMs += Stopwatch.GetElapsedTime(bubbleStart).TotalMilliseconds;
-        _lastInputPointerMoveRoutedEventsMs += Stopwatch.GetElapsedTime(routedEventsStart).TotalMilliseconds;
+        var hasPreviewMouseMoveRoute = routedTarget.HasRoutedHandlerInVisualRouteForEvent(UIElement.PreviewMouseMoveEvent);
+        var hasMouseMoveRoute = routedTarget.HasRoutedHandlerInVisualRouteForEvent(UIElement.MouseMoveEvent);
+        if (hasPreviewMouseMoveRoute || hasMouseMoveRoute)
+        {
+            _lastInputPointerEventCount++;
+            var routedEventsStart = Stopwatch.GetTimestamp();
+            MouseRoutedEventArgs? mouseMoveArgs = null;
+            if (hasPreviewMouseMoveRoute)
+            {
+                _lastInputRoutedEventCount++;
+                var previewStart = Stopwatch.GetTimestamp();
+                mouseMoveArgs = new MouseRoutedEventArgs(UIElement.PreviewMouseMoveEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers);
+                routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseMoveEvent, mouseMoveArgs);
+                _lastInputPointerMovePreviewEventMs += Stopwatch.GetElapsedTime(previewStart).TotalMilliseconds;
+            }
+
+            if (hasMouseMoveRoute)
+            {
+                _lastInputRoutedEventCount++;
+                var bubbleStart = Stopwatch.GetTimestamp();
+                mouseMoveArgs ??= new MouseRoutedEventArgs(UIElement.MouseMoveEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers);
+                routedTarget.RaiseRoutedEventInternal(UIElement.MouseMoveEvent, mouseMoveArgs);
+                _lastInputPointerMoveBubbleEventMs += Stopwatch.GetElapsedTime(bubbleStart).TotalMilliseconds;
+            }
+
+            _lastInputPointerMoveRoutedEventsMs += Stopwatch.GetElapsedTime(routedEventsStart).TotalMilliseconds;
+        }
 
         if (_inputState.CapturedPointerElement is DataGrid dragDataGrid)
         {
@@ -2407,18 +2434,20 @@ public sealed partial class UiRoot
         var anchorConnected = anchor != null && IsElementConnectedToVisualRoot(anchor);
         var broadAnchor = anchor != null && IsBroadClickAnchor(anchor);
         var narrowHoveredAnchor = !hoveredStrictMode || (anchor != null && IsNarrowHoveredAnchor(anchor));
-        var pointerInsideAnchor = anchor != null && PointerLikelyInsideElement(anchor, pointerPosition);
+        var virtualizedTreeItemAnchor = anchor is TreeViewItem { UseVirtualizedTreeLayout: true };
+        var pointerInsideAnchor = anchor != null && !virtualizedTreeItemAnchor && PointerLikelyInsideElement(anchor, pointerPosition);
         if (anchor == null ||
             !anchorConnected ||
             broadAnchor ||
             !narrowHoveredAnchor ||
+            virtualizedTreeItemAnchor ||
             !pointerInsideAnchor)
         {
             if (shouldTrace)
             {
                 CanvasThumbInvestigationLog.Write(
                     "PreciseClickSubtree",
-                    $"eligible=false pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} anchor={CanvasThumbInvestigationLog.DescribeElement(anchor)} anchorConnected={anchorConnected} broadAnchor={broadAnchor} hoveredStrictMode={hoveredStrictMode} narrowHoveredAnchor={narrowHoveredAnchor} pointerInsideAnchor={pointerInsideAnchor}");
+                    $"eligible=false pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} anchor={CanvasThumbInvestigationLog.DescribeElement(anchor)} anchorConnected={anchorConnected} broadAnchor={broadAnchor} hoveredStrictMode={hoveredStrictMode} narrowHoveredAnchor={narrowHoveredAnchor} virtualizedTreeItemAnchor={virtualizedTreeItemAnchor} pointerInsideAnchor={pointerInsideAnchor}");
             }
             return false;
         }
@@ -2483,6 +2512,33 @@ public sealed partial class UiRoot
         }
 
         return false;
+    }
+
+    private bool TryResolvePreciseTreeViewItemContainerFromFullHitTest(
+        UIElement fastTarget,
+        Vector2 pointerPosition,
+        out UIElement? target)
+    {
+        target = null;
+        if (fastTarget is not TreeViewItem)
+        {
+            return false;
+        }
+
+        _lastInputHitTestCount++;
+        _clickCpuResolveHitTestCount++;
+        var hitTestStart = Stopwatch.GetTimestamp();
+        var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var metrics);
+        _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+        _lastPointerResolveHitTestMetrics = metrics;
+        var hitContainer = FindNearestItemsContainer(hit);
+        if (hitContainer == null || ReferenceEquals(hitContainer, fastTarget))
+        {
+            return false;
+        }
+
+        target = hitContainer;
+        return true;
     }
 
     private bool TryResolveHoverTargetWithinTextInputSubtree(
@@ -2858,7 +2914,10 @@ public sealed partial class UiRoot
         var probeStart = Stopwatch.GetTimestamp();
         var probeX = pointerPosition.X;
         var probeY = pointerPosition.Y;
-        if (TryFindAncestor<ScrollViewer>(host, out var ownerScrollViewer) && ownerScrollViewer != null)
+        if (host is IScrollTransformContent &&
+            ScrollViewer.GetUseTransformContentScrolling(host) &&
+            TryFindAncestor<ScrollViewer>(host, out var ownerScrollViewer) &&
+            ownerScrollViewer != null)
         {
             probeX += ownerScrollViewer.HorizontalOffset;
             probeY += ownerScrollViewer.VerticalOffset;
@@ -2875,7 +2934,8 @@ public sealed partial class UiRoot
         var hostBoundsHitMs = Stopwatch.GetElapsedTime(hostBoundsStart).TotalMilliseconds;
 
         var directContainerStart = Stopwatch.GetTimestamp();
-        if (container != null && IsPointInsideElementSlot(container, probeX, probeY))
+        var skipDirectContainerHit = container is TreeViewItem;
+        if (!skipDirectContainerHit && container != null && IsPointInsideElementSlot(container, probeX, probeY))
         {
             target = container;
             var directMs = Stopwatch.GetElapsedTime(directContainerStart).TotalMilliseconds;
@@ -2883,8 +2943,123 @@ public sealed partial class UiRoot
             return true;
         }
         var directMissMs = Stopwatch.GetElapsedTime(directContainerStart).TotalMilliseconds;
+
+        var siblingStart = Stopwatch.GetTimestamp();
+        if (TryResolveContainerByEstimatedTraversalIndex(host, probeX, probeY, out target) && target != null)
+        {
+            var siblingMs = Stopwatch.GetElapsedTime(siblingStart).TotalMilliseconds;
+            detail = $"containerHit=true hostBoundsHit=true siblingHit=true nearest={nearestMs:0.###}ms host={hostMs:0.###}ms probe={probeMs:0.###}ms hostBounds={hostBoundsHitMs:0.###}ms direct={directMissMs:0.###}ms sibling={siblingMs:0.###}ms";
+            return true;
+        }
+
+        var siblingMissMs = Stopwatch.GetElapsedTime(siblingStart).TotalMilliseconds;
         detail = $"containerHit=false hostBoundsHit=true nearest={nearestMs:0.###}ms host={hostMs:0.###}ms probe={probeMs:0.###}ms hostBounds={hostBoundsHitMs:0.###}ms direct={directMissMs:0.###}ms";
+        detail += $" sibling={siblingMissMs:0.###}ms";
         return false;
+    }
+
+    private static bool TryResolveContainerByEstimatedTraversalIndex(UIElement host, float probeX, float probeY, out UIElement? target)
+    {
+        target = null;
+        var childCount = host.GetVisualChildCountForTraversal();
+        if (childCount <= 0)
+        {
+            return false;
+        }
+
+        if (!TryFindTraversalContainerRange(host, childCount, out var firstContainerIndex, out var lastContainerIndex))
+        {
+            return false;
+        }
+
+        if (host.GetVisualChildAtForTraversal(firstContainerIndex) is not FrameworkElement firstContainer ||
+            host.GetVisualChildAtForTraversal(lastContainerIndex) is not FrameworkElement lastContainer)
+        {
+            return false;
+        }
+
+        var containerCount = (lastContainerIndex - firstContainerIndex) + 1;
+        if (containerCount <= 0)
+        {
+            return false;
+        }
+
+        var top = firstContainer.LayoutSlot.Y;
+        var bottom = lastContainer.LayoutSlot.Y + lastContainer.LayoutSlot.Height;
+        var span = MathF.Max(1f, bottom - top);
+        var averageHeight = span / containerCount;
+        var estimated = firstContainerIndex + (int)((probeY - top) / averageHeight);
+        estimated = Math.Clamp(estimated, firstContainerIndex, lastContainerIndex);
+
+        var estimatedChild = host.GetVisualChildAtForTraversal(estimated);
+        if (IsItemsContainerElement(estimatedChild) && IsPointInsideItemsContainerSlot(estimatedChild, probeX, probeY))
+        {
+            target = estimatedChild;
+            return true;
+        }
+
+        const int neighborRadius = 6;
+        for (var offset = 1; offset <= neighborRadius; offset++)
+        {
+            var lower = estimated - offset;
+            if (lower >= firstContainerIndex)
+            {
+                var lowerChild = host.GetVisualChildAtForTraversal(lower);
+                if (IsItemsContainerElement(lowerChild) && IsPointInsideItemsContainerSlot(lowerChild, probeX, probeY))
+                {
+                    target = lowerChild;
+                    return true;
+                }
+            }
+
+            var upper = estimated + offset;
+            if (upper <= lastContainerIndex)
+            {
+                var upperChild = host.GetVisualChildAtForTraversal(upper);
+                if (IsItemsContainerElement(upperChild) && IsPointInsideItemsContainerSlot(upperChild, probeX, probeY))
+                {
+                    target = upperChild;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryFindTraversalContainerRange(UIElement host, int childCount, out int firstIndex, out int lastIndex)
+    {
+        firstIndex = -1;
+        for (var i = 0; i < childCount; i++)
+        {
+            if (!IsItemsContainerElement(host.GetVisualChildAtForTraversal(i)))
+            {
+                continue;
+            }
+
+            firstIndex = i;
+            break;
+        }
+
+        if (firstIndex < 0)
+        {
+            lastIndex = -1;
+            return false;
+        }
+
+        lastIndex = -1;
+        for (var i = childCount - 1; i >= 0; i--)
+        {
+            if (!IsItemsContainerElement(host.GetVisualChildAtForTraversal(i)))
+            {
+                continue;
+            }
+
+            lastIndex = i;
+            break;
+        }
+
+        return lastIndex >= firstIndex;
     }
 
     private static bool IsPointerTargetChainInteractive(UIElement element)
@@ -2925,7 +3100,7 @@ public sealed partial class UiRoot
 
     private static bool IsItemsContainerElement(UIElement element)
     {
-        return element is ListBoxItem or ListViewItem or DataGridRow;
+        return element is ListBoxItem or ListViewItem or DataGridRow or TreeViewItem;
     }
 
     private static bool TryResolveContainerByEstimatedIndex(IReadOnlyList<UIElement> children, float probeX, float probeY, out UIElement? target)
@@ -2960,7 +3135,7 @@ public sealed partial class UiRoot
         var estimated = firstContainerIndex + (int)((probeY - top) / averageHeight);
         estimated = Math.Clamp(estimated, firstContainerIndex, lastContainerIndex);
 
-        if (IsItemsContainerElement(children[estimated]) && IsPointInsideElementSlot(children[estimated], probeX, probeY))
+        if (IsItemsContainerElement(children[estimated]) && IsPointInsideItemsContainerSlot(children[estimated], probeX, probeY))
         {
             target = children[estimated];
             return true;
@@ -2972,7 +3147,7 @@ public sealed partial class UiRoot
             var lower = estimated - offset;
             if (lower >= firstContainerIndex &&
                 IsItemsContainerElement(children[lower]) &&
-                IsPointInsideElementSlot(children[lower], probeX, probeY))
+                IsPointInsideItemsContainerSlot(children[lower], probeX, probeY))
             {
                 target = children[lower];
                 return true;
@@ -2981,7 +3156,7 @@ public sealed partial class UiRoot
             var upper = estimated + offset;
             if (upper <= lastContainerIndex &&
                 IsItemsContainerElement(children[upper]) &&
-                IsPointInsideElementSlot(children[upper], probeX, probeY))
+                IsPointInsideItemsContainerSlot(children[upper], probeX, probeY))
             {
                 target = children[upper];
                 return true;
@@ -3038,6 +3213,26 @@ public sealed partial class UiRoot
                x <= slot.X + slot.Width &&
                y >= slot.Y &&
                y <= slot.Y + slot.Height;
+    }
+
+    private static bool IsPointInsideItemsContainerSlot(UIElement element, float x, float y)
+    {
+        if (element is TreeViewItem treeViewItem)
+        {
+            if (!treeViewItem.IsVisible || !treeViewItem.IsEnabled || !treeViewItem.IsHitTestVisible)
+            {
+                return false;
+            }
+
+            var slot = treeViewItem.LayoutSlot;
+            var rowBottom = slot.Y + MathF.Min(slot.Height, treeViewItem.RowHitHeightForInput);
+            return x >= slot.X &&
+                   x <= slot.X + slot.Width &&
+                   y >= slot.Y &&
+                   y <= rowBottom;
+        }
+
+        return IsPointInsideElementSlot(element, x, y);
     }
 
     private static bool TryGetClickHostAnchor(UIElement? anchor, out UIElement? hostAnchor)
@@ -3616,8 +3811,8 @@ public sealed partial class UiRoot
     }
 
     private static bool IsBetterOverlayCandidate(
-        int depth,
         int zIndex,
+        int depth,
         int order,
         bool hasCandidate,
         int bestDepth,

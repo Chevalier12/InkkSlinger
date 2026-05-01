@@ -20,26 +20,33 @@ internal static class InkkOopsActionLogFormatter
         return [CreatePlannedEntry(command, index, commandDescription, displayedFps)];
     }
 
-    public static IReadOnlyList<InkkOopsActionLogEntry> CreatePointerMoveEntries(int index, Vector2 position, UIElement? hoveredBefore, UIElement? hoveredAfter, string displayedFps)
+    public static IReadOnlyList<InkkOopsActionLogEntry> CreatePointerMoveEntries(
+        int index,
+        Vector2 position,
+        UIElement? hoveredBefore,
+        UIElement? hoveredAfter,
+        string displayedFps,
+        string pointerTelemetry)
     {
         var entries = new List<InkkOopsActionLogEntry>();
+        var metadata = FormatPointerMoveMetadata(position, pointerTelemetry);
         if (!ReferenceEquals(hoveredBefore, hoveredAfter) && hoveredBefore != null)
         {
             entries.Add(new InkkOopsActionLogEntry(
                 DescribeElementSubject(hoveredBefore, "viewport"),
-                FormatAction(index, "pointer exit", displayedFps, $"at={FormatPoint(position)}")));
+                FormatAction(index, "pointer exit", displayedFps, metadata)));
         }
 
         if (!ReferenceEquals(hoveredBefore, hoveredAfter) && hoveredAfter != null)
         {
             entries.Add(new InkkOopsActionLogEntry(
                 DescribeElementSubject(hoveredAfter, "viewport"),
-                FormatAction(index, "pointer enter", displayedFps, $"at={FormatPoint(position)}")));
+                FormatAction(index, "pointer enter", displayedFps, metadata)));
         }
 
         entries.Add(new InkkOopsActionLogEntry(
             DescribeElementSubject(hoveredAfter, "viewport"),
-            FormatAction(index, "pointer over", displayedFps, $"at={FormatPoint(position)}")));
+            FormatAction(index, "pointer over", displayedFps, metadata)));
 
         return entries;
     }
@@ -198,6 +205,13 @@ internal static class InkkOopsActionLogFormatter
     private static string FormatPoint(Vector2 value)
     {
         return $"({FormatNumber(value.X)},{FormatNumber(value.Y)})";
+    }
+
+    private static string FormatPointerMoveMetadata(Vector2 position, string telemetry)
+    {
+        return string.IsNullOrWhiteSpace(telemetry)
+            ? $"at={FormatPoint(position)} motion=none"
+            : $"at={FormatPoint(position)} {telemetry}";
     }
 }
 

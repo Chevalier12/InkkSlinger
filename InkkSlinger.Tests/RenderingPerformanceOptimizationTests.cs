@@ -30,6 +30,33 @@ public sealed class RenderingPerformanceOptimizationTests
     }
 
     [Fact]
+    public void RetainedTraversal_SkipsContainerSelfDrawOutsideDirtyClip_WhileKeepingVisibleChild()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 200f, 200f));
+        var container = new Panel();
+        container.SetLayoutSlot(new LayoutRect(0f, 0f, 8f, 8f));
+        var child = new Border();
+        child.SetLayoutSlot(new LayoutRect(80f, 80f, 16f, 16f));
+
+        container.AddChild(child);
+        root.AddChild(container);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+
+        var clip = new LayoutRect(80f, 80f, 16f, 16f);
+        var order = uiRoot.GetRetainedDrawOrderForClipForTests(clip);
+        var metrics = uiRoot.GetRetainedTraversalMetricsForClipForTests(clip);
+
+        Assert.Contains(root, order);
+        Assert.DoesNotContain(container, order);
+        Assert.Contains(child, order);
+        Assert.Equal(3, metrics.NodesVisited);
+        Assert.Equal(2, metrics.NodesDrawn);
+    }
+
+    [Fact]
     public void DirtyRegionStrategy_UsesPartialRedraw_ForSmallLocalizedInvalidation()
     {
         var root = new Panel();

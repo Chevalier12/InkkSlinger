@@ -8,6 +8,7 @@ public static class InkkOopsPipeRequestKinds
     public const string AssertProperty = "assert-property";
     public const string AssertExists = "assert-exists";
     public const string AssertNotExists = "assert-not-exists";
+    public const string MovePointer = "move-pointer";
     public const string HoverTarget = "hover-target";
     public const string ClickTarget = "click-target";
     public const string InvokeTarget = "invoke-target";
@@ -37,6 +38,16 @@ public sealed class InkkOopsPipeRequest
 
     public string TargetName { get; set; } = string.Empty;
 
+    public float? X { get; set; }
+
+    public float? Y { get; set; }
+
+    public string Anchor { get; set; } = string.Empty;
+
+    public float OffsetX { get; set; }
+
+    public float OffsetY { get; set; }
+
     public string ScopeTargetName { get; set; } = string.Empty;
 
     public string OwnerTargetName { get; set; } = string.Empty;
@@ -64,6 +75,14 @@ public sealed class InkkOopsPipeRequest
     public float DeltaX { get; set; }
 
     public float DeltaY { get; set; }
+
+    public int TravelFrames { get; set; }
+
+    public float StepDistance { get; set; }
+
+    public string Easing { get; set; } = string.Empty;
+
+    public int DwellFrames { get; set; }
 
     public int TimeoutMilliseconds { get; set; }
 

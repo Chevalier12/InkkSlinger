@@ -111,18 +111,25 @@ public sealed partial class UiRoot
                     }
                 }
 
+                var shouldDrawSelf = ShouldDrawRetainedNodeSelf(node, clipRect, translationX, translationY);
                 if (spriteBatch != null)
                 {
                     SyncRetainedDrawState(spriteBatch, node, ref clipPushCount);
-                    node.Visual.DrawSelf(spriteBatch);
+                    if (shouldDrawSelf)
+                    {
+                        node.Visual.DrawSelf(spriteBatch);
+                    }
                 }
                 else if (node.HasLocalClip)
                 {
                     clipPushCount++;
                 }
 
-                visuals?.Add(node.Visual);
-                drawn++;
+                if (shouldDrawSelf)
+                {
+                    visuals?.Add(node.Visual);
+                    drawn++;
+                }
 
                 if (node.HasScrollTranslation)
                 {
@@ -146,6 +153,19 @@ public sealed partial class UiRoot
         }
 
         return new RenderTraversalMetrics(visited, drawn, clipPushCount);
+    }
+
+    private static bool ShouldDrawRetainedNodeSelf(RenderNode node, LayoutRect clipRect, float translationX, float translationY)
+    {
+        if (!node.HasBoundsSnapshot)
+        {
+            return true;
+        }
+
+        var bounds = (AreClose(translationX, 0f) && AreClose(translationY, 0f))
+            ? node.BoundsSnapshot
+            : TranslateRect(node.BoundsSnapshot, translationX, translationY);
+        return Intersects(bounds, clipRect);
     }
 
     private void AppendRetainedDrawOrderForClip(LayoutRect clipRect, List<UIElement> visuals)

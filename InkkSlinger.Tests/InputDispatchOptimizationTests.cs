@@ -360,6 +360,127 @@ public class InputDispatchOptimizationTests
     }
 
     [Fact]
+    public void TreeViewItemHoverChange_WithoutMouseMoveHandlers_SkipsEmptyMoveRoute()
+    {
+        var root = new Canvas
+        {
+            Width = 420f,
+            Height = 260f
+        };
+        var treeView = new TreeView
+        {
+            Width = 260f,
+            Height = 180f
+        };
+        for (var i = 0; i < 8; i++)
+        {
+            treeView.Items.Add(new TreeViewItem { Header = $"Node {i}" });
+        }
+
+        root.AddChild(treeView);
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 420, 260, 16);
+
+        var first = (TreeViewItem)treeView.GetItemContainersForPresenter()[0];
+        var second = (TreeViewItem)treeView.GetItemContainersForPresenter()[1];
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: GetCenter(first.LayoutSlot)));
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: GetCenter(second.LayoutSlot)));
+        var metrics = uiRoot.GetInputMetricsSnapshot();
+
+        Assert.Same(second, uiRoot.GetHoveredElementForDiagnostics());
+        Assert.False(first.IsMouseOver);
+        Assert.True(second.IsMouseOver);
+        Assert.Equal(0, metrics.RoutedEventCount);
+        Assert.Equal(0, metrics.PointerEventCount);
+    }
+
+    [Fact]
+    public void TreeViewItemHoverChange_WithMouseMoveHandler_PreservesMoveRoute()
+    {
+        var root = new Canvas
+        {
+            Width = 420f,
+            Height = 260f
+        };
+        var treeView = new TreeView
+        {
+            Width = 260f,
+            Height = 180f
+        };
+        for (var i = 0; i < 8; i++)
+        {
+            treeView.Items.Add(new TreeViewItem { Header = $"Node {i}" });
+        }
+
+        var moveCount = 0;
+        treeView.AddHandler<MouseRoutedEventArgs>(UIElement.MouseMoveEvent, (_, _) => moveCount++);
+        root.AddChild(treeView);
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 420, 260, 16);
+
+        var first = (TreeViewItem)treeView.GetItemContainersForPresenter()[0];
+        var second = (TreeViewItem)treeView.GetItemContainersForPresenter()[1];
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: GetCenter(first.LayoutSlot)));
+        moveCount = 0;
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: GetCenter(second.LayoutSlot)));
+        var metrics = uiRoot.GetInputMetricsSnapshot();
+
+        Assert.Same(second, uiRoot.GetHoveredElementForDiagnostics());
+        Assert.Equal(1, moveCount);
+        Assert.Equal(1, metrics.RoutedEventCount);
+        Assert.Equal(1, metrics.PointerEventCount);
+    }
+
+    [Fact]
+    public void TreeViewItemHoverChange_AfterVirtualizedScroll_UsesItemsHostFastPath()
+    {
+        var root = new Canvas
+        {
+            Width = 520f,
+            Height = 360f
+        };
+        var treeView = new TreeView
+        {
+            Width = 300f,
+            Height = 220f
+        };
+        for (var i = 0; i < 160; i++)
+        {
+            treeView.Items.Add(new TreeViewItem { Header = $"Node {i:000}" });
+        }
+
+        root.AddChild(treeView);
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 520, 360, 16);
+
+        var scrollViewer = FindTreeViewScrollViewer(treeView);
+        scrollViewer.ScrollToVerticalOffset(480f);
+        RunLayout(uiRoot, 520, 360, 32);
+
+        var visibleItems = treeView.GetItemContainersForPresenter()
+            .OfType<TreeViewItem>()
+            .Where(item => item.LayoutSlot.Height > 0f &&
+                           item.LayoutSlot.Y >= scrollViewer.LayoutSlot.Y &&
+                           item.LayoutSlot.Y + item.LayoutSlot.Height <= scrollViewer.LayoutSlot.Y + scrollViewer.LayoutSlot.Height)
+            .Take(3)
+            .ToArray();
+
+        Assert.True(visibleItems.Length >= 2);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: GetCenter(visibleItems[0].LayoutSlot)));
+        Assert.Same(visibleItems[0], uiRoot.GetHoveredElementForDiagnostics());
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: GetCenter(visibleItems[1].LayoutSlot)));
+        var metrics = uiRoot.GetInputMetricsSnapshot();
+
+        Assert.Same(visibleItems[1], uiRoot.GetHoveredElementForDiagnostics());
+        Assert.Equal("ItemsHostContainerPointerMoveFastPath", uiRoot.LastPointerResolvePathForDiagnostics);
+        Assert.Equal(0, metrics.HitTestCount);
+    }
+
+    [Fact]
     public void StationaryNoInput_AfterHover_UsesNoInputBypass()
     {
         var root = new Panel();
@@ -653,6 +774,19 @@ public class InputDispatchOptimizationTests
         }
 
         return null;
+    }
+
+    private static ScrollViewer FindTreeViewScrollViewer(TreeView treeView)
+    {
+        foreach (var child in treeView.GetVisualChildren())
+        {
+            if (child is ScrollViewer scrollViewer)
+            {
+                return scrollViewer;
+            }
+        }
+
+        throw new InvalidOperationException("Could not resolve TreeView ScrollViewer.");
     }
 
     private static Vector2 GetCenter(LayoutRect rect)

@@ -14,7 +14,7 @@ static int PrintUsage()
     Console.Error.WriteLine("  inkkoops list");
     Console.Error.WriteLine("  inkkoops run --script <name> --launch [--project <path>] [--pipe <name>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops run --script <name> --attach [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
-    Console.Error.WriteLine("  inkkoops live --attach --command <ping|get-host-info|get-property|assert-property|assert-exists|assert-not-exists|hover|click|invoke|drag|wait-frames|wait-for-element|wait-for-visible|wait-for-enabled|wait-for-in-viewport|wait-for-interactive|wait-for-idle|wheel|scroll-to|scroll-by|scroll-into-view|get-telemetry|get-target-diagnostics|screenshot|take-screenshot> [--scope <name>] [--owner <name>] [--target <name>] [--property <name>] [--expected <value>] [--frames <count>] [--delta <value>] [--delta-x <value>] [--delta-y <value>] [--horizontal <percent>] [--vertical <percent>] [--padding <value>] [--artifact <name>] [--compact] [--counters <names>] [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
+    Console.Error.WriteLine("  inkkoops live --attach --command <ping|get-host-info|get-property|assert-property|assert-exists|assert-not-exists|move-pointer|hover|click|invoke|drag|wait-frames|wait-for-element|wait-for-visible|wait-for-enabled|wait-for-in-viewport|wait-for-interactive|wait-for-idle|wheel|scroll-to|scroll-by|scroll-into-view|get-telemetry|get-target-diagnostics|screenshot|take-screenshot> [--scope <name>] [--owner <name>] [--target <name>] [--property <name>] [--expected <value>] [--x <value>] [--y <value>] [--anchor <center|top-left|top-right|bottom-left|bottom-right|offset>] [--offset-x <value>] [--offset-y <value>] [--frames <count>] [--travel-frames <count>] [--step-distance <value>] [--easing <linear|ease-in-out>] [--dwell-frames <count>] [--delta <value>] [--delta-x <value>] [--delta-y <value>] [--horizontal <percent>] [--vertical <percent>] [--padding <value>] [--artifact <name>] [--compact] [--counters <names>] [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops record --launch [--project <path>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops <recording-path> [--project <path>] [--artifacts <path>]");
     return 1;
@@ -143,6 +143,8 @@ static InkkOopsPipeRequest? BuildAttachRequest(Dictionary<string, string> option
         "assert-property" => InkkOopsPipeRequestKinds.AssertProperty,
         "assert-exists" => InkkOopsPipeRequestKinds.AssertExists,
         "assert-not-exists" => InkkOopsPipeRequestKinds.AssertNotExists,
+        "move-pointer" => InkkOopsPipeRequestKinds.MovePointer,
+        "move" => InkkOopsPipeRequestKinds.MovePointer,
         "hover" => InkkOopsPipeRequestKinds.HoverTarget,
         "click" => InkkOopsPipeRequestKinds.ClickTarget,
         "invoke" => InkkOopsPipeRequestKinds.InvokeTarget,
@@ -179,6 +181,19 @@ static InkkOopsPipeRequest? BuildAttachRequest(Dictionary<string, string> option
         ScopeTargetName = options.TryGetValue("scope", out var scopeTargetName) ? scopeTargetName : string.Empty,
         OwnerTargetName = options.TryGetValue("owner", out var ownerTargetName) ? ownerTargetName : string.Empty,
         TargetName = options.TryGetValue("target", out var targetName) ? targetName : string.Empty,
+        X = options.TryGetValue("x", out var xText) && float.TryParse(xText, NumberStyles.Float, CultureInfo.InvariantCulture, out var x)
+            ? x
+            : null,
+        Y = options.TryGetValue("y", out var yText) && float.TryParse(yText, NumberStyles.Float, CultureInfo.InvariantCulture, out var y)
+            ? y
+            : null,
+        Anchor = options.TryGetValue("anchor", out var anchor) ? anchor : string.Empty,
+        OffsetX = options.TryGetValue("offset-x", out var offsetXText) && float.TryParse(offsetXText, NumberStyles.Float, CultureInfo.InvariantCulture, out var offsetX)
+            ? offsetX
+            : 0f,
+        OffsetY = options.TryGetValue("offset-y", out var offsetYText) && float.TryParse(offsetYText, NumberStyles.Float, CultureInfo.InvariantCulture, out var offsetY)
+            ? offsetY
+            : 0f,
         PropertyName = options.TryGetValue("property", out var propertyName) ? propertyName : string.Empty,
         ExpectedValue = options.TryGetValue("expected", out var expectedValue) ? expectedValue : string.Empty,
         ArtifactName = options.TryGetValue("artifact", out var artifactName) ? artifactName : string.Empty,
@@ -190,6 +205,18 @@ static InkkOopsPipeRequest? BuildAttachRequest(Dictionary<string, string> option
         DeltaY = options.TryGetValue("delta-y", out var deltaYText) && float.TryParse(deltaYText, NumberStyles.Float, CultureInfo.InvariantCulture, out var deltaY)
             ? deltaY
             : 0f,
+        TravelFrames = options.TryGetValue("travel-frames", out var travelFramesText) && int.TryParse(travelFramesText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var travelFrames)
+            ? travelFrames
+            : 0,
+        StepDistance = options.TryGetValue("step-distance", out var stepDistanceText) && float.TryParse(stepDistanceText, NumberStyles.Float, CultureInfo.InvariantCulture, out var stepDistance)
+            ? stepDistance
+            : 0f,
+        Easing = options.TryGetValue("easing", out var easing) ? easing : string.Empty,
+        DwellFrames = options.TryGetValue("dwell-frames", out var dwellFramesText) && int.TryParse(dwellFramesText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var dwellFrames)
+            ? dwellFrames
+            : options.TryGetValue("frames", out var dwellFallbackText) && int.TryParse(dwellFallbackText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var dwellFallback)
+                ? dwellFallback
+            : 0,
         WheelDelta = options.TryGetValue("delta", out var deltaText) && int.TryParse(deltaText, out var wheelDelta)
             ? wheelDelta
             : 0,

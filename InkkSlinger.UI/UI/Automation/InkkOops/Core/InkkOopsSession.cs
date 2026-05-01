@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -308,8 +309,9 @@ public sealed class InkkOopsSession
         await Host.MovePointerAsync(position, motion, cancellationToken).ConfigureAwait(false);
         var after = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
         var displayedFps = await CaptureDisplayedFpsAsync(cancellationToken).ConfigureAwait(false);
+        var pointerTelemetry = await CapturePointerMoveTelemetrySummaryAsync(cancellationToken).ConfigureAwait(false);
 
-        foreach (var entry in InkkOopsActionLogFormatter.CreatePointerMoveEntries(GetCurrentActionCommandIndex(), position, before.Hovered, after.Hovered, displayedFps))
+        foreach (var entry in InkkOopsActionLogFormatter.CreatePointerMoveEntries(GetCurrentActionCommandIndex(), position, before.Hovered, after.Hovered, displayedFps, pointerTelemetry))
         {
             Artifacts.LogActionEntry(entry.Subject, entry.Details);
         }
@@ -369,6 +371,11 @@ public sealed class InkkOopsSession
     private Task<string> CaptureDisplayedFpsAsync(CancellationToken cancellationToken)
     {
         return QueryOnUiThreadAsync(() => Host.GetDisplayedFps(), cancellationToken);
+    }
+
+    private Task<string> CapturePointerMoveTelemetrySummaryAsync(CancellationToken cancellationToken)
+    {
+        return QueryOnUiThreadAsync(() => Host.GetLastPointerMotionTelemetrySummary(), cancellationToken);
     }
 
     private readonly record struct InkkOopsActionRuntimeSnapshot(

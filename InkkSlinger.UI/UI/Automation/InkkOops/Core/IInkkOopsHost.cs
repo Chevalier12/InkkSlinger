@@ -20,6 +20,8 @@ public interface IInkkOopsHost
 
     string GetDisplayedFps();
 
+    string GetLastPointerMotionTelemetrySummary();
+
     Task ResizeWindowAsync(int width, int height, CancellationToken cancellationToken = default);
 
     Task MaximizeWindowAsync(CancellationToken cancellationToken = default);

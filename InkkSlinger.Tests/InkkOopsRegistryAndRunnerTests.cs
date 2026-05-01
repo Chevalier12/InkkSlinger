@@ -270,6 +270,67 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
     }
 
     [Fact]
+    public async Task LiveRequestDispatcher_MovePointer_TargetOffset_Uses_Anchor_And_Motion()
+    {
+        var button = new Button
+        {
+            Name = "OffsetButton",
+            Content = "Offset",
+            Width = 120f,
+            Height = 40f
+        };
+        Canvas.SetLeft(button, 100f);
+        Canvas.SetTop(button, 50f);
+        var root = new Canvas { Width = 800f, Height = 600f };
+        root.AddChild(button);
+        using var host = new InkkOopsTestHost(root);
+        var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.MovePointer,
+                TargetName = "OffsetButton",
+                Anchor = "offset",
+                OffsetX = 10f,
+                OffsetY = 12f,
+                TravelFrames = 3,
+                StepDistance = 8f,
+                Easing = "ease-in-out"
+            },
+            CancellationToken.None);
+
+        var lastPoint = host.PointerTrace.Last();
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.True(button.IsMouseOver);
+        Assert.InRange(lastPoint.X, 109.99f, 110.01f);
+        Assert.InRange(lastPoint.Y, 61.99f, 62.01f);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_MovePointer_AbsoluteCoordinates_Uses_X_And_Y()
+    {
+        var root = new Canvas { Width = 800f, Height = 600f };
+        using var host = new InkkOopsTestHost(root);
+        var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.MovePointer,
+                X = 321f,
+                Y = 234f,
+                TravelFrames = 2
+            },
+            CancellationToken.None);
+
+        var lastPoint = host.PointerTrace.Last();
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.InRange(lastPoint.X, 320.99f, 321.01f);
+        Assert.InRange(lastPoint.Y, 233.99f, 234.01f);
+    }
+
+    [Fact]
     public async Task LiveRequestDispatcher_GetProperty_Uses_Scope_To_Resolve_Owning_Button_By_Text()
     {
         var sidebarButton = new Button

@@ -1009,6 +1009,19 @@ public class UIElement : DependencyObject
         return _routedHandlers.TryGetValue(routedEvent, out var handlers) ? handlers.Count : 0;
     }
 
+    internal bool HasRoutedHandlerInVisualRouteForEvent(RoutedEvent routedEvent)
+    {
+        for (var current = this; current != null; current = current.VisualParent)
+        {
+            if (HasAnyRoutedEventHandlers(current, routedEvent))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static void NotifyBindingTreeChanged(UIElement root)
     {
         var visited = new HashSet<UIElement>();

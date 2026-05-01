@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
@@ -30,6 +32,9 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
     private InkkOopsInteractionRecorder? _recorder;
     private Vector2 _pointerPosition;
     private bool _hasPointerPosition;
+    private float _lastPointerMotionLowestFps = float.PositiveInfinity;
+    private string _lastPointerMoveInputTelemetrySummary = "input=none";
+    private string _lastPointerMotionTelemetrySummary = "motion=none";
     private bool _disposed;
     private string _artifactRoot;
 
@@ -71,6 +76,11 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
     public string GetDisplayedFps()
     {
         return _displayedFpsAccessor();
+    }
+
+    public string GetLastPointerMotionTelemetrySummary()
+    {
+        return _lastPointerMotionTelemetrySummary;
     }
 
     public void SetArtifactRoot(string artifactRoot)
@@ -626,6 +636,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
     {
         var start = await QueryOnUiThreadAsync(GetCurrentPointerPositionForMotion, cancellationToken).ConfigureAwait(false);
         var steps = CalculatePointerMoveStepCount(start, position, motion);
+        await ExecuteOnUiThreadAsync(ResetPointerMotionTelemetry, cancellationToken).ConfigureAwait(false);
         for (var i = 1; i <= steps; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -635,6 +646,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
             if (i < steps)
             {
                 await AdvanceFrameAsync(1, cancellationToken).ConfigureAwait(false);
+                await ExecuteOnUiThreadAsync(() => RecordPointerMotionFrameTelemetry(i, steps, sample), cancellationToken).ConfigureAwait(false);
             }
         }
     }
@@ -656,6 +668,47 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
         _pointerPosition = position;
         _hasPointerPosition = true;
         UiRoot.RunInputDeltaForTests(CreateDelta(previous, position, pointerMoved: true));
+        _lastPointerMoveInputTelemetrySummary = FormatPointerMoveInputTelemetry(UiRoot.GetPointerMoveTelemetrySnapshotForTests());
+    }
+
+    private void ResetPointerMotionTelemetry()
+    {
+        _lastPointerMotionLowestFps = float.PositiveInfinity;
+        _lastPointerMoveInputTelemetrySummary = "input=none";
+        _lastPointerMotionTelemetrySummary = "motion=none";
+    }
+
+    private void RecordPointerMotionFrameTelemetry(int step, int steps, Vector2 pointerPosition)
+    {
+        var displayedFps = GetDisplayedFps();
+        if (!TryParseDisplayedFps(displayedFps, out var fps) || fps >= _lastPointerMotionLowestFps)
+        {
+            return;
+        }
+
+        _lastPointerMotionLowestFps = fps;
+        var performance = UiRoot.GetPerformanceTelemetrySnapshotForTests();
+        var render = UiRoot.GetRenderTelemetrySnapshotForTests();
+        _lastPointerMotionTelemetrySummary = string.Create(
+            CultureInfo.InvariantCulture,
+            $"motionStep={step}/{steps} motionAt={FormatVector2(pointerPosition)} motionFps={displayedFps} {_lastPointerMoveInputTelemetrySummary} frameUpdateMs={UiRoot.LastUpdateMs:0.###} frameDrawMs={UiRoot.LastDrawMs:0.###} renderSchedulingMs={performance.RenderSchedulingPhaseMilliseconds:0.###} dirtyRoots={performance.DirtyRootCount} retainedShallowMs={performance.RetainedShallowSyncMilliseconds:0.###} retainedDeepMs={performance.RetainedDeepSyncMilliseconds:0.###} retainedTraversal={performance.RetainedTraversalCount} drawVisualMs={render.DrawVisualTreeMilliseconds:0.###} dirtyDecision={render.LastDirtyDrawDecisionReason}");
+    }
+
+    private static string FormatPointerMoveInputTelemetry(UiPointerMoveTelemetrySnapshot telemetry)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"path={telemetry.PointerResolvePath} inputMs={telemetry.PointerDispatchMilliseconds:0.###} resolveMs={telemetry.PointerTargetResolveMilliseconds:0.###} hoverMs={telemetry.HoverUpdateMilliseconds:0.###} routeMs={telemetry.PointerRouteMilliseconds:0.###} finalHitTestMs={telemetry.PointerResolveFinalHitTestMilliseconds:0.###} hitTests={telemetry.HitTestCount} routedEvents={telemetry.RoutedEventCount} pointerEvents={telemetry.PointerEventCount}");
+    }
+
+    private static bool TryParseDisplayedFps(string displayedFps, out float fps)
+    {
+        return float.TryParse(displayedFps, NumberStyles.Float, CultureInfo.InvariantCulture, out fps);
+    }
+
+    private static string FormatVector2(Vector2 value)
+    {
+        return string.Create(CultureInfo.InvariantCulture, $"({value.X:0.###},{value.Y:0.###})");
     }
 
     private void ApplyPointerPress(Vector2 position, MouseButton button)

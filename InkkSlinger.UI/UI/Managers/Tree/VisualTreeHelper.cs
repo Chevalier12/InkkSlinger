@@ -262,70 +262,80 @@ public static class VisualTreeHelper
             {
                 _panelTraversalCount++;
                 collector?.RecordTraversal("Panel");
-                var ordered = panel.GetChildrenOrderedByZIndex();
-                if (ordered.Count >= 16 &&
-                    TryHitTestMonotonicVerticalPanelChildren(
-                        panel,
-                        ordered,
-                        position,
-                        nextHorizontalOffset,
-                        nextVerticalOffset,
-                        collector,
-                        depth,
-                        nextAncestorTransformToRoot,
-                        hasNextAncestorTransformToRoot,
-                        currentRootToThisInverse,
-                        hasCurrentRootToThisInverse,
-                        hasClipInChain,
-                        excludeDisabledElements,
-                        out var indexedHit))
+                var rentedTraversalChildren = RentPanelTraversalChildrenIfNeeded(panel, out var ordered);
+                try
                 {
-                    return indexedHit;
-                }
-
-                for (var i = ordered.Count - 1; i >= 0; i--)
-                {
-                    var child = ordered[i];
-                    if (!ShouldTraverseChildSubtree(
-                            root,
-                            child,
+                    if (ordered.Count >= 16 &&
+                        TryHitTestMonotonicVerticalPanelChildren(
+                            panel,
+                            ordered,
                             position,
-                            accumulatedHorizontalOffset,
-                            accumulatedVerticalOffset,
                             nextHorizontalOffset,
                             nextVerticalOffset,
+                            collector,
+                            depth,
                             nextAncestorTransformToRoot,
                             hasNextAncestorTransformToRoot,
                             currentRootToThisInverse,
                             hasCurrentRootToThisInverse,
                             hasClipInChain,
                             excludeDisabledElements,
-                            collector))
+                            out var indexedHit))
                     {
-                        continue;
+                        return indexedHit;
                     }
 
-                    var hit = HitTestCore(
-                        child,
-                        position,
-                        ResolveChildHorizontalOffset(root, child, accumulatedHorizontalOffset, nextHorizontalOffset),
-                        ResolveChildVerticalOffset(root, child, accumulatedVerticalOffset, nextVerticalOffset),
-                        collector,
-                        depth + 1,
-                        nextAncestorTransformToRoot,
-                        hasNextAncestorTransformToRoot,
-                        currentRootToThisInverse,
-                        hasCurrentRootToThisInverse,
-                        hasClipInChain,
-                        excludeDisabledElements,
-                        acceptancePredicate);
-                    if (hit != null)
+                    for (var i = ordered.Count - 1; i >= 0; i--)
                     {
-                        return hit;
+                        var child = ordered[i];
+                        if (!ShouldTraverseChildSubtree(
+                                root,
+                                child,
+                                position,
+                                accumulatedHorizontalOffset,
+                                accumulatedVerticalOffset,
+                                nextHorizontalOffset,
+                                nextVerticalOffset,
+                                nextAncestorTransformToRoot,
+                                hasNextAncestorTransformToRoot,
+                                currentRootToThisInverse,
+                                hasCurrentRootToThisInverse,
+                                hasClipInChain,
+                                excludeDisabledElements,
+                                collector))
+                        {
+                            continue;
+                        }
+
+                        var hit = HitTestCore(
+                            child,
+                            position,
+                            ResolveChildHorizontalOffset(root, child, accumulatedHorizontalOffset, nextHorizontalOffset),
+                            ResolveChildVerticalOffset(root, child, accumulatedVerticalOffset, nextVerticalOffset),
+                            collector,
+                            depth + 1,
+                            nextAncestorTransformToRoot,
+                            hasNextAncestorTransformToRoot,
+                            currentRootToThisInverse,
+                            hasCurrentRootToThisInverse,
+                            hasClipInChain,
+                            excludeDisabledElements,
+                            acceptancePredicate);
+                        if (hit != null)
+                        {
+                            return hit;
+                        }
+                    }
+
+                    return AcceptHitCandidate(root, isWithinSelfBounds, acceptancePredicate);
+                }
+                finally
+                {
+                    if (rentedTraversalChildren != null)
+                    {
+                        ListPool<UIElement>.Return(rentedTraversalChildren);
                     }
                 }
-
-                return AcceptHitCandidate(root, isWithinSelfBounds, acceptancePredicate);
             }
 
             if (isWithinSelfBounds &&
@@ -940,6 +950,39 @@ public static class VisualTreeHelper
         }
 
         return false;
+    }
+
+    private static List<UIElement>? RentPanelTraversalChildrenIfNeeded(Panel panel, out IReadOnlyList<UIElement> children)
+    {
+        var traversalCount = panel.GetVisualChildCountForTraversal();
+        if (traversalCount == panel.Children.Count)
+        {
+            children = panel.GetChildrenOrderedByZIndex();
+            return null;
+        }
+
+        var rented = ListPool<UIElement>.Rent();
+        for (var i = 0; i < traversalCount; i++)
+        {
+            rented.Add(panel.GetVisualChildAtForTraversal(i));
+        }
+
+        var minZ = int.MaxValue;
+        var maxZ = int.MinValue;
+        for (var i = 0; i < rented.Count; i++)
+        {
+            var zIndex = Panel.GetZIndex(rented[i]);
+            minZ = Math.Min(minZ, zIndex);
+            maxZ = Math.Max(maxZ, zIndex);
+        }
+
+        if (minZ != maxZ)
+        {
+            rented.Sort(static (left, right) => CompareVisualChildrenByZIndex(left, right));
+        }
+
+        children = rented;
+        return rented;
     }
 
     private static bool ShouldTraverseChildSubtree(

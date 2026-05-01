@@ -68,6 +68,8 @@ public class TreeViewItem : ItemsControl
 
     internal bool UseVirtualizedTreeLayout { get; set; }
 
+    internal float RowHitHeightForInput => GetRowHeight();
+
     internal int VirtualizedTreeDepth { get; set; }
 
     public string Header
