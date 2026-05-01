@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -65,6 +66,52 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
                 InkkOopsPipeRequestKinds.DragTarget => await ExecuteCommandAsync(request, new InkkOopsDragTargetCommand(CreateTarget(request), request.DeltaX, request.DeltaY, CreateAnchor(request), motion: CreateMotion(request)), cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.TakeScreenshot => await TakeScreenshotAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.RunScript => await RunScriptAsync(request, cancellationToken).ConfigureAwait(false),
+
+                // ── Newly exposed commands ───────────────────────────────
+                InkkOopsPipeRequestKinds.DoubleClickTarget => await ExecuteCommandAsync(request,
+                    new InkkOopsDoubleClickTargetCommand(CreateTarget(request), CreateAnchor(request),
+                        Math.Max(1, request.DwellFrames), CreateMotion(request)), cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.RightClickTarget => await ExecuteCommandAsync(request,
+                    new InkkOopsRightClickTargetCommand(CreateTarget(request), CreateAnchor(request),
+                        CreateMotion(request)), cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.KeyDown => await ExecuteCommandAsync(request,
+                    new InkkOopsKeyDownCommand(ParseKey(request)), cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.KeyUp => await ExecuteCommandAsync(request,
+                    new InkkOopsKeyUpCommand(ParseKey(request)), cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.TextInput => await TextInputAsync(request, cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.SetClipboardText => await ExecuteCommandAsync(request,
+                    new InkkOopsSetClipboardTextCommand(request.Text), cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.MaximizeWindow => await ExecuteCommandAsync(request,
+                    new InkkOopsMaximizeWindowCommand(), cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.ResizeWindow => await ExecuteCommandAsync(request,
+                    new InkkOopsResizeWindowCommand(Math.Max(1, request.Width), Math.Max(1, request.Height)),
+                    cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.LeaveTarget => await ExecuteCommandAsync(request,
+                    new InkkOopsLeaveTargetCommand(CreateTarget(request), request.Padding, CreateMotion(request)),
+                    cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.CaptureFrame => await ExecuteCommandAsync(request,
+                    new InkkOopsCaptureFrameCommand(ResolveArtifactName(request, "frame")),
+                    cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.DumpTelemetry => await ExecuteCommandAsync(request,
+                    new InkkOopsDumpTelemetryCommand(ResolveArtifactName(request, "telemetry")),
+                    cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.AssertAutomationEvent => await ExecuteCommandAsync(request,
+                    new InkkOopsAssertAutomationEventCommand(ParseAutomationEventType(request), request.TargetName, request.PropertyName),
+                    cancellationToken).ConfigureAwait(false),
+
+                // ── Pointer state / path commands ─────────────────────────
+                InkkOopsPipeRequestKinds.PointerDown => await PointerDownAsync(request, cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.PointerUp => await PointerUpAsync(request, cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.PointerDownTarget => await ExecuteCommandAsync(request,
+                    new InkkOopsPointerDownTargetCommand(CreateTarget(request), CreateAnchor(request), ParseMouseButton(request), CreateMotion(request)),
+                    cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.PointerUpTarget => await ExecuteCommandAsync(request,
+                    new InkkOopsPointerUpTargetCommand(CreateTarget(request), CreateAnchor(request), ParseMouseButton(request), CreateMotion(request)),
+                    cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.MovePointerPath => await MovePointerPathAsync(request, cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.DragPathTarget => await ExecuteCommandAsync(request,
+                    new InkkOopsDragPathTargetCommand(CreateTarget(request), ParseWaypoints(request), CreateAnchor(request), ParseMouseButton(request), CreateMotion(request)),
+                    cancellationToken).ConfigureAwait(false),
                 _ => Fail(request, $"Unknown live request kind '{request.RequestKind}'.")
             };
         }
@@ -580,6 +627,165 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
 
         return text.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private async Task<InkkOopsPipeResponse> TextInputAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Text) || request.Text.Length == 0)
+        {
+            throw new ArgumentException("Text must contain at least one character.", nameof(request));
+        }
+
+        foreach (var c in request.Text)
+        {
+            await new InkkOopsTextInputCommand(c)
+                .ExecuteAsync(_session, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return Complete(request, value: request.Text);
+    }
+
+    private async Task<InkkOopsPipeResponse> PointerDownAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)
+    {
+        var button = ParseMouseButton(request);
+        if (request.X is float x && request.Y is float y)
+        {
+            await new InkkOopsPointerDownCommand(new Vector2(x, y), button)
+                .ExecuteAsync(_session, cancellationToken)
+                .ConfigureAwait(false);
+            return Complete(request);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.TargetName))
+        {
+            var point = _session.ResolveRequiredActionPoint(CreateTarget(request), CreateAnchor(request));
+            await _session.PressPointerAsync(point, button, cancellationToken).ConfigureAwait(false);
+            return Complete(request);
+        }
+
+        throw new ArgumentException("Either TargetName or both X and Y are required for pointer-down.", nameof(request));
+    }
+
+    private async Task<InkkOopsPipeResponse> PointerUpAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)
+    {
+        var button = ParseMouseButton(request);
+        if (request.X is float x && request.Y is float y)
+        {
+            await new InkkOopsPointerUpCommand(new Vector2(x, y), button)
+                .ExecuteAsync(_session, cancellationToken)
+                .ConfigureAwait(false);
+            return Complete(request);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.TargetName))
+        {
+            var point = _session.ResolveRequiredActionPoint(CreateTarget(request), CreateAnchor(request));
+            await _session.ReleasePointerAsync(point, button, cancellationToken).ConfigureAwait(false);
+            return Complete(request);
+        }
+
+        throw new ArgumentException("Either TargetName or both X and Y are required for pointer-up.", nameof(request));
+    }
+
+    private async Task<InkkOopsPipeResponse> MovePointerPathAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)
+    {
+        var waypoints = ParseWaypoints(request);
+        if (waypoints.Count == 0)
+        {
+            // Fall back to a single point from X/Y
+            if (request.X is not float x || request.Y is not float y)
+            {
+                throw new ArgumentException("Either Waypoints or both X and Y are required for move-pointer-path.", nameof(request));
+            }
+
+            waypoints = new List<Vector2> { new Vector2(x, y) };
+        }
+
+        await new InkkOopsMovePointerPathCommand(waypoints, CreateMotion(request))
+            .ExecuteAsync(_session, cancellationToken)
+            .ConfigureAwait(false);
+        return Complete(request);
+    }
+
+    private static MouseButton ParseMouseButton(InkkOopsPipeRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ButtonName))
+        {
+            return MouseButton.Left;
+        }
+
+        return request.ButtonName.Trim().ToLowerInvariant() switch
+        {
+            "left" => MouseButton.Left,
+            "right" => MouseButton.Right,
+            "middle" => MouseButton.Middle,
+            "xbutton1" => MouseButton.XButton1,
+            "xbutton2" => MouseButton.XButton2,
+            _ => MouseButton.Left
+        };
+    }
+
+    private static IReadOnlyList<Vector2> ParseWaypoints(InkkOopsPipeRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Waypoints))
+        {
+            return Array.Empty<Vector2>();
+        }
+
+        try
+        {
+            var points = System.Text.Json.JsonSerializer.Deserialize<List<WaypointJson>>(request.Waypoints);
+            if (points == null || points.Count == 0)
+            {
+                return Array.Empty<Vector2>();
+            }
+
+            return points.Select(p => new Vector2(p.X, p.Y)).ToArray();
+        }
+        catch
+        {
+            throw new ArgumentException(
+                $"Waypoints must be a JSON array of {{X,Y}} objects, e.g. '[{{\"X\":100,\"Y\":200}},{{\"X\":300,\"Y\":400}}]'. Received: '{request.Waypoints}'",
+                nameof(request));
+        }
+    }
+
+    private sealed record WaypointJson(float X, float Y);
+
+    private static Keys ParseKey(InkkOopsPipeRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.KeyName))
+        {
+            throw new ArgumentException("KeyName is required for key-down/key-up.", nameof(request));
+        }
+
+        if (!Enum.TryParse<Keys>(request.KeyName, ignoreCase: true, out var key))
+        {
+            throw new ArgumentException($"Unknown key name '{request.KeyName}'. Valid values are defined in Microsoft.Xna.Framework.Input.Keys.", nameof(request));
+        }
+
+        return key;
+    }
+
+    private static AutomationEventType ParseAutomationEventType(InkkOopsPipeRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.EventType))
+        {
+            throw new ArgumentException("EventType is required for assert-automation-event.", nameof(request));
+        }
+
+        if (!Enum.TryParse<AutomationEventType>(request.EventType, ignoreCase: true, out var eventType))
+        {
+            throw new ArgumentException($"Unknown AutomationEventType '{request.EventType}'.", nameof(request));
+        }
+
+        return eventType;
+    }
+
+    private static string ResolveArtifactName(InkkOopsPipeRequest request, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(request.ArtifactName) ? fallback : request.ArtifactName;
     }
 
     private static string NormalizeKind(string? requestKind)

@@ -28,6 +28,28 @@ public static class InkkOopsPipeRequestKinds
     public const string GetHostInfo = "get-host-info";
     public const string DragTarget = "drag-target";
     public const string TakeScreenshot = "take-screenshot";
+
+    // ── Newly exposed commands ───────────────────────────────────────────
+    public const string DoubleClickTarget = "double-click-target";
+    public const string RightClickTarget = "right-click-target";
+    public const string KeyDown = "key-down";
+    public const string KeyUp = "key-up";
+    public const string TextInput = "text-input";
+    public const string SetClipboardText = "set-clipboard-text";
+    public const string MaximizeWindow = "maximize-window";
+    public const string ResizeWindow = "resize-window";
+    public const string LeaveTarget = "leave-target";
+    public const string CaptureFrame = "capture-frame";
+    public const string DumpTelemetry = "dump-telemetry";
+    public const string DragPathTarget = "drag-path-target";
+    public const string AssertAutomationEvent = "assert-automation-event";
+
+    // ── Pointer state / path commands ────────────────────────────────────
+    public const string PointerDown = "pointer-down";
+    public const string PointerUp = "pointer-up";
+    public const string PointerDownTarget = "pointer-down-target";
+    public const string PointerUpTarget = "pointer-up-target";
+    public const string MovePointerPath = "move-pointer-path";
 }
 
 public sealed class InkkOopsPipeRequest
@@ -83,6 +105,15 @@ public sealed class InkkOopsPipeRequest
     public string Easing { get; set; } = string.Empty;
 
     public int DwellFrames { get; set; }
+
+    // ── Fields for newly exposed commands ────────────────────────────────
+    public string KeyName { get; set; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public string EventType { get; set; } = string.Empty;
+    public string ButtonName { get; set; } = string.Empty;
+    public string Waypoints { get; set; } = string.Empty;
 
     public int TimeoutMilliseconds { get; set; }
 

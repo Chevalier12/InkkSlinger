@@ -14,7 +14,7 @@ static int PrintUsage()
     Console.Error.WriteLine("  inkkoops list");
     Console.Error.WriteLine("  inkkoops run --script <name> --launch [--project <path>] [--pipe <name>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops run --script <name> --attach [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
-    Console.Error.WriteLine("  inkkoops live --attach --command <ping|get-host-info|get-property|assert-property|assert-exists|assert-not-exists|move-pointer|hover|click|invoke|drag|wait-frames|wait-for-element|wait-for-visible|wait-for-enabled|wait-for-in-viewport|wait-for-interactive|wait-for-idle|wheel|scroll-to|scroll-by|scroll-into-view|get-telemetry|get-target-diagnostics|screenshot|take-screenshot> [--scope <name>] [--owner <name>] [--target <name>] [--property <name>] [--expected <value>] [--x <value>] [--y <value>] [--anchor <center|top-left|top-right|bottom-left|bottom-right|offset>] [--offset-x <value>] [--offset-y <value>] [--frames <count>] [--travel-frames <count>] [--step-distance <value>] [--easing <linear|ease-in-out>] [--dwell-frames <count>] [--delta <value>] [--delta-x <value>] [--delta-y <value>] [--horizontal <percent>] [--vertical <percent>] [--padding <value>] [--artifact <name>] [--compact] [--counters <names>] [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
+    Console.Error.WriteLine("  inkkoops live --attach --command <ping|get-host-info|get-property|assert-property|assert-exists|assert-not-exists|move-pointer|hover|click|invoke|drag|double-click-target|right-click-target|leave-target|pointer-down|pointer-up|pointer-down-target|pointer-up-target|key-down|key-up|text-input|set-clipboard-text|maximize-window|resize-window|wait-frames|wait-for-element|wait-for-visible|wait-for-enabled|wait-for-in-viewport|wait-for-interactive|wait-for-idle|wheel|scroll-to|scroll-by|scroll-into-view|get-telemetry|get-target-diagnostics|screenshot|take-screenshot|capture-frame|dump-telemetry|move-pointer-path|drag-path-target|assert-automation-event> [--scope <name>] [--owner <name>] [--target <name>] [--property <name>] [--expected <value>] [--key-name <name>] [--text <text>] [--event-type <type>] [--button <left|right|middle|xbutton1|xbutton2>] [--waypoints <json>] [--width <px>] [--height <px>] [--x <value>] [--y <value>] [--anchor <center|top-left|top-right|bottom-left|bottom-right|offset>] [--offset-x <value>] [--offset-y <value>] [--frames <count>] [--travel-frames <count>] [--step-distance <value>] [--easing <linear|ease-in-out>] [--dwell-frames <count>] [--delta <value>] [--delta-x <value>] [--delta-y <value>] [--horizontal <percent>] [--vertical <percent>] [--padding <value>] [--artifact <name>] [--compact] [--counters <names>] [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops record --launch [--project <path>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops <recording-path> [--project <path>] [--artifacts <path>]");
     return 1;
@@ -165,6 +165,33 @@ static InkkOopsPipeRequest? BuildAttachRequest(Dictionary<string, string> option
         "get-target-diagnostics" => InkkOopsPipeRequestKinds.GetTargetDiagnostics,
         "screenshot" => InkkOopsPipeRequestKinds.TakeScreenshot,
         "take-screenshot" => InkkOopsPipeRequestKinds.TakeScreenshot,
+        "double-click-target" => InkkOopsPipeRequestKinds.DoubleClickTarget,
+        "double-click" => InkkOopsPipeRequestKinds.DoubleClickTarget,
+        "right-click-target" => InkkOopsPipeRequestKinds.RightClickTarget,
+        "right-click" => InkkOopsPipeRequestKinds.RightClickTarget,
+        "key-down" => InkkOopsPipeRequestKinds.KeyDown,
+        "key-up" => InkkOopsPipeRequestKinds.KeyUp,
+        "text-input" => InkkOopsPipeRequestKinds.TextInput,
+        "type" => InkkOopsPipeRequestKinds.TextInput,
+        "set-clipboard-text" => InkkOopsPipeRequestKinds.SetClipboardText,
+        "set-clipboard" => InkkOopsPipeRequestKinds.SetClipboardText,
+        "maximize-window" => InkkOopsPipeRequestKinds.MaximizeWindow,
+        "maximize" => InkkOopsPipeRequestKinds.MaximizeWindow,
+        "resize-window" => InkkOopsPipeRequestKinds.ResizeWindow,
+        "resize" => InkkOopsPipeRequestKinds.ResizeWindow,
+        "leave-target" => InkkOopsPipeRequestKinds.LeaveTarget,
+        "leave" => InkkOopsPipeRequestKinds.LeaveTarget,
+        "capture-frame" => InkkOopsPipeRequestKinds.CaptureFrame,
+        "dump-telemetry" => InkkOopsPipeRequestKinds.DumpTelemetry,
+        "assert-automation-event" => InkkOopsPipeRequestKinds.AssertAutomationEvent,
+        "assert-event" => InkkOopsPipeRequestKinds.AssertAutomationEvent,
+        "pointer-down" => InkkOopsPipeRequestKinds.PointerDown,
+        "pointer-up" => InkkOopsPipeRequestKinds.PointerUp,
+        "pointer-down-target" => InkkOopsPipeRequestKinds.PointerDownTarget,
+        "pointer-up-target" => InkkOopsPipeRequestKinds.PointerUpTarget,
+        "move-pointer-path" => InkkOopsPipeRequestKinds.MovePointerPath,
+        "drag-path-target" => InkkOopsPipeRequestKinds.DragPathTarget,
+        "drag-path" => InkkOopsPipeRequestKinds.DragPathTarget,
         _ => string.Empty
     };
 
@@ -231,7 +258,18 @@ static InkkOopsPipeRequest? BuildAttachRequest(Dictionary<string, string> option
             : 0f,
         FrameCount = options.TryGetValue("frames", out var framesText) && int.TryParse(framesText, out var frameCount)
             ? frameCount
-            : 0
+            : 0,
+        KeyName = options.TryGetValue("key-name", out var keyName) ? keyName : string.Empty,
+        Text = options.TryGetValue("text", out var textValue) ? textValue : string.Empty,
+        Width = options.TryGetValue("width", out var widthText) && int.TryParse(widthText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var width)
+            ? width
+            : 0,
+        Height = options.TryGetValue("height", out var heightText) && int.TryParse(heightText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var height)
+            ? height
+            : 0,
+        EventType = options.TryGetValue("event-type", out var eventType) ? eventType : string.Empty,
+        ButtonName = options.TryGetValue("button", out var buttonName) ? buttonName : string.Empty,
+        Waypoints = options.TryGetValue("waypoints", out var waypoints) ? waypoints : string.Empty
     };
 }
 
