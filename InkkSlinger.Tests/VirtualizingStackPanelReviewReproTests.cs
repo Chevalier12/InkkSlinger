@@ -199,6 +199,56 @@ public class VirtualizingStackPanelReviewReproTests
     }
 
     [Fact]
+    public void ViewerOwnedScroll_ArrangeOnlyPath_DeepSyncsRetainedChildBounds()
+    {
+        var root = new Panel();
+        var virtualizingPanel = new VirtualizingStackPanel
+        {
+            Orientation = Orientation.Vertical,
+            IsVirtualizing = true,
+            CacheLength = 1f,
+            CacheLengthUnit = VirtualizationCacheLengthUnit.Page
+        };
+
+        for (var i = 0; i < 80; i++)
+        {
+            virtualizingPanel.AddChild(new Border { Height = 24f });
+        }
+
+        var viewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = virtualizingPanel
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        viewer.ScrollToVerticalOffset(240f);
+        RunLayout(uiRoot, 320, 200, 32);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        var beforeFirst = virtualizingPanel.FirstRealizedIndex;
+        viewer.ScrollToVerticalOffset(120f);
+        RunLayout(uiRoot, 320, 200, 48);
+
+        Assert.Equal(beforeFirst, virtualizingPanel.FirstRealizedIndex);
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.True(
+            uiRoot.GetPerformanceTelemetrySnapshotForTests().RetainedForceDeepSyncCount > 0,
+            "Expected viewer-owned virtualized scrolling to force a retained deep sync for the realized row window.");
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
     public void NestedVirtualizingStackPanel_DoesNotTreatAncestorScrollViewerAsOffsetOwner()
     {
         var root = new Panel();

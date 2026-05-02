@@ -1977,7 +1977,7 @@ public class ScrollViewer : ContentControl
                     _runtimeSetOffsetsVirtualizingArrangeOnlyPathCount++;
                     if (visualOnly)
                     {
-                        UiRoot.Current?.NotifyDirectRenderInvalidation(virtualizingStackPanel);
+                        UiRoot.Current?.NotifyDirectRenderInvalidation(virtualizingStackPanel, requireDeepSync: true);
                     }
                     else if (!virtualizingStackPanel.TryArrangeForViewerOwnedOffset(nextHorizontal, nextVertical))
                     {

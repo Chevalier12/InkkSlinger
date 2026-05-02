@@ -936,7 +936,7 @@ public class VirtualizingStackPanel : Panel
         _lastArrangeViewportOffset = context.OffsetPrimary;
         _lastArrangedChildOrderVersion = _childOrderVersion;
         ClearPendingUnrealizedLayoutSlots();
-        UiRoot.Current?.NotifyDirectRenderInvalidation(this);
+        UiRoot.Current?.NotifyDirectRenderInvalidation(this, requireDeepSync: true);
         return true;
     }
 

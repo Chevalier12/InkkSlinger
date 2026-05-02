@@ -669,6 +669,45 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
     }
 
     [Fact]
+    public async Task LiveRequestDispatcher_ScrollTo_Accepts_Owner_As_ScrollProvider_Alias()
+    {
+        var root = new ScrollViewer
+        {
+            Name = "OwnerScrollViewer",
+            Width = 320f,
+            Height = 140f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+
+        var stack = new StackPanel();
+        for (var i = 0; i < 12; i++)
+        {
+            stack.AddChild(new Border
+            {
+                Height = 50f,
+                Margin = new Thickness(0, 0, 0, 6)
+            });
+        }
+
+        root.Content = stack;
+
+        using var host = new InkkOopsTestHost(root);
+        var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.ScrollTo,
+                OwnerTargetName = "OwnerScrollViewer",
+                VerticalPercent = 100f
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.True(root.VerticalOffset > 0f);
+    }
+
+    [Fact]
     public async Task LiveRequestDispatcher_GetTargetDiagnostics_Returns_Target_State_And_Runtime_Snapshots()
     {
         var checkBox = new CheckBox

@@ -134,6 +134,7 @@ dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- run --script "sidebar-b
 
 dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- record --launch</code></pre>
                     <p>The CLI resolves its launch target through a resolver abstraction. In this repository, the default resolver falls back to <code>InkkSlinger.csproj</code>, but you can also provide <code>--project &lt;path&gt;</code> explicitly.</p>
+                    <p>Use <code>--help</code> only for the local usage banner. It does not prove a live app is reachable; attach-mode work should still begin with <code>ping</code> against the intended pipe.</p>
                 </section>
 
                 <section class="doc-section">
@@ -195,6 +196,7 @@ dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- record --launch</code><
                     <ul>
                         <li>Use startup runs for cold-start reproducibility.</li>
                         <li>Use attach mode when you want to keep the app open and iterate quickly.</li>
+                        <li>For live attach commands, prefer the compiled CLI shape <code>dotnet .\InkkOops.Cli\bin\Release\net10.0\InkkOops.Cli.dll live --attach --pipe InkkOops --timeout 120000 --command ping</code> when a Release build exists.</li>
                         <li>Use dedicated artifact roots when comparing multiple runs.</li>
                         <li>Use the renderer diagnostic switches only when isolating renderer-specific bugs.</li>
                     </ul>

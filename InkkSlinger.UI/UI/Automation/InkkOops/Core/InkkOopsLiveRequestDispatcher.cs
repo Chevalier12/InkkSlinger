@@ -57,8 +57,8 @@ public sealed partial class InkkOopsLiveRequestDispatcher : IDisposable
                 InkkOopsPipeRequestKinds.WaitForInteractive => await WaitForTargetAsync(request, InkkOopsWaitCondition.Interactive, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.WaitForIdle => await ExecuteCommandAsync(request, new InkkOopsWaitForIdleCommand(), cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.Wheel => await WheelAsync(request, cancellationToken).ConfigureAwait(false),
-                InkkOopsPipeRequestKinds.ScrollTo => await ExecuteCommandAsync(request, new InkkOopsScrollToCommand(CreateTarget(request), request.HorizontalPercent, request.VerticalPercent), cancellationToken).ConfigureAwait(false),
-                InkkOopsPipeRequestKinds.ScrollBy => await ExecuteCommandAsync(request, new InkkOopsScrollByCommand(CreateTarget(request), request.HorizontalPercent, request.VerticalPercent), cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.ScrollTo => await ExecuteCommandAsync(request, new InkkOopsScrollToCommand(CreateScrollProviderTarget(request), request.HorizontalPercent, request.VerticalPercent), cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.ScrollBy => await ExecuteCommandAsync(request, new InkkOopsScrollByCommand(CreateScrollProviderTarget(request), request.HorizontalPercent, request.VerticalPercent), cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.ScrollIntoView => await ScrollIntoViewAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.GetTelemetry => await GetTelemetryAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.GetTargetDiagnostics => await GetTargetDiagnosticsAsync(request, cancellationToken).ConfigureAwait(false),
@@ -425,6 +425,21 @@ public sealed partial class InkkOopsLiveRequestDispatcher : IDisposable
 
         var scopeSelector = InkkOopsTargetSelector.Name(request.ScopeTargetName);
         return new InkkOopsTargetReference(InkkOopsTargetSelector.Within(scopeSelector, targetSelector));
+    }
+
+    private static InkkOopsTargetReference CreateScrollProviderTarget(InkkOopsPipeRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.TargetName))
+        {
+            return CreateTarget(request);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.OwnerTargetName))
+        {
+            return new InkkOopsTargetReference(request.OwnerTargetName);
+        }
+
+        throw new ArgumentException("TargetName or OwnerTargetName is required for scroll-to and scroll-by requests.", nameof(request));
     }
 
     private static InkkOopsTargetReference CreateOwnerTarget(InkkOopsPipeRequest request)

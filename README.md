@@ -60,7 +60,7 @@ The test suite covers WPF parity, app XML compatibility phases, resource and sty
 
 InkkOops is the built-in automation, replay, and diagnostics platform. It is the preferred tool for investigating resize, hover, drag, and retained-render bugs that are difficult to reproduce in unit tests.
 
-It supports commands including click, drag, hover, pointer down/up, wheel, resize window, maximize window, scroll to/by, wait-for-idle, wait-for-element, frame capture, telemetry dump, and assertions. Runs can be recorded and replayed, and each action in a replay can capture per-action diagnostics from registered contributor classes.
+It supports commands including click, drag, hover, pointer down/up, wheel, resize window, maximize window, scroll to/by, wait-for-idle, wait-for-element, frame capture, telemetry dump, and assertions. Runs can be recorded and replayed, and each action in a replay can capture per-action diagnostics from registered contributor classes. For retained-rendering or stale-visual bugs, preserve the reported input path before capture; clicks, invokes, and target-qualified pointer commands can create recovery invalidations that hide the failing frame.
 
 Run a named script:
 

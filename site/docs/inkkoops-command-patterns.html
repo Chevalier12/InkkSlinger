@@ -127,6 +127,22 @@
                 </section>
 
                 <section class="doc-section">
+                    <h2>Repaint-sensitive probes</h2>
+                    <p>Some rendering defects are repaired by the next pointer or focus invalidation. For stale visuals, retained-rendering mismatches, blank regions, or no-click wheel repros, preserve the user's interaction path exactly before collecting proof.</p>
+                    <ul>
+                        <li>If the reported repro does not include a click, do not click, invoke, or otherwise activate the stale region before capturing evidence.</li>
+                        <li>Use <code>hover --target ...</code> to place the pointer when needed, then use plain <code>wheel --delta ...</code> commands so a target-qualified wheel does not move the pointer again.</li>
+                        <li>Prefer full-frame <code>capture-frame --artifact ...</code> before target-scoped checks when target resolution or actionability checks could perturb the failure window.</li>
+                        <li>Pair visual evidence with telemetry such as retained-tree validation, dirty bounds, dirty roots, drawn node counts, and ScrollViewer path counters.</li>
+                    </ul>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Scroll command shape</h2>
+                    <p><code>scroll-to</code> and <code>scroll-by</code> operate on the element that provides the Scroll pattern. Prefer <code>--target SomeScrollViewer</code> for those commands. The live dispatcher also accepts <code>--owner SomeScrollViewer</code> as a compatibility alias, but owner/child pairs belong to <code>scroll-into-view --owner SomeScrollViewer --target SomeChild</code>.</p>
+                </section>
+
+                <section class="doc-section">
                     <h2>Pointer example</h2>
 <pre><code class="language-csharp">return new InkkOopsScriptBuilder("scroll-thumb-drag")
     .WaitForInteractive("ScrollThumb")
@@ -176,6 +192,8 @@ return new InkkOopsScriptBuilder("semantic-sidebar-nav")
                     <ul>
                         <li>Using <code>WaitFrames</code> where <code>WaitForInteractive</code> would be more deterministic.</li>
                         <li>Using pointer clicks when the actual bug is a semantic activation bug.</li>
+                        <li>Using clicks or target-qualified commands to prove a repaint bug when those actions can repair the stale visual before capture.</li>
+                        <li>Treating a nonblank assertion as complete proof for stale-content bugs. Nonblank pixels can still be the wrong pixels.</li>
                         <li>Capturing proof too early, before transitions or rendering settle.</li>
                         <li>Mixing many unrelated assertions into one script, which makes failure diagnosis slower.</li>
                     </ul>

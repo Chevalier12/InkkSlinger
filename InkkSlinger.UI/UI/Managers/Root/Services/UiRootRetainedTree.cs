@@ -908,6 +908,11 @@ public sealed partial class UiRoot
 
     private bool CanSafelyDowngradeForcedDeepSync(UIElement root)
     {
+        if (root is VirtualizingStackPanel)
+        {
+            return false;
+        }
+
         foreach (var child in root.GetRetainedRenderChildren())
         {
             if (child.SubtreeDirty)
