@@ -210,6 +210,42 @@ public sealed class DesignerProjectExplorerPrePushClickRuntimeScenario : IInkkOo
     }
 }
 
+public sealed class DesignerProjectExplorerClaudeCollapseRuntimeScenario : IInkkOopsScriptDefinition
+{
+    public const string ScriptName = "designer-project-explorer-claude-collapse";
+
+    public string Name => ScriptName;
+
+    public InkkOopsScript CreateScript()
+    {
+        var recentProjectEntry = InkkOopsTargetSelector.Within(
+            InkkOopsTargetSelector.Name("RecentProjectsItemsControl"),
+            InkkOopsTargetSelector.Name("InkkSlinger"));
+
+        return new InkkOopsScriptBuilder(Name)
+            .ResizeWindow(1280, 900)
+            .WaitForVisible("RecentProjectsItemsControl", maxFrames: 240)
+            .Click(recentProjectEntry, anchor: null, InkkOopsPointerMotion.WithTravelFrames(4))
+            .WaitForVisible("ProjectExplorerTree", maxFrames: 360, InkkOopsPointerAnchor.OffsetBy(80f, 14f))
+            .WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)
+            .Add(new DesignerProjectExplorerClickItemAndAssertSelectedCommand(
+                "ProjectExplorerTree",
+                "InkkSlinger",
+                "after-project-root-click"))
+            .WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)
+            .DumpTelemetry("before-claude-collapse")
+            .CaptureFrame("workspace-before-claude-collapse")
+            .Add(new DesignerProjectExplorerCollapseItemAndAssertNoStaleDescendantsCommand(
+                "ProjectExplorerTree",
+                ".claude",
+                "after-claude-collapse"))
+            .WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)
+            .DumpTelemetry("after-claude-collapse-idle")
+            .CaptureFrame("workspace-after-claude-collapse")
+            .Build();
+    }
+}
+
 internal sealed class DesignerProjectExplorerClickItemAndAssertSelectedCommand : IInkkOopsCommand
 {
     public DesignerProjectExplorerClickItemAndAssertSelectedCommand(string treeViewName, string itemText, string artifactName)
@@ -414,6 +450,214 @@ internal sealed class DesignerProjectExplorerClickItemAndAssertSelectedCommand :
         string ClickUpResolvePath,
         string ClickDownTarget,
         string ClickUpTarget);
+}
+
+internal sealed class DesignerProjectExplorerCollapseItemAndAssertNoStaleDescendantsCommand : IInkkOopsCommand
+{
+    public DesignerProjectExplorerCollapseItemAndAssertNoStaleDescendantsCommand(string treeViewName, string itemText, string artifactName)
+    {
+        TreeViewName = string.IsNullOrWhiteSpace(treeViewName)
+            ? throw new ArgumentException("TreeView name is required.", nameof(treeViewName))
+            : treeViewName;
+        ItemText = string.IsNullOrWhiteSpace(itemText)
+            ? throw new ArgumentException("Item text is required.", nameof(itemText))
+            : itemText;
+        ArtifactName = string.IsNullOrWhiteSpace(artifactName)
+            ? throw new ArgumentException("Artifact name is required.", nameof(artifactName))
+            : artifactName;
+    }
+
+    public string TreeViewName { get; }
+
+    public string ItemText { get; }
+
+    public string ArtifactName { get; }
+
+    public InkkOopsExecutionMode ExecutionMode => InkkOopsExecutionMode.Pointer;
+
+    public string Describe()
+    {
+        return $"CollapseTreeViewItemAndAssertNoStaleDescendants(Name('{TreeViewName}'), item: {ItemText}, artifact: {ArtifactName})";
+    }
+
+    public async Task ExecuteAsync(InkkOopsSession session, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var point = await session.QueryOnUiThreadAsync(() => ResolveExpanderPoint(session), cancellationToken).ConfigureAwait(false);
+        await session.MovePointerAsync(point, InkkOopsPointerMotion.WithTravelFrames(3, stepDistance: 12f), cancellationToken).ConfigureAwait(false);
+        await session.PressPointerAsync(point, MouseButton.Left, cancellationToken).ConfigureAwait(false);
+        await session.ReleasePointerAsync(point, MouseButton.Left, cancellationToken).ConfigureAwait(false);
+        await session.WaitFramesAsync(4, cancellationToken).ConfigureAwait(false);
+        await session.ExecuteOnUiThreadAsync(() => WriteCollapseEvidenceAndAssert(session, point), cancellationToken).ConfigureAwait(false);
+    }
+
+    private System.Numerics.Vector2 ResolveExpanderPoint(InkkOopsSession session)
+    {
+        var targetItem = ResolveItem(ResolveTreeView(session));
+        if (!targetItem.IsExpanded)
+        {
+            throw new InkkOopsCommandException(
+                InkkOopsFailureCategory.NotInteractive,
+                $"TreeViewItem '{ItemText}' is already collapsed before the requested collapse click.");
+        }
+
+        if (!targetItem.TryGetRenderBoundsInRootSpace(out var bounds))
+        {
+            throw new InkkOopsCommandException(
+                InkkOopsFailureCategory.Unrealized,
+                $"TreeViewItem '{ItemText}' does not expose render bounds before collapse.");
+        }
+
+        return new System.Numerics.Vector2(
+            bounds.X + (targetItem.VirtualizedTreeDepth * targetItem.Indent) + targetItem.Padding.Left + 7f,
+            bounds.Y + MathF.Min(11f, MathF.Max(1f, bounds.Height / 2f)));
+    }
+
+    private void WriteCollapseEvidenceAndAssert(InkkOopsSession session, System.Numerics.Vector2 clickPoint)
+    {
+        var treeView = ResolveTreeView(session);
+        var targetItem = ResolveItem(treeView);
+        var targetNode = targetItem.Tag as DesignerProjectNode
+            ?? throw new InkkOopsCommandException(
+                InkkOopsFailureCategory.SemanticProviderMissing,
+                $"TreeViewItem '{ItemText}' does not expose a DesignerProjectNode tag.");
+        var staleDescendants = EnumerateTreeItems(treeView)
+            .Select(item => CreateNodeSnapshot(item, targetNode.FullPath))
+            .Where(snapshot => snapshot.IsDescendantOfTarget)
+            .ToArray();
+        var allRows = EnumerateTreeItems(treeView)
+            .Select(item => CreateNodeSnapshot(item, targetNode.FullPath))
+            .ToArray();
+
+        var builder = new StringBuilder();
+        builder.AppendLine($"artifact_name={ArtifactName}");
+        builder.AppendLine($"tree_view={TreeViewName}");
+        builder.AppendLine($"target_item={ItemText}");
+        builder.AppendLine($"target_header={targetItem.Header}");
+        builder.AppendLine($"target_full_path={targetNode.FullPath}");
+        builder.AppendLine($"target_is_expanded={targetItem.IsExpanded}");
+        builder.AppendLine(FormattableString.Invariant($"click_point=({clickPoint.X:0.###},{clickPoint.Y:0.###})"));
+        builder.AppendLine($"stale_descendant_count={staleDescendants.Length}");
+        builder.AppendLine("realized_tree_items:");
+        for (var i = 0; i < allRows.Length; i++)
+        {
+            var row = allRows[i];
+            builder.AppendLine(FormattableString.Invariant(
+                $"{i}: header={row.Header} normalized={row.NormalizedHeader} path={row.FullPath} is_descendant_of_target={row.IsDescendantOfTarget} y={row.Y:0.###} height={row.Height:0.###}"));
+        }
+
+        var fileName = ArtifactName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
+            ? ArtifactName
+            : ArtifactName + ".txt";
+        session.Artifacts.BufferTextArtifact(fileName, builder.ToString());
+
+        if (targetItem.IsExpanded)
+        {
+            throw new InkkOopsCommandException(
+                InkkOopsFailureCategory.NotInteractive,
+                $"Expected TreeViewItem '{ItemText}' to be collapsed after the expander click.");
+        }
+
+        if (staleDescendants.Length > 0)
+        {
+            var staleSummary = string.Join(
+                ", ",
+                staleDescendants.Select(snapshot => $"{snapshot.NormalizedHeader}@{snapshot.Y:0.###}"));
+            throw new InkkOopsCommandException(
+                InkkOopsFailureCategory.Unrealized,
+                $"Collapsed TreeViewItem '{ItemText}' left realized descendant rows in Project Explorer: {staleSummary}.");
+        }
+    }
+
+    private TreeView ResolveTreeView(InkkOopsSession session)
+    {
+        var target = new InkkOopsTargetReference(TreeViewName);
+        return session.ResolveRequiredTarget(target) as TreeView
+            ?? throw new InkkOopsCommandException(
+                InkkOopsFailureCategory.SemanticProviderMissing,
+                $"Target '{TreeViewName}' is not a TreeView.");
+    }
+
+    private TreeViewItem ResolveItem(TreeView treeView)
+    {
+        foreach (var item in EnumerateTreeItems(treeView))
+        {
+            if (string.Equals(NormalizeHeader(item.Header), ItemText, StringComparison.Ordinal))
+            {
+                return item;
+            }
+        }
+
+        throw new InkkOopsCommandException(
+            InkkOopsFailureCategory.Unresolved,
+            $"Could not find TreeViewItem '{ItemText}' under '{TreeViewName}'.");
+    }
+
+    private static NodeSnapshot CreateNodeSnapshot(TreeViewItem item, string targetPath)
+    {
+        var fullPath = item.Tag is DesignerProjectNode node ? node.FullPath : string.Empty;
+        item.TryGetRenderBoundsInRootSpace(out var bounds);
+        return new NodeSnapshot(
+            item.Header,
+            NormalizeHeader(item.Header),
+            fullPath,
+            IsDescendantPath(fullPath, targetPath),
+            bounds.Y,
+            bounds.Height);
+    }
+
+    private static bool IsDescendantPath(string path, string parentPath)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(parentPath))
+        {
+            return false;
+        }
+
+        var normalizedPath = path.Replace('\\', '/').TrimEnd('/');
+        var normalizedParent = parentPath.Replace('\\', '/').TrimEnd('/');
+        return normalizedPath.Length > normalizedParent.Length &&
+               normalizedPath.StartsWith(normalizedParent + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeHeader(string? header)
+    {
+        var text = (header ?? string.Empty).Trim();
+        return text.StartsWith("[+] ", StringComparison.Ordinal)
+            ? text[4..]
+            : text;
+    }
+
+    private static IEnumerable<TreeViewItem> EnumerateTreeItems(UIElement root)
+    {
+        foreach (var element in EnumerateVisuals(root))
+        {
+            if (element is TreeViewItem item)
+            {
+                yield return item;
+            }
+        }
+    }
+
+    private static IEnumerable<UIElement> EnumerateVisuals(UIElement root)
+    {
+        yield return root;
+        foreach (var child in root.GetVisualChildren())
+        {
+            foreach (var descendant in EnumerateVisuals(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    private readonly record struct NodeSnapshot(
+        string Header,
+        string NormalizedHeader,
+        string FullPath,
+        bool IsDescendantOfTarget,
+        float Y,
+        float Height);
 }
 
 internal sealed class DesignerProjectExplorerScrollItemToTopCommand : IInkkOopsCommand

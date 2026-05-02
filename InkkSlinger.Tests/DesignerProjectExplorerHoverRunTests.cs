@@ -324,6 +324,57 @@ public sealed class DesignerProjectExplorerHoverRunTests
         }
     }
 
+    [Fact]
+    public async Task RecentProject_ProjectExplorerClaudeCollapse_RuntimeRun_DoesNotLeaveStaleDescendantRows()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var tempAppData = Path.Combine(Path.GetTempPath(), "inkkslinger-designer-claude-collapse", Guid.NewGuid().ToString("N"));
+        var artifactRoot = Path.Combine(repositoryRoot, "artifacts", "inkkoops", "designer-project-explorer-claude-collapse");
+        var projectPath = repositoryRoot.Replace('\\', '/');
+
+        SeedRecentProject(tempAppData, projectPath);
+
+        try
+        {
+            var designerProjectPath = Path.Combine(repositoryRoot, "InkkSlinger.Designer", "InkkSlinger.Designer.csproj");
+            var result = await RunDesignerScenarioAsync(
+                repositoryRoot,
+                designerProjectPath,
+                artifactRoot,
+                tempAppData,
+                DesignerProjectExplorerClaudeCollapseRuntimeScenario.ScriptName);
+
+            Assert.Equal(0, result.ExitCode);
+
+            var runDirectory = GetLatestRunDirectory(artifactRoot, DesignerProjectExplorerClaudeCollapseRuntimeScenario.ScriptName);
+            var resultJsonPath = Path.Combine(runDirectory, "result.json");
+            var evidencePath = Path.Combine(runDirectory, "after-claude-collapse.txt");
+            var resultJson = File.ReadAllText(resultJsonPath);
+            using var resultDocument = JsonDocument.Parse(resultJson);
+            Assert.Equal("Completed", resultDocument.RootElement.GetProperty("status").GetString());
+            Assert.Equal(DesignerProjectExplorerClaudeCollapseRuntimeScenario.ScriptName, resultDocument.RootElement.GetProperty("scriptName").GetString());
+
+            var actionLog = File.ReadAllText(Path.Combine(runDirectory, "action.log"));
+            Assert.Contains("ClickTreeViewItemAndAssertSelected(Name('ProjectExplorerTree'), item: InkkSlinger", actionLog);
+            Assert.Contains("CollapseTreeViewItemAndAssertNoStaleDescendants(Name('ProjectExplorerTree'), item: .claude", actionLog);
+
+            Assert.True(File.Exists(evidencePath), ".claude collapse evidence should exist.");
+            var evidence = File.ReadAllText(evidencePath);
+            Assert.Contains("target_item=.claude", evidence);
+            Assert.Contains("target_is_expanded=False", evidence);
+            Assert.Contains("stale_descendant_count=0", evidence);
+            Assert.True(File.Exists(Path.Combine(runDirectory, "after-project-root-click.txt")), "Project-root selection evidence should exist.");
+            Assert.True(File.Exists(Path.Combine(runDirectory, "before-claude-collapse.txt")), "Pre-collapse telemetry should exist.");
+            Assert.True(File.Exists(Path.Combine(runDirectory, "after-claude-collapse-idle.txt")), "Post-collapse idle telemetry should exist.");
+            Assert.True(File.Exists(Path.Combine(runDirectory, "workspace-before-claude-collapse.png")), "Pre-collapse frame capture should exist.");
+            Assert.True(File.Exists(Path.Combine(runDirectory, "workspace-after-claude-collapse.png")), "Post-collapse frame capture should exist.");
+        }
+        finally
+        {
+            TryDeleteDirectory(tempAppData);
+        }
+    }
+
     private static async Task<ProcessRunResult> RunDesignerScenarioAsync(
         string workingDirectory,
         string designerProjectPath,

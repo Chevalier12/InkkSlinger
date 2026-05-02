@@ -1119,8 +1119,7 @@ public class TreeView : ItemsControl
                 {
                     var child = Children[childIndex];
                     if (child is TreeViewItem treeItem &&
-                        treeItem.VirtualizedTreeRowIndex >= first &&
-                        treeItem.VirtualizedTreeRowIndex <= last)
+                        ShouldKeepRealizedChild(treeItem, first, last))
                     {
                         continue;
                     }
@@ -1138,6 +1137,15 @@ public class TreeView : ItemsControl
                     }
                 }
             }
+        }
+
+        private bool ShouldKeepRealizedChild(TreeViewItem item, int first, int last)
+        {
+            var rowIndex = item.VirtualizedTreeRowIndex;
+            return rowIndex >= first &&
+                   rowIndex <= last &&
+                   rowIndex < _rows.Count &&
+                   ReferenceEquals(item.Tag, _rows[rowIndex].Item);
         }
 
         private int IndexOfChild(UIElement child)
