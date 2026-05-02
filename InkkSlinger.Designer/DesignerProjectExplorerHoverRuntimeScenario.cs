@@ -246,6 +246,32 @@ public sealed class DesignerProjectExplorerClaudeCollapseRuntimeScenario : IInkk
     }
 }
 
+public sealed class DesignerProjectExplorerInfoClickRuntimeScenario : IInkkOopsScriptDefinition
+{
+    public const string ScriptName = "designer-project-explorer-info-click";
+
+    public string Name => ScriptName;
+
+    public InkkOopsScript CreateScript()
+    {
+        return new InkkOopsScriptBuilder(Name)
+            .WaitForVisible("ProjectExplorerTree", maxFrames: 360, InkkOopsPointerAnchor.OffsetBy(80f, 14f))
+            .WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)
+            .Add(new DesignerProjectExplorerScrollItemToTopCommand(
+                "ProjectExplorerTree",
+                "info",
+                "info-at-top-before-click"))
+            .WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)
+            .Add(new DesignerProjectExplorerClickItemAndAssertSelectedCommand(
+                "ProjectExplorerTree",
+                "info",
+                "after-info-click"))
+            .WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)
+            .CaptureFrame("workspace-after-info-click")
+            .Build();
+    }
+}
+
 internal sealed class DesignerProjectExplorerClickItemAndAssertSelectedCommand : IInkkOopsCommand
 {
     public DesignerProjectExplorerClickItemAndAssertSelectedCommand(string treeViewName, string itemText, string artifactName)

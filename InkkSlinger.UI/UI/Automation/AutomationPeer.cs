@@ -634,6 +634,12 @@ internal sealed class GenericAutomationPeer : ControlAutomationPeer,
             return true;
         }
 
+        if (Owner is TreeView treeView)
+        {
+            viewer = treeView.AutomationScrollViewer;
+            return true;
+        }
+
         var ownerType = Owner.GetType();
         var field = ownerType.GetField("_scrollViewer", BindingFlags.Instance | BindingFlags.NonPublic);
         if (field?.GetValue(Owner) is ScrollViewer reflected)

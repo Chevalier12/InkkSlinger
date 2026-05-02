@@ -63,4 +63,39 @@ public sealed class AutomationPatternScrollTests
 
         uiRoot.Shutdown();
     }
+
+    [Fact]
+    public void TreeViewPeer_ExposesScrollPattern_AndSetScrollPercentMutatesOffsets()
+    {
+        var treeView = new TreeView
+        {
+            Width = 180f,
+            Height = 100f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+
+        for (var i = 0; i < 40; i++)
+        {
+            treeView.Items.Add(new TreeViewItem { Header = $"Row {i}" });
+        }
+
+        var host = new Canvas();
+        host.AddChild(treeView);
+        var uiRoot = new UiRoot(host);
+
+        treeView.Measure(new Vector2(180f, 100f));
+        treeView.Arrange(new LayoutRect(0f, 0f, 180f, 100f));
+
+        var peer = uiRoot.Automation.GetPeer(treeView);
+        Assert.NotNull(peer);
+        Assert.True(peer.TryGetPattern(AutomationPatternType.Scroll, out var pattern));
+
+        var scroll = Assert.IsAssignableFrom<IScrollProvider>(pattern);
+        scroll.SetScrollPercent(0f, 75f);
+
+        var viewer = Assert.IsType<ScrollViewer>(Assert.Single(treeView.GetVisualChildren()));
+        Assert.True(viewer.VerticalOffset > 0f);
+
+        uiRoot.Shutdown();
+    }
 }

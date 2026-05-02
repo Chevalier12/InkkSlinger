@@ -13,6 +13,7 @@ public class TreeViewItem : ItemsControl
     private string _virtualizedDisplayHeader = string.Empty;
     private bool _virtualizedDisplayHasChildren;
     private bool _virtualizedDisplayIsExpanded;
+    private bool _virtualizedDisplayIsSelected;
 
     public static readonly DependencyProperty HeaderProperty =
         DependencyProperty.Register(
@@ -255,7 +256,7 @@ public class TreeViewItem : ItemsControl
         var rowHeight = GetRowHeight();
         var padding = Padding;
         var rowRect = new LayoutRect(LayoutSlot.X, LayoutSlot.Y, LayoutSlot.Width, rowHeight);
-        if (IsSelected)
+        if (GetEffectiveIsSelected())
         {
             UiDrawing.DrawFilledRect(spriteBatch, rowRect, SelectedBackground, Opacity);
         }
@@ -327,6 +328,8 @@ public class TreeViewItem : ItemsControl
 
     internal bool HasVirtualizedDisplaySnapshotForDiagnostics => _hasVirtualizedDisplaySnapshot;
 
+    internal bool IsSelectedForRenderDiagnostics => GetEffectiveIsSelected();
+
     internal string RenderedHeaderForDiagnostics
     {
         get
@@ -372,6 +375,7 @@ public class TreeViewItem : ItemsControl
         string header,
         bool hasChildren,
         bool isExpanded,
+        bool isSelected,
         int depth,
         int rowIndex)
     {
@@ -379,6 +383,7 @@ public class TreeViewItem : ItemsControl
         _virtualizedDisplayHeader = header;
         _virtualizedDisplayHasChildren = hasChildren;
         _virtualizedDisplayIsExpanded = isExpanded;
+        _virtualizedDisplayIsSelected = isSelected;
         UseVirtualizedTreeLayout = true;
         VirtualizedTreeDepth = depth;
         VirtualizedTreeRowIndex = rowIndex;
@@ -396,6 +401,7 @@ public class TreeViewItem : ItemsControl
         _virtualizedDisplayHeader = string.Empty;
         _virtualizedDisplayHasChildren = false;
         _virtualizedDisplayIsExpanded = false;
+        _virtualizedDisplayIsSelected = false;
         InvalidateVisual();
     }
 
@@ -432,6 +438,11 @@ public class TreeViewItem : ItemsControl
     private string GetEffectiveHeader()
     {
         return _hasVirtualizedDisplaySnapshot ? _virtualizedDisplayHeader : Header;
+    }
+
+    private bool GetEffectiveIsSelected()
+    {
+        return _hasVirtualizedDisplaySnapshot ? _virtualizedDisplayIsSelected : IsSelected;
     }
 
     private (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) ResolveVirtualizedHeaderRenderSource()

@@ -506,6 +506,8 @@ public class TreeView : ItemsControl
                base.ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(descendant);
     }
 
+    internal ScrollViewer AutomationScrollViewer => ActiveScrollViewer;
+
     private ScrollViewer ActiveScrollViewer => _templatedScrollViewer ?? _fallbackScrollViewer;
 
     private bool IsHierarchicalDataMode => _hierarchicalItemsSource != null && _hierarchicalChildrenSelector != null;
@@ -1366,6 +1368,7 @@ public class TreeView : ItemsControl
                     _owner.GetHierarchicalHeader(row.Item),
                     row.HasChildren,
                     row.IsExpanded,
+                    _owner.IsHierarchicalDataItemSelected(row.Item),
                     row.Depth,
                     rowIndex);
 
@@ -1469,6 +1472,12 @@ public class TreeView : ItemsControl
 
             return -1;
         }
+    }
+
+    private bool IsHierarchicalDataItemSelected(object item)
+    {
+        return SelectedItem?.Tag is { } selectedItem &&
+               (ReferenceEquals(selectedItem, item) || Equals(selectedItem, item));
     }
 
     private sealed class VirtualizingTreeItemsHost : VirtualizingStackPanel
