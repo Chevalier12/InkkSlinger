@@ -476,6 +476,8 @@ public class Control : FrameworkElement, ICommandSource
 
     protected bool HasTemplateRoot => _templateRoot != null;
 
+    protected UIElement? TemplateRoot => _templateRoot;
+
     internal void ReleaseTemplateForVirtualization()
     {
         if (_templateRoot == null)

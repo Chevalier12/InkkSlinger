@@ -14,3 +14,10 @@ internal interface IScrollViewerMeasureConstraintProvider
         bool canScrollHorizontally,
         bool canScrollVertically);
 }
+
+internal interface IScrollViewerVirtualizedContent
+{
+    bool OwnsHorizontalScrollOffset { get; }
+
+    bool OwnsVerticalScrollOffset { get; }
+}

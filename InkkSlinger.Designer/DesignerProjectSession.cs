@@ -7,12 +7,23 @@ namespace InkkSlinger.Designer;
 
 public sealed class DesignerProjectNode
 {
+    private readonly Func<IReadOnlyList<DesignerProjectNode>>? _childrenFactory;
+    private IReadOnlyList<DesignerProjectNode>? _children;
+
     public DesignerProjectNode(string name, string fullPath, bool isFolder, IReadOnlyList<DesignerProjectNode>? children = null)
     {
         Name = name;
         FullPath = fullPath;
         IsFolder = isFolder;
-        Children = children ?? Array.Empty<DesignerProjectNode>();
+        _children = children ?? Array.Empty<DesignerProjectNode>();
+    }
+
+    internal DesignerProjectNode(string name, string fullPath, bool isFolder, Func<IReadOnlyList<DesignerProjectNode>> childrenFactory)
+    {
+        Name = name;
+        FullPath = fullPath;
+        IsFolder = isFolder;
+        _childrenFactory = childrenFactory;
     }
 
     public string Name { get; }
@@ -21,7 +32,7 @@ public sealed class DesignerProjectNode
 
     public bool IsFolder { get; }
 
-    public IReadOnlyList<DesignerProjectNode> Children { get; }
+    public IReadOnlyList<DesignerProjectNode> Children => _children ??= _childrenFactory?.Invoke() ?? Array.Empty<DesignerProjectNode>();
 }
 
 public sealed class DesignerProjectSession
@@ -110,15 +121,20 @@ public sealed class DesignerProjectSession
             return new DesignerProjectNode(GetName(normalizedPath), normalizedPath, isFolder: false);
         }
 
-        var directories = _fileStore.EnumerateDirectories(normalizedPath)
-            .Select(directory => BuildNode(directory, isFolder: true));
-        var files = _fileStore.EnumerateFiles(normalizedPath)
-            .Select(file => BuildNode(file, isFolder: false));
         return new DesignerProjectNode(
             GetName(normalizedPath),
             normalizedPath,
             isFolder: true,
-            directories.Concat(files).ToArray());
+            () => BuildChildren(normalizedPath));
+    }
+
+    private IReadOnlyList<DesignerProjectNode> BuildChildren(string folderPath)
+    {
+        var directories = _fileStore.EnumerateDirectories(folderPath)
+            .Select(directory => BuildNode(directory, isFolder: true));
+        var files = _fileStore.EnumerateFiles(folderPath)
+            .Select(file => BuildNode(file, isFolder: false));
+        return directories.Concat(files).ToArray();
     }
 
     private DesignerProjectNode? FindNode(string path)

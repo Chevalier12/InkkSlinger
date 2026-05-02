@@ -2264,6 +2264,13 @@ public class ScrollViewer : ContentControl
 
     private static bool ShouldArrangeVirtualizedContentToViewport(FrameworkElement content, bool horizontalAxis)
     {
+        if (content is IScrollViewerVirtualizedContent virtualizedContent)
+        {
+            return horizontalAxis
+                ? virtualizedContent.OwnsHorizontalScrollOffset
+                : virtualizedContent.OwnsVerticalScrollOffset;
+        }
+
         if (content is not VirtualizingStackPanel panel)
         {
             return false;

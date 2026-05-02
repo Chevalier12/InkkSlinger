@@ -106,48 +106,37 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
     {
         var selectedPath = _viewModel.SelectedProjectNode?.FullPath;
         ProjectExplorerTree.Items.Clear();
+        ProjectExplorerTree.HierarchicalItemsSource = null;
         if (_viewModel.ProjectRootNode == null)
         {
             return;
         }
 
-        var rootItem = BuildProjectExplorerTreeItem(_viewModel.ProjectRootNode);
-        ProjectExplorerTree.Items.Add(rootItem);
-        ProjectExplorerTree.SelectItem(FindProjectExplorerTreeItem(rootItem, selectedPath) ?? rootItem);
+        ProjectExplorerTree.HierarchicalChildrenSelector = static item => item is DesignerProjectNode node ? node.Children : Array.Empty<DesignerProjectNode>();
+        ProjectExplorerTree.HierarchicalHasChildrenSelector = static item => item is DesignerProjectNode { IsFolder: true };
+        ProjectExplorerTree.HierarchicalHeaderSelector = static item => item is DesignerProjectNode node ? (node.IsFolder ? "[+] " : "    ") + node.Name : string.Empty;
+        ProjectExplorerTree.HierarchicalExpandedSelector = static item => item is DesignerProjectNode { IsFolder: true };
+        ProjectExplorerTree.HierarchicalItemsSource = new[] { _viewModel.ProjectRootNode };
+
+        var selectedNode = FindProjectExplorerNode(_viewModel.ProjectRootNode, selectedPath) ?? _viewModel.ProjectRootNode;
+        ProjectExplorerTree.SelectHierarchicalItem(selectedNode);
     }
 
-    private static TreeViewItem BuildProjectExplorerTreeItem(DesignerProjectNode node)
-    {
-        var item = new TreeViewItem
-        {
-            Header = (node.IsFolder ? "[+] " : "    ") + node.Name,
-            IsExpanded = node.IsFolder,
-            Tag = node
-        };
-
-        foreach (var child in node.Children)
-        {
-            item.Items.Add(BuildProjectExplorerTreeItem(child));
-        }
-
-        return item;
-    }
-
-    private static TreeViewItem? FindProjectExplorerTreeItem(TreeViewItem item, string? path)
+    private static DesignerProjectNode? FindProjectExplorerNode(DesignerProjectNode node, string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
             return null;
         }
 
-        if (item.Tag is DesignerProjectNode node && string.Equals(node.FullPath, path, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(node.FullPath, path, StringComparison.OrdinalIgnoreCase))
         {
-            return item;
+            return node;
         }
 
-        foreach (var child in item.GetChildTreeItems())
+        foreach (var child in node.Children)
         {
-            var match = FindProjectExplorerTreeItem(child, path);
+            var match = FindProjectExplorerNode(child, path);
             if (match != null)
             {
                 return match;

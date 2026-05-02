@@ -3513,6 +3513,39 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public async Task HostView_StartPage_RecentProjectRowHover_SameRowMoveDoesNotRescanRecentTree()
+    {
+        var recentPaths = Enumerable.Range(1, 12)
+            .Select(index => $"C:/RiderProjects/HoverProject{index:00}/HoverProject{index:00}.sln")
+            .ToArray();
+        var viewModel = CreateHostViewModelWithRecentProjects(recentPaths);
+        var view = new InkkSlinger.Designer.DesignerHostView(viewModel);
+        using var automationHost = new InkkOopsTestHost(view, 784, 642);
+        await automationHost.AdvanceFrameAsync(3);
+
+        var recentButton = FindDescendant<Button>(view, button => string.Equals(button.CommandParameter as string, recentPaths[0], StringComparison.Ordinal));
+        var hoverPoint = GetCenter(recentButton.LayoutSlot);
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(hoverPoint.X, hoverPoint.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        _ = Control.GetTelemetryAndReset();
+        _ = FrameworkElement.GetTelemetryAndReset();
+
+        await automationHost.MovePointerAsync(new System.Numerics.Vector2(hoverPoint.X + 2f, hoverPoint.Y));
+        await automationHost.AdvanceFrameAsync(2);
+
+        var controlTelemetry = Control.GetTelemetryAndReset();
+        var frameworkTelemetry = FrameworkElement.GetTelemetryAndReset();
+
+        Assert.True(
+            controlTelemetry.GetVisualChildrenCallCount < 450,
+            $"Expected repeated movement inside the same recent row not to rescan the recent-project visual tree. control.get_visual_children={controlTelemetry.GetVisualChildrenCallCount}, framework.dp_changes={frameworkTelemetry.DependencyPropertyChangedCallCount}, framework.invalidate_measure={frameworkTelemetry.InvalidateMeasureCallCount}.");
+        Assert.True(
+            frameworkTelemetry.InvalidateMeasureCallCount <= 4,
+            $"Expected same-row hover movement not to invalidate layout repeatedly. control.get_visual_children={controlTelemetry.GetVisualChildrenCallCount}, framework.dp_changes={frameworkTelemetry.DependencyPropertyChangedCallCount}, framework.invalidate_measure={frameworkTelemetry.InvalidateMeasureCallCount}.");
+    }
+
+    [Fact]
     public async Task HostView_StartPage_RecentProjectRowHoverChrome_StaysActiveWhileHoveringRemoveButton()
     {
         const string recentPath = "C:/RiderProjects/HoverProject/HoverProject.sln";
@@ -3574,15 +3607,30 @@ public class DesignerControllerTests
 
     private static InkkSlinger.Designer.DesignerHostViewModel CreateHostViewModelWithRecentProject(string recentPath)
     {
+        return CreateHostViewModelWithRecentProjects([recentPath]);
+    }
+
+    private static InkkSlinger.Designer.DesignerHostViewModel CreateHostViewModelWithRecentProjects(IReadOnlyList<string> recentPaths)
+    {
         var fileStore = new InkkSlinger.Designer.PhysicalDesignerProjectFileStore();
-        var recentPersistence = new InlineRecentProjectPersistenceStore(
-            "[\n" +
-            "  {\n" +
-            $"    \"Path\": \"{recentPath}\",\n" +
-            "    \"DisplayName\": \"HoverProject\",\n" +
-            "    \"LastOpenedAt\": \"2026-04-28T09:00:00+00:00\"\n" +
-            "  }\n" +
-            "]\n");
+        var recentProjectsJson = new StringBuilder();
+        recentProjectsJson.AppendLine("[");
+        for (var i = 0; i < recentPaths.Count; i++)
+        {
+            var path = recentPaths[i];
+            var normalizedPath = path.Replace('\\', '/');
+            var displayName = Path.GetFileNameWithoutExtension(normalizedPath);
+            recentProjectsJson.AppendLine("  {");
+            recentProjectsJson.AppendLine($"    \"Path\": \"{path}\",");
+            recentProjectsJson.AppendLine($"    \"DisplayName\": \"{displayName}\",");
+            recentProjectsJson.AppendLine($"    \"LastOpenedAt\": \"2026-04-28T09:{i:00}:00+00:00\"");
+            recentProjectsJson.Append("  }");
+            recentProjectsJson.AppendLine(i == recentPaths.Count - 1 ? string.Empty : ",");
+        }
+
+        recentProjectsJson.AppendLine("]");
+
+        var recentPersistence = new InlineRecentProjectPersistenceStore(recentProjectsJson.ToString());
         return new InkkSlinger.Designer.DesignerHostViewModel(
             fileStore,
             new InkkSlinger.Designer.DesignerRecentProjectStore(recentPersistence),

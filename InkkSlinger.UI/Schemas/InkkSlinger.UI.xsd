@@ -443,6 +443,12 @@
       <xs:enumeration value="WrapWithOverflow" />
     </xs:restriction>
   </xs:simpleType>
+  <xs:simpleType name="textTrimmingEnumType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="None" />
+      <xs:enumeration value="CharacterEllipsis" />
+    </xs:restriction>
+  </xs:simpleType>
   <xs:simpleType name="tickBarPlacementEnumType">
     <xs:restriction base="xs:string">
       <xs:enumeration value="Top" />
@@ -11368,6 +11374,7 @@
         <xs:attribute name="Storyboard.TargetName" type="xs:string" />
         <xs:attribute name="Storyboard.TargetProperty" type="xs:string" />
         <xs:attribute name="Text" type="xs:string" />
+        <xs:attribute name="TextTrimming" type="textTrimmingEnumType" />
         <xs:attribute name="TextWrapping" type="textWrappingEnumType" />
         <xs:attribute name="ToolTipService.BetweenShowDelay" type="xs:int" />
         <xs:attribute name="ToolTipService.InitialShowDelay" type="xs:int" />
@@ -13617,6 +13624,7 @@
   <xs:element name="TextBlock.Foreground" type="xamlPropertyElementType" />
   <xs:element name="TextBlock.LineHeight" type="xamlPropertyElementType" />
   <xs:element name="TextBlock.Text" type="xamlPropertyElementType" />
+  <xs:element name="TextBlock.TextTrimming" type="xamlPropertyElementType" />
   <xs:element name="TextBlock.TextWrapping" type="xamlPropertyElementType" />
   <xs:element name="TextBox.Background" type="xamlPropertyElementType" />
   <xs:element name="TextBox.BorderBrush" type="xamlPropertyElementType" />

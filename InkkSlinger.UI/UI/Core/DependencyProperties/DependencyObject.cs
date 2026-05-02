@@ -149,6 +149,20 @@ public abstract class DependencyObject
         EvaluateEffectiveValue(dependencyProperty, previousEntry);
     }
 
+    internal void NotifyInheritedPropertyChanged(
+        DependencyProperty dependencyProperty,
+        object? inheritedValue,
+        DependencyPropertyValueSource inheritedSource)
+    {
+        if (!dependencyProperty.IsApplicableTo(this))
+        {
+            return;
+        }
+
+        _values.TryGetValue(dependencyProperty, out var previousEntry);
+        EvaluateEffectiveValue(dependencyProperty, previousEntry, inheritedValue, inheritedSource);
+    }
+
     internal bool HasStoredValueEntry(DependencyProperty dependencyProperty)
     {
         ValidatePropertyApplicability(dependencyProperty);
@@ -208,6 +222,37 @@ public abstract class DependencyObject
         var oldSource = previousEntry.EffectiveSource;
 
         var (newEffective, newSource) = ComputeEffectiveValue(dependencyProperty, entry);
+        ApplyEffectiveValue(dependencyProperty, entry, oldEffective, oldSource, newEffective, newSource);
+    }
+
+    private void EvaluateEffectiveValue(
+        DependencyProperty dependencyProperty,
+        EffectiveValueEntry previousEntry,
+        object? inheritedValue,
+        DependencyPropertyValueSource inheritedSource)
+    {
+        _values.TryGetValue(dependencyProperty, out var entry);
+
+        var oldEffective = previousEntry.EffectiveValue;
+        var oldSource = previousEntry.EffectiveSource;
+
+        var (newEffective, newSource) = ComputeEffectiveValue(
+            dependencyProperty,
+            entry,
+            hasInheritedParentValue: true,
+            inheritedValue,
+            inheritedSource);
+        ApplyEffectiveValue(dependencyProperty, entry, oldEffective, oldSource, newEffective, newSource);
+    }
+
+    private void ApplyEffectiveValue(
+        DependencyProperty dependencyProperty,
+        EffectiveValueEntry entry,
+        object? oldEffective,
+        DependencyPropertyValueSource oldSource,
+        object? newEffective,
+        DependencyPropertyValueSource newSource)
+    {
         if (Equals(oldEffective, newEffective) && oldSource == newSource)
         {
             return;
@@ -234,7 +279,10 @@ public abstract class DependencyObject
 
     private (object? Value, DependencyPropertyValueSource Source) ComputeEffectiveValue(
         DependencyProperty dependencyProperty,
-        EffectiveValueEntry entry)
+        EffectiveValueEntry entry,
+        bool hasInheritedParentValue = false,
+        object? inheritedParentValue = null,
+        DependencyPropertyValueSource inheritedParentSource = DependencyPropertyValueSource.Default)
     {
         if (TryComputeNonInheritedEffectiveValue(entry, out var value, out var source))
         {
@@ -244,33 +292,41 @@ public abstract class DependencyObject
             var metadata = dependencyProperty.GetMetadata(this);
             if (metadata.Inherits && this is UIElement element)
             {
-                var foundParentValue = false;
-                value = null;
-                source = DependencyPropertyValueSource.Default;
-                var visited = new HashSet<UIElement> { element };
-
-                for (var parent = UIElement.GetTreeParent(element); parent != null; parent = UIElement.GetTreeParent(parent))
+                if (hasInheritedParentValue)
                 {
-                    if (!visited.Add(parent))
+                    value = inheritedParentValue;
+                    source = inheritedParentSource;
+                }
+                else
+                {
+                    var foundParentValue = false;
+                    value = null;
+                    source = DependencyPropertyValueSource.Default;
+                    var visited = new HashSet<UIElement> { element };
+
+                    for (var parent = UIElement.GetTreeParent(element); parent != null; parent = UIElement.GetTreeParent(parent))
                     {
+                        if (!visited.Add(parent))
+                        {
+                            break;
+                        }
+
+                        if (!dependencyProperty.IsApplicableTo(parent))
+                        {
+                            continue;
+                        }
+
+                        value = parent.GetValue(dependencyProperty);
+                        source = DependencyPropertyValueSource.Inherited;
+                        foundParentValue = true;
                         break;
                     }
 
-                    if (!dependencyProperty.IsApplicableTo(parent))
+                    if (!foundParentValue)
                     {
-                        continue;
+                        value = metadata.DefaultValue;
+                        source = DependencyPropertyValueSource.Default;
                     }
-
-                    value = parent.GetValue(dependencyProperty);
-                    source = DependencyPropertyValueSource.Inherited;
-                    foundParentValue = true;
-                    break;
-                }
-
-                if (!foundParentValue)
-                {
-                    value = metadata.DefaultValue;
-                    source = DependencyPropertyValueSource.Default;
                 }
             }
             else

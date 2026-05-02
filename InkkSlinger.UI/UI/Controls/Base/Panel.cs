@@ -33,6 +33,10 @@ public class Panel : FrameworkElement
     private readonly List<UIElement> _children = new();
     private readonly List<UIElement> _zOrderedChildrenCache = new();
     private readonly Dictionary<UIElement, int> _childOrderLookup = new();
+    private int _childMutationDeferralDepth;
+    private bool _deferredChildMutationMeasureInvalidation;
+    private bool _deferredChildMutationArrangeInvalidation;
+    private bool _deferredChildMutationStructureChanged;
     private bool _zOrderCacheDirty = true;
 
     public IReadOnlyList<UIElement> Children => _children;
@@ -85,8 +89,7 @@ public class Panel : FrameworkElement
         child.DependencyPropertyChanged -= OnChildDependencyPropertyChanged;
         child.SetVisualParent(null);
         child.SetLogicalParent(null);
-        _zOrderCacheDirty = true;
-        InvalidateMeasure();
+        NotifyVisualChildOrderChanged(invalidateMeasure: true);
         return true;
     }
 
@@ -102,8 +105,7 @@ public class Panel : FrameworkElement
         child.DependencyPropertyChanged -= OnChildDependencyPropertyChanged;
         child.SetVisualParent(null);
         child.SetLogicalParent(null);
-        _zOrderCacheDirty = true;
-        InvalidateMeasure();
+        NotifyVisualChildOrderChanged(invalidateMeasure: true);
         return true;
     }
 
@@ -247,6 +249,12 @@ public class Panel : FrameworkElement
     protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
     {
         return (IsMeasuring || IsArrangingOverride) && IsDescendantOfOwnedChildSubtree(descendant);
+    }
+
+    protected IDisposable DeferChildMutationInvalidations()
+    {
+        _childMutationDeferralDepth++;
+        return new ChildMutationInvalidationDeferral(this);
     }
 
     internal new static PanelTelemetrySnapshot GetTelemetryAndReset()
@@ -417,6 +425,21 @@ public class Panel : FrameworkElement
     private void NotifyVisualChildOrderChanged(bool invalidateMeasure)
     {
         _zOrderCacheDirty = true;
+        if (_childMutationDeferralDepth > 0)
+        {
+            _deferredChildMutationStructureChanged = true;
+            if (invalidateMeasure)
+            {
+                _deferredChildMutationMeasureInvalidation = true;
+            }
+            else
+            {
+                _deferredChildMutationArrangeInvalidation = true;
+            }
+
+            return;
+        }
+
         if (invalidateMeasure)
         {
             InvalidateMeasure();
@@ -427,6 +450,60 @@ public class Panel : FrameworkElement
         }
 
         UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
+    }
+
+    private void EndChildMutationInvalidationDeferral()
+    {
+        if (_childMutationDeferralDepth <= 0)
+        {
+            return;
+        }
+
+        _childMutationDeferralDepth--;
+        if (_childMutationDeferralDepth > 0)
+        {
+            return;
+        }
+
+        if (_deferredChildMutationMeasureInvalidation)
+        {
+            InvalidateMeasure();
+        }
+        else if (_deferredChildMutationArrangeInvalidation)
+        {
+            InvalidateArrange();
+        }
+
+        if (_deferredChildMutationStructureChanged)
+        {
+            UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
+        }
+
+        _deferredChildMutationMeasureInvalidation = false;
+        _deferredChildMutationArrangeInvalidation = false;
+        _deferredChildMutationStructureChanged = false;
+    }
+
+    private sealed class ChildMutationInvalidationDeferral : IDisposable
+    {
+        private Panel? _owner;
+
+        public ChildMutationInvalidationDeferral(Panel owner)
+        {
+            _owner = owner;
+        }
+
+        public void Dispose()
+        {
+            var owner = _owner;
+            if (owner == null)
+            {
+                return;
+            }
+
+            _owner = null;
+            owner.EndChildMutationInvalidationDeferral();
+        }
     }
 
     private bool IsZOrderCacheAlreadySorted()

@@ -1294,14 +1294,23 @@ public class UIElement : DependencyObject
             return;
         }
 
+        HashSet<UIElement>? notifiedChildren = null;
         foreach (var child in GetVisualChildren())
         {
-            child.NotifyInheritedPropertyChanged(args.Property);
+            notifiedChildren ??= new HashSet<UIElement>();
+            if (notifiedChildren.Add(child))
+            {
+                child.NotifyInheritedPropertyChanged(args.Property, args.NewValue, DependencyPropertyValueSource.Inherited);
+            }
         }
 
         foreach (var child in GetLogicalChildren())
         {
-            child.NotifyInheritedPropertyChanged(args.Property);
+            notifiedChildren ??= new HashSet<UIElement>();
+            if (notifiedChildren.Add(child))
+            {
+                child.NotifyInheritedPropertyChanged(args.Property, args.NewValue, DependencyPropertyValueSource.Inherited);
+            }
         }
     }
 
@@ -1791,6 +1800,12 @@ public class UIElement : DependencyObject
 
         _measureInvalidationCount++;
         _layoutVersionStamp++;
+        if (!IsConnectedToCurrentUiRoot())
+        {
+            RunWithInvalidationContext(origin, this, $"measure<={reason}", InvalidateArrange);
+            return;
+        }
+
         RecordInvalidationDiagnostics(UiInvalidationType.Measure, origin, source, reason);
         MarkSubtreeDirty();
         UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Measure, this);
@@ -1823,6 +1838,12 @@ public class UIElement : DependencyObject
 
         _arrangeInvalidationCount++;
         _layoutVersionStamp++;
+        if (!IsConnectedToCurrentUiRoot())
+        {
+            RunWithInvalidationContext(origin, this, $"arrange<={reason}", InvalidateVisual);
+            return;
+        }
+
         RecordInvalidationDiagnostics(UiInvalidationType.Arrange, origin, source, reason);
         MarkSubtreeDirty();
         UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Arrange, this);
@@ -1849,9 +1870,33 @@ public class UIElement : DependencyObject
         NeedsRender = true;
         _renderInvalidationCount++;
         _renderVersionStamp++;
+        if (!IsConnectedToCurrentUiRoot())
+        {
+            return;
+        }
+
         RecordInvalidationDiagnostics(UiInvalidationType.Render, origin, source, reason);
         MarkSubtreeDirty();
         UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Render, renderInvalidationSource);
+    }
+
+    private bool IsConnectedToCurrentUiRoot()
+    {
+        var root = UiRoot.Current?.VisualRoot;
+        if (root == null)
+        {
+            return true;
+        }
+
+        for (UIElement? current = this; current != null; current = GetTreeParent(current))
+        {
+            if (ReferenceEquals(current, root))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void RecordInvalidationDiagnostics(UiInvalidationType type, UIElement origin, UIElement? source, string reason)

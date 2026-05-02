@@ -324,9 +324,12 @@ public static partial class XamlLoader
                 return true;
             }
 
-            foreach (var resourceElement in propertyElement.Elements())
+            using (resourceDictionary.DeferNotifications())
             {
-                AddResourceEntry(resourceDictionary, resourceElement, codeBehind, resourceScopeForEntries);
+                foreach (var resourceElement in propertyElement.Elements())
+                {
+                    AddResourceEntry(resourceDictionary, resourceElement, codeBehind, resourceScopeForEntries);
+                }
             }
 
             return true;

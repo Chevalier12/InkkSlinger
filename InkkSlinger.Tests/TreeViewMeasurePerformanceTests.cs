@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -19,6 +20,83 @@ namespace InkkSlinger.Tests;
 /// </summary>
 public sealed class TreeViewMeasurePerformanceTests
 {
+    [Fact]
+    public void TreeView_EagerExpandedItems_MaterializationCostIsVisibleBeforeLayout()
+    {
+        const int folderCount = 2078;
+        const int fileCount = 15329;
+        var stopwatch = Stopwatch.StartNew();
+        var root = CreateExpandedProjectTree(folderCount, fileCount);
+        stopwatch.Stop();
+
+        var buildMilliseconds = stopwatch.Elapsed.TotalMilliseconds;
+        var totalItems = CountTreeItems(root);
+
+        Assert.Equal(folderCount + fileCount + 1, totalItems);
+        Assert.True(
+            buildMilliseconds < 2500d,
+            $"Building an eager TreeViewItem hierarchy should not be slower than WPF's same eager-control path by multiple seconds. " +
+            $"buildMilliseconds={buildMilliseconds:0.###}, totalItems={totalItems}.");
+    }
+
+    [Fact]
+    public void TreeView_HierarchicalDataSource_RealizesOnlyViewportContainers()
+    {
+        const int folderCount = 2078;
+        const int fileCount = 15329;
+        var root = CreateProjectNodeTree(folderCount, fileCount);
+        var treeView = new TreeView
+        {
+            Width = 800f,
+            Height = 420f,
+            HierarchicalChildrenSelector = static item => item is ProjectNode node ? node.Children : Array.Empty<ProjectNode>(),
+            HierarchicalHeaderSelector = static item => item is ProjectNode node ? node.Name : string.Empty,
+            HierarchicalExpandedSelector = static item => item is ProjectNode { IsFolder: true },
+            HierarchicalItemsSource = new[] { root }
+        };
+
+        treeView.Measure(new Vector2(800f, 420f));
+        treeView.Arrange(new LayoutRect(0f, 0f, 800f, 420f));
+
+        Assert.Equal(folderCount + fileCount + 1, CountProjectNodes(root));
+        Assert.True(
+            treeView.RealizedHierarchicalContainerCount < 200,
+            $"Hierarchical TreeView data virtualization should realize only the viewport/cache rows, not every model node. " +
+            $"realized={treeView.RealizedHierarchicalContainerCount}, modelNodes={CountProjectNodes(root)}.");
+    }
+
+    [Fact]
+    public void TreeView_HierarchicalHasChildrenSelector_DoesNotEnumerateCollapsedChildren()
+    {
+        var root = new LazyProjectNode("Root", isFolder: true);
+        for (var folderIndex = 0; folderIndex < 100; folderIndex++)
+        {
+            root.Children.Add(new LazyProjectNode($"Folder {folderIndex:000}", isFolder: true));
+        }
+
+        var childSelectorCallCount = 0;
+        var treeView = new TreeView
+        {
+            Width = 800f,
+            Height = 420f,
+            HierarchicalChildrenSelector = item =>
+            {
+                childSelectorCallCount++;
+                return item is LazyProjectNode node ? node.Children : Array.Empty<LazyProjectNode>();
+            },
+            HierarchicalHasChildrenSelector = static item => item is LazyProjectNode { IsFolder: true },
+            HierarchicalHeaderSelector = static item => item is LazyProjectNode node ? node.Name : string.Empty,
+            HierarchicalExpandedSelector = item => ReferenceEquals(item, root),
+            HierarchicalItemsSource = new[] { root }
+        };
+
+        treeView.Measure(new Vector2(800f, 420f));
+        treeView.Arrange(new LayoutRect(0f, 0f, 800f, 420f));
+
+        Assert.Equal(1, childSelectorCallCount);
+        Assert.True(treeView.RealizedHierarchicalContainerCount < 150);
+    }
+
     [Fact]
     public void DesignerProjectExplorerTree_WheelScroll_ShouldStayWithinFrameBudget()
     {
@@ -81,6 +159,76 @@ public sealed class TreeViewMeasurePerformanceTests
     }
 
     [Fact]
+    public void DesignerProjectExplorerTree_TemplatedTrimmedRows_ShouldStayBoundedAndWithinFrameBudget()
+    {
+        var store = new FakeProjectFileStore();
+        const string projectRoot = "C:/projects/PerfTree";
+        PopulateProjectTree(store, projectRoot);
+
+        var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl />", store);
+        var projectSession = InkkSlinger.Designer.DesignerProjectSession.Open(projectRoot, store);
+        var shell = new InkkSlinger.Designer.DesignerShellView(
+            documentController: documentController,
+            projectSession: projectSession);
+
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, width: 1280, height: 820);
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        var projectExplorerTree = Assert.IsType<TreeView>(shell.FindName("ProjectExplorerTree"));
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(projectExplorerTree.GetVisualChildren()));
+        var realizedRowsBeforeWheel = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
+
+        Assert.NotEmpty(realizedRowsBeforeWheel);
+        Assert.True(
+            realizedRowsBeforeWheel.Length < 120,
+            $"Designer project explorer should only realize the visible TreeView rows plus a small cache, not hundreds of templated rows. " +
+            $"realizedRows={realizedRowsBeforeWheel.Length}, cachedContainers={projectExplorerTree.RealizedHierarchicalContainerCount}.");
+
+        foreach (var row in realizedRowsBeforeWheel)
+        {
+            var snapshot = row.GetControlSnapshotForDiagnostics();
+            Assert.True(snapshot.HasTemplateAssigned, $"Expected realized project rows to have a TreeViewItem template. header={row.Header}");
+            Assert.True(snapshot.HasTemplateRoot, $"Expected realized project rows to expose a template root. header={row.Header}");
+            Assert.Equal("TextBlock", snapshot.TemplateRootType);
+
+            var textBlocks = EnumerateVisualDescendants<TextBlock>(row).ToArray();
+            Assert.Single(textBlocks);
+            Assert.Equal(TextTrimming.CharacterEllipsis, textBlocks[0].TextTrimming);
+        }
+
+        var pointer = GetCenter(projectExplorerTree.LayoutSlot);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        _ = Control.GetTelemetryAndReset();
+        uiRoot.GetTelemetryAndReset();
+
+        const int wheelTicks = 12;
+        for (var i = 0; i < wheelTicks; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+            RunLayout(uiRoot, width: 1280, height: 820);
+        }
+
+        var uiRootTelemetry = uiRoot.GetUiRootTelemetrySnapshot();
+        var averageUpdateMs = uiRootTelemetry.UpdateElapsedMs / wheelTicks;
+        var realizedRowsAfterWheel = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
+        var realizedTextBlocksAfterWheel = EnumerateVisualDescendants<TextBlock>(scrollViewer).ToArray();
+
+        Assert.True(scrollViewer.VerticalOffset > 0f, $"Expected project explorer to scroll, but offset stayed {scrollViewer.VerticalOffset:0.###}.");
+        Assert.True(
+            averageUpdateMs <= 16.6,
+            $"Designer project explorer average wheel frame cost with templated trimmed rows {averageUpdateMs:0.###}ms exceeds 16.6ms. " +
+            $"wheelTicks={wheelTicks}, verticalOffset={scrollViewer.VerticalOffset:0.###}, realizedRows={realizedRowsAfterWheel.Length}, textBlocks={realizedTextBlocksAfterWheel.Length}.");
+        Assert.True(
+            realizedRowsAfterWheel.Length < 120,
+            $"Templated trimmed project rows should stay bounded to the viewport cache during scroll. " +
+            $"realizedRows={realizedRowsAfterWheel.Length}, verticalOffset={scrollViewer.VerticalOffset:0.###}.");
+        Assert.Equal(realizedRowsAfterWheel.Length, realizedTextBlocksAfterWheel.Length);
+    }
+
+    [Fact]
     public void TreeViewVirtualizingHost_WheelBurstWithinInitialCache_ShouldNotRealizeRowsDuringWheel()
     {
         var treeView = new TreeView
@@ -138,6 +286,125 @@ public sealed class TreeViewMeasurePerformanceTests
         Assert.Equal(wheelTicks, after.ViewerOwnedOffsetDecisionWithinRealizedWindowCount - before.ViewerOwnedOffsetDecisionWithinRealizedWindowCount);
         Assert.Equal(before.ViewerOwnedOffsetDecisionBeforeGuardBandCount, after.ViewerOwnedOffsetDecisionBeforeGuardBandCount);
         Assert.Equal(before.ViewerOwnedOffsetDecisionAfterGuardBandCount, after.ViewerOwnedOffsetDecisionAfterGuardBandCount);
+    }
+
+    [Fact]
+    public void TreeViewVirtualizingHost_AttachingLargeExpandedHierarchy_CoalescesHostInvalidations()
+    {
+        var treeView = new TreeView
+        {
+            Name = "ProjectExplorerTree",
+            Width = 258f,
+            Height = 492f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+
+        var root = CreateTreeViewItem("Root", isExpanded: true);
+        for (var folderIndex = 0; folderIndex < 40; folderIndex++)
+        {
+            var folder = CreateTreeViewItem($"Folder {folderIndex:00}", isExpanded: true);
+            for (var fileIndex = 0; fileIndex < 20; fileIndex++)
+            {
+                folder.Items.Add(CreateTreeViewItem($"File {folderIndex:00}-{fileIndex:00}.xml", isExpanded: false));
+            }
+
+            root.Items.Add(folder);
+        }
+
+        _ = FrameworkElement.GetTelemetryAndReset();
+        treeView.Items.Add(root);
+        var frameworkTelemetry = FrameworkElement.GetTelemetryAndReset();
+        var treeSnapshot = treeView.GetFrameworkElementSnapshotForDiagnostics();
+
+        Assert.True(
+            frameworkTelemetry.InvalidateMeasureCallCount <= 8,
+            $"Attaching one already-expanded TreeView root should reconcile the virtualized host as one structural update, " +
+            $"not invalidate once per visible row. frameworkInvalidateMeasure={frameworkTelemetry.InvalidateMeasureCallCount}, " +
+            $"treeInvalidateMeasure={treeSnapshot.InvalidateMeasureCallCount}.");
+    }
+
+    [Fact]
+    public void TreeView_InheritedPropertyChange_DoesNotNotifyVisualLogicalChildrenTwice()
+    {
+        var treeView = new TreeView
+        {
+            Name = "ProjectExplorerTree",
+            Width = 258f,
+            Height = 492f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+
+        var root = CreateTreeViewItem("Root", isExpanded: true);
+        for (var folderIndex = 0; folderIndex < 20; folderIndex++)
+        {
+            var folder = CreateTreeViewItem($"Folder {folderIndex:00}", isExpanded: true);
+            for (var fileIndex = 0; fileIndex < 10; fileIndex++)
+            {
+                folder.Items.Add(CreateTreeViewItem($"File {folderIndex:00}-{fileIndex:00}.xml", isExpanded: false));
+            }
+
+            root.Items.Add(folder);
+        }
+
+        treeView.Items.Add(root);
+        _ = FrameworkElement.GetTelemetryAndReset();
+
+        treeView.IsEnabled = false;
+
+        var frameworkTelemetry = FrameworkElement.GetTelemetryAndReset();
+        Assert.True(
+            frameworkTelemetry.DependencyPropertyChangedCallCount <= 260,
+            $"One inherited IsEnabled change should notify each TreeView element once, not once through the visual tree and again through the logical tree. " +
+            $"frameworkDpChanges={frameworkTelemetry.DependencyPropertyChangedCallCount}.");
+    }
+
+    [Fact]
+    public void TreeView_ForegroundChange_PropagatesTypographyLinearly()
+    {
+        var treeView = new TreeView
+        {
+            Name = "ProjectExplorerTree",
+            Width = 258f,
+            Height = 492f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+
+        var root = CreateTreeViewItem("Root", isExpanded: true);
+        for (var folderIndex = 0; folderIndex < 40; folderIndex++)
+        {
+            var folder = CreateTreeViewItem($"Folder {folderIndex:00}", isExpanded: true);
+            for (var fileIndex = 0; fileIndex < 20; fileIndex++)
+            {
+                folder.Items.Add(CreateTreeViewItem($"File {folderIndex:00}-{fileIndex:00}.xml", isExpanded: false));
+            }
+
+            root.Items.Add(folder);
+        }
+
+        treeView.Items.Add(root);
+        var allItems = EnumerateTreeItems(root).ToArray();
+        var newForeground = new Color(229, 231, 234);
+
+        _ = FrameworkElement.GetTelemetryAndReset();
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+
+        treeView.Foreground = newForeground;
+
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+        var frameworkTelemetry = FrameworkElement.GetTelemetryAndReset();
+
+        Assert.All(allItems, item => Assert.Equal(newForeground, item.Foreground));
+        Assert.True(
+            allocatedBytes <= 1_500_000,
+            $"TreeView foreground propagation should visit the expanded hierarchy linearly, not restart recursive child propagation from every item. " +
+            $"allocatedBytes={allocatedBytes}, itemCount={allItems.Length}, frameworkDpChanges={frameworkTelemetry.DependencyPropertyChangedCallCount}.");
+        Assert.True(
+            frameworkTelemetry.DependencyPropertyChangedCallCount <= allItems.Length + 4,
+            $"TreeView foreground propagation should change each TreeViewItem foreground once. " +
+            $"itemCount={allItems.Length}, frameworkDpChanges={frameworkTelemetry.DependencyPropertyChangedCallCount}.");
     }
 
     [Fact]
@@ -384,6 +651,97 @@ public sealed class TreeViewMeasurePerformanceTests
         };
     }
 
+    private static TreeViewItem CreateExpandedProjectTree(int folderCount, int fileCount)
+    {
+        var root = CreateTreeViewItem("InkkSlinger", isExpanded: true);
+        var filesPerFolder = fileCount / folderCount;
+        var extraFiles = fileCount % folderCount;
+        for (var folderIndex = 0; folderIndex < folderCount; folderIndex++)
+        {
+            var folder = CreateTreeViewItem($"Folder {folderIndex:0000}", isExpanded: true);
+            var count = filesPerFolder + (folderIndex < extraFiles ? 1 : 0);
+            for (var fileIndex = 0; fileIndex < count; fileIndex++)
+            {
+                folder.Items.Add(CreateTreeViewItem($"File {folderIndex:0000}-{fileIndex:000}.xml", isExpanded: false));
+            }
+
+            root.Items.Add(folder);
+        }
+
+        return root;
+    }
+
+    private static ProjectNode CreateProjectNodeTree(int folderCount, int fileCount)
+    {
+        var root = new ProjectNode("InkkSlinger", isFolder: true);
+        var filesPerFolder = fileCount / folderCount;
+        var extraFiles = fileCount % folderCount;
+        for (var folderIndex = 0; folderIndex < folderCount; folderIndex++)
+        {
+            var folder = new ProjectNode($"Folder {folderIndex:0000}", isFolder: true);
+            var count = filesPerFolder + (folderIndex < extraFiles ? 1 : 0);
+            for (var fileIndex = 0; fileIndex < count; fileIndex++)
+            {
+                folder.Children.Add(new ProjectNode($"File {folderIndex:0000}-{fileIndex:000}.xml", isFolder: false));
+            }
+
+            root.Children.Add(folder);
+        }
+
+        return root;
+    }
+
+    private static int CountProjectNodes(ProjectNode node)
+    {
+        var count = 1;
+        foreach (var child in node.Children)
+        {
+            count += CountProjectNodes(child);
+        }
+
+        return count;
+    }
+
+    private static int CountTreeItems(TreeViewItem item)
+    {
+        var count = 1;
+        foreach (var child in item.GetChildTreeItems())
+        {
+            count += CountTreeItems(child);
+        }
+
+        return count;
+    }
+
+    private static IEnumerable<TreeViewItem> EnumerateTreeItems(TreeViewItem item)
+    {
+        yield return item;
+        foreach (var child in item.GetChildTreeItems())
+        {
+            foreach (var descendant in EnumerateTreeItems(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    private static IEnumerable<TElement> EnumerateVisualDescendants<TElement>(UIElement root)
+        where TElement : UIElement
+    {
+        foreach (var child in root.GetVisualChildren())
+        {
+            if (child is TElement match)
+            {
+                yield return match;
+            }
+
+            foreach (var descendant in EnumerateVisualDescendants<TElement>(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
     private static void RunLayout(UiRoot uiRoot, int width, int height)
     {
         uiRoot.Update(
@@ -574,5 +932,23 @@ public sealed class TreeViewMeasurePerformanceTests
             var index = normalized.LastIndexOf('/');
             return index < 0 ? null : normalized[..index];
         }
+    }
+
+    private sealed class ProjectNode(string name, bool isFolder)
+    {
+        public string Name { get; } = name;
+
+        public bool IsFolder { get; } = isFolder;
+
+        public List<ProjectNode> Children { get; } = new();
+    }
+
+    private sealed class LazyProjectNode(string name, bool isFolder)
+    {
+        public string Name { get; } = name;
+
+        public bool IsFolder { get; } = isFolder;
+
+        public List<LazyProjectNode> Children { get; } = new();
     }
 }

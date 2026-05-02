@@ -80,6 +80,34 @@ public sealed class XamlLoaderOptimizationTests
         }
     }
 
+    [Fact]
+    public void LoadIntoFromString_ResourcePropertyElement_BatchesResourceInvalidation()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <TextBlock Text="Probe" />
+  </Grid>
+  <UserControl.Resources>
+    <Color x:Key="Color01">#101010</Color>
+    <Color x:Key="Color02">#202020</Color>
+    <Color x:Key="Color03">#303030</Color>
+    <Color x:Key="Color04">#404040</Color>
+    <Color x:Key="Color05">#505050</Color>
+  </UserControl.Resources>
+</UserControl>
+""";
+
+        var host = new UserControl();
+
+        XamlLoader.LoadIntoFromString(host, xaml, host);
+
+        var snapshot = host.GetFrameworkElementSnapshotForDiagnostics();
+        Assert.Equal(1, snapshot.LocalResourcesChangedCallCount);
+        Assert.Equal(1, snapshot.ResourceScopeInvalidatedRaiseCount);
+        Assert.Equal(1, snapshot.DescendantResourcesChangedNotifyCallCount);
+    }
+
         [Fact]
         public void LoadIntoFromString_DataTemplateGeneratedElements_CanBindEventsToDeclaringCodeBehind()
         {

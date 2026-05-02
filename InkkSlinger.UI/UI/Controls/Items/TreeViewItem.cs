@@ -8,6 +8,7 @@ namespace InkkSlinger;
 public class TreeViewItem : ItemsControl
 {
     internal event EventHandler? ExpandedStateChanged;
+    private bool _isApplyingPropagatedForeground;
 
     public static readonly DependencyProperty HeaderProperty =
         DependencyProperty.Register(
@@ -41,6 +42,7 @@ public class TreeViewItem : ItemsControl
                 propertyChangedCallback: static (dependencyObject, args) =>
                 {
                     if (dependencyObject is TreeViewItem treeViewItem &&
+                        !treeViewItem._isApplyingPropagatedForeground &&
                         args.OldValue is Color oldColor &&
                         args.NewValue is Color newColor)
                     {
@@ -68,9 +70,13 @@ public class TreeViewItem : ItemsControl
 
     internal bool UseVirtualizedTreeLayout { get; set; }
 
+    internal bool HasVirtualizedChildItems { get; set; }
+
     internal float RowHitHeightForInput => GetRowHeight();
 
     internal int VirtualizedTreeDepth { get; set; }
+
+    internal int VirtualizedTreeRowIndex { get; set; } = -1;
 
     public string Header
     {
@@ -149,7 +155,9 @@ public class TreeViewItem : ItemsControl
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var rowHeight = GetRowHeight();
-        var rowWidth = MeasureHeaderWidth();
+        var rowWidth = HasTemplateRoot
+            ? MeasureTemplatedHeaderWidth(availableSize, rowHeight)
+            : MeasureHeaderWidth();
 
         if (!IsExpanded || UseVirtualizedTreeLayout)
         {
@@ -177,6 +185,17 @@ public class TreeViewItem : ItemsControl
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var currentY = LayoutSlot.Y + GetRowHeight();
+
+        if (HasTemplateRoot && TryGetTemplateRoot(out var templateRoot))
+        {
+            var padding = Padding;
+            var textX = LayoutSlot.X + GetHeaderTextOffset();
+            templateRoot.Arrange(new LayoutRect(
+                textX,
+                LayoutSlot.Y,
+                MathF.Max(0f, finalSize.X - (textX - LayoutSlot.X) - padding.Right),
+                GetRowHeight()));
+        }
 
         if (IsExpanded && !UseVirtualizedTreeLayout)
         {
@@ -248,7 +267,12 @@ public class TreeViewItem : ItemsControl
 
         if (!string.IsNullOrEmpty(Header))
         {
-            var textX = LayoutSlot.X + GetVirtualizedDepthOffset() + padding.Left + (HasChildItems() ? 16f : 6f);
+            if (HasTemplateRoot)
+            {
+                return;
+            }
+
+            var textX = LayoutSlot.X + GetHeaderTextOffset();
             var textY = LayoutSlot.Y + ((rowHeight - UiTextRenderer.GetLineHeight(this, FontSize)) / 2f);
             UiTextRenderer.DrawString(spriteBatch, this, Header, new Vector2(textX, textY), Foreground * Opacity, FontSize, opaqueBackground: true);
         }
@@ -273,7 +297,7 @@ public class TreeViewItem : ItemsControl
 
     public bool HasChildItems()
     {
-        return ItemContainers.Count > 0;
+        return HasVirtualizedChildItems || ItemContainers.Count > 0;
     }
 
     public IReadOnlyList<TreeViewItem> GetChildTreeItems()
@@ -303,6 +327,44 @@ public class TreeViewItem : ItemsControl
             ? UiTextRenderer.MeasureWidth(this, Header, FontSize)
             : 0f;
         return padding.Horizontal + GetVirtualizedDepthOffset() + (HasChildItems() ? 20f : 10f) + textWidth;
+    }
+
+    private float MeasureTemplatedHeaderWidth(Vector2 availableSize, float rowHeight)
+    {
+        var offset = GetHeaderTextOffset();
+        if (!TryGetTemplateRoot(out var templateRoot))
+        {
+            return offset;
+        }
+
+        var templateAvailable = new Vector2(
+            MathF.Max(0f, availableSize.X - offset - Padding.Right),
+            rowHeight);
+        templateRoot.Measure(templateAvailable);
+        return offset + templateRoot.DesiredSize.X + Padding.Right;
+    }
+
+    private bool TryGetTemplateRoot(out FrameworkElement templateRoot)
+    {
+        if (!HasTemplateRoot && Template != null)
+        {
+            ApplyTemplate();
+        }
+
+        if (TemplateRoot is FrameworkElement element)
+        {
+            templateRoot = element;
+            return true;
+        }
+
+        templateRoot = null!;
+        return false;
+    }
+
+    private float GetHeaderTextOffset()
+    {
+        var padding = Padding;
+        return GetVirtualizedDepthOffset() + padding.Left + (HasChildItems() ? 16f : 6f);
     }
 
     private float GetVirtualizedDepthOffset()
@@ -337,11 +399,26 @@ public class TreeViewItem : ItemsControl
         Color? oldForeground,
         Color? newForeground)
     {
+        item.ApplyPropagatedForeground(oldForeground, newForeground);
+    }
+
+    internal void ApplyPropagatedForeground(
+        Color? oldForeground,
+        Color? newForeground)
+    {
         if (newForeground.HasValue && oldForeground.HasValue)
         {
-            if (!item.HasLocalValue(ForegroundProperty) || item.Foreground == oldForeground.Value)
+            if (!HasLocalValue(ForegroundProperty) || Foreground == oldForeground.Value)
             {
-                item.Foreground = newForeground.Value;
+                _isApplyingPropagatedForeground = true;
+                try
+                {
+                    Foreground = newForeground.Value;
+                }
+                finally
+                {
+                    _isApplyingPropagatedForeground = false;
+                }
             }
         }
     }

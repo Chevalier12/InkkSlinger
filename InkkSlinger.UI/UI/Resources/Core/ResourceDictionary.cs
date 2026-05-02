@@ -45,6 +45,11 @@ public class ResourceDictionary : IDictionary<object, object>
 
     public bool IsReadOnly => false;
 
+    internal IDisposable DeferNotifications()
+    {
+        return new NotificationDeferral(this);
+    }
+
     public void ReplaceContents(
         IEnumerable<KeyValuePair<object, object>> entries,
         IEnumerable<ResourceDictionary>? mergedDictionaries = null,

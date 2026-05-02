@@ -86,8 +86,17 @@ public class TreeView : ItemsControl
 
     private readonly ScrollViewer _fallbackScrollViewer;
     private readonly HashSet<TreeViewItem> _trackedTreeItems = new();
+    private readonly List<VisibleTreeDataEntry> _hierarchicalDataRows = new();
+    private readonly Dictionary<object, TreeViewItem> _hierarchicalDataContainers = new();
+    private readonly Dictionary<object, bool> _hierarchicalExpansionOverrides = new();
     private ScrollViewer? _templatedScrollViewer;
+    private ScrollViewer? _viewportSubscribedScrollViewer;
     private Panel _itemsHost;
+    private object? _hierarchicalItemsSource;
+    private Func<object, IEnumerable<object>>? _hierarchicalChildrenSelector;
+    private Func<object, bool>? _hierarchicalHasChildrenSelector;
+    private Func<object, string>? _hierarchicalHeaderSelector;
+    private Func<object, bool>? _hierarchicalExpandedSelector;
 
     public TreeView()
     {
@@ -105,9 +114,69 @@ public class TreeView : ItemsControl
 
         _fallbackScrollViewer.SetVisualParent(this);
         _fallbackScrollViewer.SetLogicalParent(this);
+        UpdateScrollViewerViewportSubscription(_fallbackScrollViewer);
 
         AddHandler<MouseRoutedEventArgs>(UIElement.MouseLeftButtonDownEvent, OnMouseLeftButtonDownSelectItem);
     }
+
+    public object? HierarchicalItemsSource
+    {
+        get => _hierarchicalItemsSource;
+        set
+        {
+            if (ReferenceEquals(_hierarchicalItemsSource, value))
+            {
+                return;
+            }
+
+            _hierarchicalItemsSource = value;
+            _hierarchicalExpansionOverrides.Clear();
+            _hierarchicalDataContainers.Clear();
+            RefreshHierarchicalDataMode();
+        }
+    }
+
+    public Func<object, IEnumerable<object>>? HierarchicalChildrenSelector
+    {
+        get => _hierarchicalChildrenSelector;
+        set
+        {
+            _hierarchicalChildrenSelector = value;
+            RefreshHierarchicalDataMode();
+        }
+    }
+
+    public Func<object, bool>? HierarchicalHasChildrenSelector
+    {
+        get => _hierarchicalHasChildrenSelector;
+        set
+        {
+            _hierarchicalHasChildrenSelector = value;
+            RefreshHierarchicalDataMode();
+        }
+    }
+
+    public Func<object, string>? HierarchicalHeaderSelector
+    {
+        get => _hierarchicalHeaderSelector;
+        set
+        {
+            _hierarchicalHeaderSelector = value;
+            RefreshHierarchicalDataMode();
+        }
+    }
+
+    public Func<object, bool>? HierarchicalExpandedSelector
+    {
+        get => _hierarchicalExpandedSelector;
+        set
+        {
+            _hierarchicalExpandedSelector = value;
+            RefreshHierarchicalDataMode();
+        }
+    }
+
+    public int RealizedHierarchicalContainerCount => _hierarchicalDataContainers.Count;
 
     public override void OnApplyTemplate()
     {
@@ -182,6 +251,40 @@ public class TreeView : ItemsControl
     public void SelectItem(TreeViewItem item)
     {
         ApplySelectedItem(item);
+    }
+
+    public bool SelectHierarchicalItem(object item)
+    {
+        if (!IsHierarchicalDataMode)
+        {
+            return false;
+        }
+
+        var rowIndex = _hierarchicalDataRows.FindIndex(row => ReferenceEquals(row.Item, item) || Equals(row.Item, item));
+        if (rowIndex < 0)
+        {
+            RefreshHierarchicalDataRows();
+            rowIndex = _hierarchicalDataRows.FindIndex(row => ReferenceEquals(row.Item, item) || Equals(row.Item, item));
+            if (rowIndex < 0)
+            {
+                return false;
+            }
+        }
+
+        ApplySelectedItem(RealizeHierarchicalDataContainer(_hierarchicalDataRows[rowIndex], rowIndex));
+        return true;
+    }
+
+    public bool SetHierarchicalItemExpanded(object item, bool isExpanded)
+    {
+        if (!IsHierarchicalDataMode)
+        {
+            return false;
+        }
+
+        _hierarchicalExpansionOverrides[item] = isExpanded;
+        RefreshHierarchicalDataRows();
+        return true;
     }
 
     public override IEnumerable<UIElement> GetVisualChildren()
@@ -346,6 +449,129 @@ public class TreeView : ItemsControl
 
     private ScrollViewer ActiveScrollViewer => _templatedScrollViewer ?? _fallbackScrollViewer;
 
+    private bool IsHierarchicalDataMode => _hierarchicalItemsSource != null && _hierarchicalChildrenSelector != null;
+
+    private void RefreshHierarchicalDataMode()
+    {
+        var needsDataHost = IsHierarchicalDataMode;
+        if (needsDataHost != (_itemsHost is VirtualizingTreeDataHost))
+        {
+            UpdateItemsHost();
+            return;
+        }
+
+        if (needsDataHost)
+        {
+            RefreshHierarchicalDataRows();
+        }
+    }
+
+    private IEnumerable<object> GetHierarchicalRootItems()
+    {
+        if (_hierarchicalItemsSource is IEnumerable<object> enumerable)
+        {
+            return enumerable;
+        }
+
+        if (_hierarchicalItemsSource is System.Collections.IEnumerable nonGeneric && _hierarchicalItemsSource is not string)
+        {
+            return nonGeneric.Cast<object>();
+        }
+
+        return _hierarchicalItemsSource != null
+            ? new[] { _hierarchicalItemsSource }
+            : Array.Empty<object>();
+    }
+
+    private void RefreshHierarchicalDataRows()
+    {
+        if (_itemsHost is not VirtualizingTreeDataHost dataHost || _hierarchicalChildrenSelector == null)
+        {
+            return;
+        }
+
+        _hierarchicalDataRows.Clear();
+        foreach (var item in GetHierarchicalRootItems())
+        {
+            AddHierarchicalDataRow(item, depth: 0);
+        }
+
+        dataHost.SetRows(_hierarchicalDataRows);
+    }
+
+    private void AddHierarchicalDataRow(object item, int depth)
+    {
+        var hasChildren = HasHierarchicalChildren(item);
+        var expanded = hasChildren && IsHierarchicalItemExpanded(item);
+        _hierarchicalDataRows.Add(new VisibleTreeDataEntry(item, depth, hasChildren, expanded));
+
+        if (!expanded)
+        {
+            return;
+        }
+
+        var children = GetHierarchicalChildren(item);
+        foreach (var child in children)
+        {
+            AddHierarchicalDataRow(child, depth + 1);
+        }
+    }
+
+    private bool HasHierarchicalChildren(object item)
+    {
+        if (_hierarchicalHasChildrenSelector != null)
+        {
+            return _hierarchicalHasChildrenSelector(item);
+        }
+
+        return GetHierarchicalChildren(item).Count > 0;
+    }
+
+    private IReadOnlyList<object> GetHierarchicalChildren(object item)
+    {
+        if (_hierarchicalChildrenSelector?.Invoke(item) is not { } children)
+        {
+            return Array.Empty<object>();
+        }
+
+        return children as IReadOnlyList<object> ?? children.ToArray();
+    }
+
+    private bool IsHierarchicalItemExpanded(object item)
+    {
+        if (_hierarchicalExpansionOverrides.TryGetValue(item, out var expanded))
+        {
+            return expanded;
+        }
+
+        return _hierarchicalExpandedSelector?.Invoke(item) ?? false;
+    }
+
+    private string GetHierarchicalHeader(object item)
+    {
+        return _hierarchicalHeaderSelector?.Invoke(item) ?? item.ToString() ?? string.Empty;
+    }
+
+    private TreeViewItem RealizeHierarchicalDataContainer(VisibleTreeDataEntry row, int rowIndex)
+    {
+        if (!_hierarchicalDataContainers.TryGetValue(row.Item, out var container))
+        {
+            container = new TreeViewItem();
+            _hierarchicalDataContainers[row.Item] = container;
+            ApplyTypographyToItem(container, null, Foreground);
+        }
+
+        container.Header = GetHierarchicalHeader(row.Item);
+        container.Tag = row.Item;
+        container.IsExpanded = row.IsExpanded;
+        container.UseVirtualizedTreeLayout = true;
+        container.VirtualizedTreeDepth = row.Depth;
+        container.VirtualizedTreeRowIndex = rowIndex;
+        container.HasVirtualizedChildItems = row.HasChildren;
+        PrepareContainerForItemOverride(container, row.Item, rowIndex);
+        return container;
+    }
+
     private TreeViewItem? FindItemFromSource(UIElement? source)
     {
         for (var current = source; current != null; current = current.VisualParent ?? current.LogicalParent)
@@ -380,8 +606,16 @@ public class TreeView : ItemsControl
 
         if (clickedItem.HitExpander(GetExpanderHitTestPoint(clickedItem, args.Position)))
         {
-            clickedItem.IsExpanded = !clickedItem.IsExpanded;
-            RefreshVirtualizedItemsHost();
+            if (IsHierarchicalDataMode && clickedItem.Tag != null)
+            {
+                _hierarchicalExpansionOverrides[clickedItem.Tag] = !clickedItem.IsExpanded;
+                RefreshHierarchicalDataRows();
+            }
+            else
+            {
+                clickedItem.IsExpanded = !clickedItem.IsExpanded;
+                RefreshVirtualizedItemsHost();
+            }
         }
 
         ApplySelectedItem(clickedItem);
@@ -441,6 +675,11 @@ public class TreeView : ItemsControl
 
     private Panel CreateItemsHost()
     {
+        if (IsHierarchicalDataMode)
+        {
+            return new VirtualizingTreeDataHost(this);
+        }
+
         if (ItemsPanel != null)
         {
             return ItemsPanel.Build(this);
@@ -456,6 +695,12 @@ public class TreeView : ItemsControl
     protected override void OnItemsChanged()
     {
         base.OnItemsChanged();
+        if (IsHierarchicalDataMode)
+        {
+            RefreshHierarchicalDataRows();
+            return;
+        }
+
         RefreshTreeItemTracking();
         RefreshVirtualizedItemsHost();
     }
@@ -464,6 +709,34 @@ public class TreeView : ItemsControl
     {
         viewer.HorizontalScrollBarVisibility = HorizontalScrollBarVisibility;
         viewer.VerticalScrollBarVisibility = VerticalScrollBarVisibility;
+        UpdateScrollViewerViewportSubscription(viewer);
+    }
+
+    private void UpdateScrollViewerViewportSubscription(ScrollViewer viewer)
+    {
+        if (ReferenceEquals(_viewportSubscribedScrollViewer, viewer))
+        {
+            return;
+        }
+
+        if (_viewportSubscribedScrollViewer != null)
+        {
+            _viewportSubscribedScrollViewer.ViewportChanged -= OnActiveScrollViewerViewportChanged;
+        }
+
+        _viewportSubscribedScrollViewer = viewer;
+        _viewportSubscribedScrollViewer.ViewportChanged += OnActiveScrollViewerViewportChanged;
+    }
+
+    private void OnActiveScrollViewerViewportChanged(object? sender, EventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        if (_itemsHost is VirtualizingTreeDataHost dataHost)
+        {
+            dataHost.InvalidateMeasure();
+            dataHost.InvalidateArrange();
+        }
     }
 
     private void UpdateItemsHost()
@@ -477,8 +750,15 @@ public class TreeView : ItemsControl
         _itemsHost = nextHost;
         ActiveScrollViewer.Content = _itemsHost;
         AttachItemsHost(_itemsHost);
-        RefreshTreeItemTracking();
-        RefreshVirtualizedItemsHost();
+        if (IsHierarchicalDataMode)
+        {
+            RefreshHierarchicalDataRows();
+        }
+        else
+        {
+            RefreshTreeItemTracking();
+            RefreshVirtualizedItemsHost();
+        }
         InvalidateMeasure();
     }
 
@@ -502,8 +782,15 @@ public class TreeView : ItemsControl
         }
 
         AttachItemsHost(_itemsHost);
-        RefreshTreeItemTracking();
-        RefreshVirtualizedItemsHost();
+        if (IsHierarchicalDataMode)
+        {
+            RefreshHierarchicalDataRows();
+        }
+        else
+        {
+            RefreshTreeItemTracking();
+            RefreshVirtualizedItemsHost();
+        }
     }
 
     private void RestoreFallbackScrollViewer()
@@ -733,13 +1020,7 @@ public class TreeView : ItemsControl
         Color? oldForeground,
         Color? newForeground)
     {
-        if (newForeground.HasValue && oldForeground.HasValue)
-        {
-            if (!item.HasLocalValue(TreeViewItem.ForegroundProperty) || item.Foreground == oldForeground.Value)
-            {
-                item.Foreground = newForeground.Value;
-            }
-        }
+        item.ApplyPropagatedForeground(oldForeground, newForeground);
     }
 
     private sealed class ScrollContentStackPanel : StackPanel, IScrollTransformContent
@@ -747,6 +1028,131 @@ public class TreeView : ItemsControl
     }
 
     private readonly record struct VisibleTreeItemEntry(TreeViewItem Item, int Depth);
+
+    private readonly record struct VisibleTreeDataEntry(object Item, int Depth, bool HasChildren, bool IsExpanded);
+
+    private sealed class VirtualizingTreeDataHost : Panel, IScrollTransformContent, IScrollViewerVirtualizedContent
+    {
+        private const float FallbackRowHeight = 22f;
+        private readonly TreeView _owner;
+        private IReadOnlyList<VisibleTreeDataEntry> _rows = Array.Empty<VisibleTreeDataEntry>();
+        private int _firstRealizedIndex = -1;
+        private int _lastRealizedIndex = -1;
+
+        public VirtualizingTreeDataHost(TreeView owner)
+        {
+            _owner = owner;
+            Background = Color.Transparent;
+        }
+
+        public bool OwnsHorizontalScrollOffset => false;
+
+        public bool OwnsVerticalScrollOffset => true;
+
+        public void SetRows(IReadOnlyList<VisibleTreeDataEntry> rows)
+        {
+            _rows = rows;
+            _firstRealizedIndex = -1;
+            _lastRealizedIndex = -1;
+            InvalidateMeasure();
+            InvalidateArrange();
+        }
+
+        protected override Vector2 MeasureOverride(Vector2 availableSize)
+        {
+            RealizeRows(availableSize.Y);
+            var childConstraint = new Vector2(availableSize.X, FallbackRowHeight);
+            foreach (var child in Children)
+            {
+                if (child is FrameworkElement element)
+                {
+                    element.Measure(childConstraint);
+                }
+            }
+
+            var width = float.IsFinite(availableSize.X) ? availableSize.X : 0f;
+            return new Vector2(width, _rows.Count * FallbackRowHeight);
+        }
+
+        protected override Vector2 ArrangeOverride(Vector2 finalSize)
+        {
+            RealizeRows(finalSize.Y);
+            foreach (var child in Children)
+            {
+                if (child is not TreeViewItem item || item.VirtualizedTreeRowIndex < 0)
+                {
+                    continue;
+                }
+
+                var index = item.VirtualizedTreeRowIndex;
+                item.Arrange(new LayoutRect(
+                    LayoutSlot.X,
+                    LayoutSlot.Y + (index * FallbackRowHeight),
+                    finalSize.X,
+                    FallbackRowHeight));
+            }
+
+            return finalSize;
+        }
+
+        private void RealizeRows(float viewportHeight)
+        {
+            var viewer = _owner.ActiveScrollViewer;
+            var offset = MathF.Max(0f, viewer.VerticalOffset);
+            var viewport = float.IsFinite(viewportHeight) && viewportHeight > 0f
+                ? viewportHeight
+                : MathF.Max(viewer.ViewportHeight, FallbackRowHeight);
+            var cacheRows = Math.Max(4, (int)MathF.Ceiling(viewport / FallbackRowHeight));
+            var first = Math.Max(0, (int)MathF.Floor(offset / FallbackRowHeight) - cacheRows);
+            var last = Math.Min(_rows.Count - 1, (int)MathF.Ceiling((offset + viewport) / FallbackRowHeight) + cacheRows);
+
+            if (first == _firstRealizedIndex && last == _lastRealizedIndex)
+            {
+                return;
+            }
+
+            _firstRealizedIndex = first;
+            _lastRealizedIndex = last;
+            using (DeferChildMutationInvalidations())
+            {
+                for (var childIndex = Children.Count - 1; childIndex >= 0; childIndex--)
+                {
+                    var child = Children[childIndex];
+                    if (child is TreeViewItem treeItem &&
+                        treeItem.VirtualizedTreeRowIndex >= first &&
+                        treeItem.VirtualizedTreeRowIndex <= last)
+                    {
+                        continue;
+                    }
+
+                    RemoveChildAt(childIndex);
+                }
+
+                for (var rowIndex = first; rowIndex <= last; rowIndex++)
+                {
+                    var row = _rows[rowIndex];
+                    var container = _owner.RealizeHierarchicalDataContainer(row, rowIndex);
+                    if (IndexOfChild(container) < 0)
+                    {
+                        InsertChild(Children.Count, container);
+                    }
+                }
+            }
+        }
+
+        private int IndexOfChild(UIElement child)
+        {
+            for (var index = 0; index < Children.Count; index++)
+            {
+                if (ReferenceEquals(Children[index], child))
+                {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+    }
 
     private sealed class VirtualizingTreeItemsHost : VirtualizingStackPanel
     {
@@ -808,38 +1214,59 @@ public class TreeView : ItemsControl
         public void SetVisibleItems(IReadOnlyList<VisibleTreeItemEntry> visibleItems)
         {
             var visibleSet = new HashSet<TreeViewItem>(visibleItems.Select(static entry => entry.Item));
-            for (var index = Children.Count - 1; index >= 0; index--)
+            var changed = false;
+            using (DeferChildMutationInvalidations())
             {
-                var child = Children[index];
-                if (child is TreeViewItem treeItem && visibleSet.Contains(treeItem))
+                for (var index = Children.Count - 1; index >= 0; index--)
                 {
-                    continue;
+                    var child = Children[index];
+                    if (child is TreeViewItem treeItem && visibleSet.Contains(treeItem))
+                    {
+                        continue;
+                    }
+
+                    changed |= RemoveChildAt(index);
                 }
 
-                RemoveChildAt(index);
+                if (Children.Count == 0)
+                {
+                    for (var index = 0; index < visibleItems.Count; index++)
+                    {
+                        var item = visibleItems[index].Item;
+                        DetachFromCurrentParent(item);
+                        InsertChild(index, item);
+                        changed = true;
+                    }
+                }
+                else
+                {
+                    for (var index = 0; index < visibleItems.Count; index++)
+                    {
+                        var item = visibleItems[index].Item;
+                        var currentIndex = IndexOfChild(item);
+                        if (currentIndex == index)
+                        {
+                            continue;
+                        }
+
+                        if (currentIndex >= 0)
+                        {
+                            changed |= MoveChildRange(currentIndex, 1, index);
+                            continue;
+                        }
+
+                        DetachFromCurrentParent(item);
+                        InsertChild(index, item);
+                        changed = true;
+                    }
+                }
             }
 
-            for (var index = 0; index < visibleItems.Count; index++)
+            if (changed)
             {
-                var item = visibleItems[index].Item;
-                var currentIndex = IndexOfChild(item);
-                if (currentIndex == index)
-                {
-                    continue;
-                }
-
-                if (currentIndex >= 0)
-                {
-                    MoveChildRange(currentIndex, 1, index);
-                    continue;
-                }
-
-                DetachFromCurrentParent(item);
-                InsertChild(index, item);
+                InvalidateMeasure();
+                InvalidateArrange();
             }
-
-            InvalidateMeasure();
-            InvalidateArrange();
         }
 
         private int IndexOfChild(UIElement child)

@@ -14,6 +14,10 @@ public partial class DesignerHostView : UserControl
     private readonly DesignerHostViewModel _viewModel;
     private readonly Func<bool>? _beginWindowDragMoveOverride;
     private readonly HashSet<Button> _wiredRecentProjectRemoveButtons = new();
+    private readonly Dictionary<Grid, Button> _recentProjectOpenButtonsByRow = new();
+    private readonly Dictionary<Button, Grid> _recentProjectRowsByRemoveButton = new();
+    private Grid? _visibleRecentProjectRow;
+    private bool _recentProjectButtonCacheDirty = true;
     private DesignerProjectSession? _workspaceSession;
 
     public DesignerHostView(DesignerHostViewModel? viewModel = null, Func<bool>? beginWindowDragMoveOverride = null)
@@ -67,6 +71,7 @@ public partial class DesignerHostView : UserControl
 
         if (args.PropertyName == nameof(DesignerHostViewModel.RecentProjects))
         {
+            _recentProjectButtonCacheDirty = true;
             UpdateRecentProjectRemoveButtons(null);
         }
     }
@@ -145,7 +150,12 @@ public partial class DesignerHostView : UserControl
     private void OnDesignerHostRootPreviewMouseMove(object? sender, MouseRoutedEventArgs args)
     {
         _ = sender;
-        UpdateRecentProjectRemoveButtons(FindNamedAncestor<Grid>(args.OriginalSource, "RecentProjectRowRoot"));
+        if (_viewModel.CurrentViewState != DesignerHostViewState.StartPage)
+        {
+            return;
+        }
+
+        UpdateRecentProjectRemoveButtons(ResolveRecentProjectRow(args));
     }
 
     private void OnDesignerHostRootMouseLeave(object? sender, MouseRoutedEventArgs args)
@@ -169,6 +179,97 @@ public partial class DesignerHostView : UserControl
 
     private void UpdateRecentProjectRemoveButtons(Grid? visibleRow)
     {
+        if (visibleRow != null && !_recentProjectOpenButtonsByRow.ContainsKey(visibleRow))
+        {
+            _recentProjectButtonCacheDirty = true;
+        }
+
+        if (ReferenceEquals(_visibleRecentProjectRow, visibleRow) &&
+            !_recentProjectButtonCacheDirty &&
+            (visibleRow == null || IsRecentProjectRowHoverStateApplied(visibleRow)))
+        {
+            return;
+        }
+
+        RefreshRecentProjectButtonCacheIfNeeded();
+
+        if (visibleRow != null && !_recentProjectOpenButtonsByRow.ContainsKey(visibleRow))
+        {
+            CacheRecentProjectRow(visibleRow);
+        }
+
+        if (_visibleRecentProjectRow != null && !ReferenceEquals(_visibleRecentProjectRow, visibleRow))
+        {
+            ApplyRecentProjectRowHoverState(_visibleRecentProjectRow, isVisible: false);
+        }
+
+        if (visibleRow != null)
+        {
+            ApplyRecentProjectRowHoverState(visibleRow, isVisible: true);
+        }
+
+        _visibleRecentProjectRow = visibleRow;
+        _recentProjectButtonCacheDirty = false;
+    }
+
+    private void RefreshRecentProjectButtonCacheIfNeeded()
+    {
+        if (!_recentProjectButtonCacheDirty)
+        {
+            return;
+        }
+
+        _recentProjectOpenButtonsByRow.Clear();
+        _recentProjectRowsByRemoveButton.Clear();
+
+        foreach (var recentRow in FindDescendants<Grid>(RecentProjectsItemsControl))
+        {
+            if (!string.Equals(recentRow.Name, "RecentProjectRowRoot", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            CacheRecentProjectRow(recentRow);
+        }
+    }
+
+    private Grid? ResolveRecentProjectRow(MouseRoutedEventArgs args)
+    {
+        var row = FindNamedAncestor<Grid>(args.OriginalSource, "RecentProjectRowRoot");
+        if (row != null)
+        {
+            return row;
+        }
+
+        if (FindSelfOrAncestor<Button>(args.OriginalSource) is Button button &&
+            _recentProjectRowsByRemoveButton.TryGetValue(button, out row))
+        {
+            return row;
+        }
+
+        return FindRecentProjectRowAtPoint(args.Position);
+    }
+
+    private Grid? FindRecentProjectRowAtPoint(Microsoft.Xna.Framework.Vector2 point)
+    {
+        RefreshRecentProjectButtonCacheIfNeeded();
+
+        foreach (var row in _recentProjectOpenButtonsByRow.Keys)
+        {
+            if (LayoutSlotContainsPoint(row.LayoutSlot, point))
+            {
+                return row;
+            }
+        }
+
+        foreach (var pair in _recentProjectRowsByRemoveButton)
+        {
+            if (LayoutSlotContainsPoint(pair.Key.LayoutSlot, point))
+            {
+                return pair.Value;
+            }
+        }
+
         foreach (var recentRow in FindDescendants<Grid>(this))
         {
             if (!string.Equals(recentRow.Name, "RecentProjectRowRoot", StringComparison.Ordinal))
@@ -176,42 +277,88 @@ public partial class DesignerHostView : UserControl
                 continue;
             }
 
-            var openButton = FindRecentProjectOpenButton(recentRow);
-            if (openButton == null)
+            CacheRecentProjectRow(recentRow);
+            if (LayoutSlotContainsPoint(recentRow.LayoutSlot, point))
             {
-                continue;
-            }
-
-            if (ReferenceEquals(recentRow, visibleRow))
-            {
-                openButton.Background = RecentProjectHoverBackground;
-                openButton.BorderBrush = RecentProjectHoverBorderBrush;
-            }
-            else
-            {
-                openButton.Background = Color.Transparent;
-                openButton.BorderBrush = Color.Transparent;
+                return recentRow;
             }
         }
 
-        foreach (var removeButton in FindDescendants<Button>(this))
+        return null;
+    }
+
+    private void CacheRecentProjectRow(Grid recentRow)
+    {
+        var openButton = FindRecentProjectOpenButton(recentRow);
+        if (openButton != null)
         {
-            if (!string.Equals(removeButton.Name, "RecentProjectRemoveButton", StringComparison.Ordinal))
+            _recentProjectOpenButtonsByRow[recentRow] = openButton;
+        }
+
+        var removeButton = FindRecentProjectRemoveButton(recentRow);
+        if (removeButton == null)
+        {
+            return;
+        }
+
+        _recentProjectRowsByRemoveButton[removeButton] = recentRow;
+        if (_wiredRecentProjectRemoveButtons.Add(removeButton))
+        {
+            removeButton.AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonDownEvent, OnRecentProjectRemoveButtonMouseLeftButtonDown, handledEventsToo: true);
+            removeButton.AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonUpEvent, OnRecentProjectRemoveButtonMouseLeftButtonUp, handledEventsToo: true);
+        }
+    }
+
+    private void ApplyRecentProjectRowHoverState(Grid row, bool isVisible)
+    {
+        if (_recentProjectOpenButtonsByRow.TryGetValue(row, out var openButton))
+        {
+            var background = isVisible ? RecentProjectHoverBackground : Color.Transparent;
+            var borderBrush = isVisible ? RecentProjectHoverBorderBrush : Color.Transparent;
+            if (openButton.Background != background)
+            {
+                openButton.Background = background;
+            }
+
+            if (openButton.BorderBrush != borderBrush)
+            {
+                openButton.BorderBrush = borderBrush;
+            }
+        }
+
+        foreach (var pair in _recentProjectRowsByRemoveButton)
+        {
+            if (!ReferenceEquals(pair.Value, row))
             {
                 continue;
             }
 
-            if (_wiredRecentProjectRemoveButtons.Add(removeButton))
+            var visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+            if (pair.Key.Visibility != visibility)
             {
-                removeButton.AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonDownEvent, OnRecentProjectRemoveButtonMouseLeftButtonDown, handledEventsToo: true);
-                removeButton.AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonUpEvent, OnRecentProjectRemoveButtonMouseLeftButtonUp, handledEventsToo: true);
+                pair.Key.Visibility = visibility;
             }
-
-            var row = FindNamedAncestor<Grid>(removeButton, "RecentProjectRowRoot");
-            removeButton.Visibility = row != null && ReferenceEquals(row, visibleRow)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            return;
         }
+    }
+
+    private bool IsRecentProjectRowHoverStateApplied(Grid row)
+    {
+        if (_recentProjectOpenButtonsByRow.TryGetValue(row, out var openButton) &&
+            (openButton.Background != RecentProjectHoverBackground || openButton.BorderBrush != RecentProjectHoverBorderBrush))
+        {
+            return false;
+        }
+
+        foreach (var pair in _recentProjectRowsByRemoveButton)
+        {
+            if (ReferenceEquals(pair.Value, row))
+            {
+                return pair.Key.Visibility == Visibility.Visible;
+            }
+        }
+
+        return true;
     }
 
     private static Button? FindRecentProjectOpenButton(Grid recentRow)
@@ -227,6 +374,19 @@ public partial class DesignerHostView : UserControl
         return null;
     }
 
+    private static Button? FindRecentProjectRemoveButton(Grid recentRow)
+    {
+        foreach (var button in FindDescendants<Button>(recentRow))
+        {
+            if (string.Equals(button.Name, "RecentProjectRemoveButton", StringComparison.Ordinal))
+            {
+                return button;
+            }
+        }
+
+        return null;
+    }
+
     private void TryHandleRecentProjectRemoveClick(MouseRoutedEventArgs args, bool executeCommand)
     {
         if (args.Handled || args.Button != MouseButton.Left)
@@ -234,10 +394,11 @@ public partial class DesignerHostView : UserControl
             return;
         }
 
-        foreach (var row in FindDescendants<Grid>(this))
+        RefreshRecentProjectButtonCacheIfNeeded();
+
+        foreach (var row in _recentProjectOpenButtonsByRow.Keys)
         {
-            if (!string.Equals(row.Name, "RecentProjectRowRoot", StringComparison.Ordinal) ||
-                !LayoutSlotContainsPoint(row.LayoutSlot, args.Position) ||
+            if (!LayoutSlotContainsPoint(row.LayoutSlot, args.Position) ||
                 !IsPointWithinRecentProjectRemoveAffordance(row.LayoutSlot, args.Position))
             {
                 continue;

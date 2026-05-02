@@ -105,6 +105,15 @@ public class TextBlock : FrameworkElement
                 TextWrapping.NoWrap,
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty TextTrimmingProperty =
+        DependencyProperty.Register(
+            nameof(TextTrimming),
+            typeof(TextTrimming),
+            typeof(TextBlock),
+            new FrameworkPropertyMetadata(
+                TextTrimming.None,
+                FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty LineHeightProperty =
         DependencyProperty.Register(
             nameof(LineHeight),
@@ -277,6 +286,12 @@ public class TextBlock : FrameworkElement
     {
         get => GetValue<TextWrapping>(TextWrappingProperty);
         set => SetValue(TextWrappingProperty, value);
+    }
+
+    public TextTrimming TextTrimming
+    {
+        get => GetValue<TextTrimming>(TextTrimmingProperty);
+        set => SetValue(TextTrimmingProperty, value);
     }
 
     public float LineHeight
@@ -596,11 +611,14 @@ public class TextBlock : FrameworkElement
             var renderWidth = TextWrapping == TextWrapping.NoWrap
                 ? float.PositiveInfinity
                 : RenderSize.X;
-            var layout = ResolveLayout(renderWidth);
+            var typography = UiTextRenderer.ResolveTypography(this, FontSize);
+            var renderText = ResolveRenderText(layoutText, typography);
+            var layout = string.Equals(renderText, layoutText, StringComparison.Ordinal)
+                ? ResolveLayout(renderWidth)
+                : ApplyLineHeight(TextLayout.Layout(renderText, typography, FontSize, float.PositiveInfinity, TextWrapping.NoWrap), LineHeight);
             _lastRenderedLineCount = layout.Lines.Count;
             _lastRenderedLayoutWidth = renderWidth;
             _lastRenderedLayoutText = string.Join("\n", layout.Lines);
-            var typography = UiTextRenderer.ResolveTypography(this, FontSize);
             var lineSpacing = ResolveLineHeight(typography);
             var drawColor = Foreground * Opacity;
             var currentClip = spriteBatch.GraphicsDevice.ScissorRectangle;
@@ -702,6 +720,52 @@ public class TextBlock : FrameworkElement
         _ = spriteBatch;
         _ = layout;
         _ = lineSpacing;
+    }
+
+    private string ResolveRenderText(string layoutText, UiTypography typography)
+    {
+        if (TextTrimming == TextTrimming.None ||
+            TextWrapping != TextWrapping.NoWrap ||
+            string.IsNullOrEmpty(layoutText) ||
+            !float.IsFinite(RenderSize.X))
+        {
+            return layoutText;
+        }
+
+        var availableWidth = MathF.Max(0f, RenderSize.X);
+        if (availableWidth <= 0f)
+        {
+            return string.Empty;
+        }
+
+        if (UiTextRenderer.MeasureWidth(typography, layoutText) <= availableWidth)
+        {
+            return layoutText;
+        }
+
+        const string ellipsis = "...";
+        var ellipsisWidth = UiTextRenderer.MeasureWidth(typography, ellipsis);
+        if (ellipsisWidth > availableWidth)
+        {
+            return string.Empty;
+        }
+
+        var low = 0;
+        var high = layoutText.Length;
+        while (low < high)
+        {
+            var mid = low + ((high - low + 1) / 2);
+            if (UiTextRenderer.MeasureWidth(typography, layoutText[..mid] + ellipsis) <= availableWidth)
+            {
+                low = mid;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return layoutText[..low] + ellipsis;
     }
 
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)

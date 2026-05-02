@@ -30,6 +30,37 @@ public class DesignerProjectSessionTests
     }
 
     [Fact]
+    public void Open_DoesNotEnumerateNestedProjectFoldersUntilChildrenAreRequested()
+    {
+        var store = new FakeProjectFileStore();
+        store.CreateDirectory("C:/projects/Sample");
+        for (var folderIndex = 0; folderIndex < 100; folderIndex++)
+        {
+            store.CreateDirectory($"C:/projects/Sample/Folder{folderIndex:000}");
+            for (var fileIndex = 0; fileIndex < 20; fileIndex++)
+            {
+                store.WriteAllText($"C:/projects/Sample/Folder{folderIndex:000}/File{fileIndex:000}.xml", "<UserControl />");
+            }
+        }
+
+        var session = InkkSlinger.Designer.DesignerProjectSession.Open("C:/projects/Sample", store);
+
+        Assert.Equal(0, store.EnumerateDirectoriesCallCount);
+        Assert.Equal(0, store.EnumerateFilesCallCount);
+
+        var rootChildren = session.RootNode.Children;
+
+        Assert.Equal(100, rootChildren.Count);
+        Assert.Equal(1, store.EnumerateDirectoriesCallCount);
+        Assert.Equal(1, store.EnumerateFilesCallCount);
+
+        _ = rootChildren[0].Children;
+
+        Assert.Equal(2, store.EnumerateDirectoriesCallCount);
+        Assert.Equal(2, store.EnumerateFilesCallCount);
+    }
+
+    [Fact]
     public void CreateFileAndCreateFolder_AddNodesAndPersistThroughStore()
     {
         var store = new FakeProjectFileStore();
@@ -121,6 +152,10 @@ public class DesignerProjectSessionTests
 
         public IReadOnlyDictionary<string, string> Files => _files;
 
+        public int EnumerateDirectoriesCallCount { get; private set; }
+
+        public int EnumerateFilesCallCount { get; private set; }
+
         public bool Exists(string path)
         {
             var normalized = NormalizePath(path);
@@ -139,6 +174,7 @@ public class DesignerProjectSessionTests
 
         public IReadOnlyList<string> EnumerateDirectories(string path)
         {
+            EnumerateDirectoriesCallCount++;
             var prefix = NormalizePath(path) + "/";
             return _directories
                 .Where(directory => directory.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -149,6 +185,7 @@ public class DesignerProjectSessionTests
 
         public IReadOnlyList<string> EnumerateFiles(string path)
         {
+            EnumerateFilesCallCount++;
             var prefix = NormalizePath(path) + "/";
             return _files.Keys
                 .Where(file => file.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
