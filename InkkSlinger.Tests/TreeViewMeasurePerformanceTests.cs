@@ -164,7 +164,7 @@ public sealed class TreeViewMeasurePerformanceTests
     {
         var store = new FakeProjectFileStore();
         const string projectRoot = "C:/projects/PerfTree";
-        PopulateProjectTree(store, projectRoot, sectionCount: 75, filesPerSection: 25);
+        PopulateProjectTree(store, projectRoot, sectionCount: 75, filesPerSection: 25, longFileNames: true);
 
         var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl />", store);
         var projectSession = InkkSlinger.Designer.DesignerProjectSession.Open(projectRoot, store);
@@ -220,6 +220,11 @@ public sealed class TreeViewMeasurePerformanceTests
         }
 
         var headersWhileHeld = GetVisibleTreeRowHeaders(scrollViewer);
+        var renderedHeadersWhileHeld = EnumerateVisualDescendants<TreeViewItem>(scrollViewer)
+            .Where(static row => row.HasVirtualizedDisplaySnapshotForDiagnostics)
+            .Select(static row => (Full: row.DisplayHeaderForDiagnostics, Rendered: row.RenderedHeaderForDiagnostics))
+            .Where(static row => row.Full.Length > row.Rendered.Length)
+            .ToArray();
 
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, previous, leftReleased: true));
         RunLayout(uiRoot, width: 1280, height: 820);
@@ -253,6 +258,10 @@ public sealed class TreeViewMeasurePerformanceTests
         Assert.NotEmpty(headersBeforeDrag);
         Assert.NotEmpty(headersWhileHeld);
         Assert.NotEqual(headersBeforeDrag[0], headersWhileHeld[0]);
+        Assert.Contains(
+            renderedHeadersWhileHeld,
+            static row => row.Rendered.EndsWith("...", StringComparison.Ordinal) &&
+                          !string.Equals(row.Full, row.Rendered, StringComparison.Ordinal));
         Assert.True(viewerVerticalScrollBarSetOffsetsDelta > 0, "Expected the repro to exercise ScrollViewer's VerticalScrollBar SetOffsets path.");
         Assert.True(barDragDelta > 0, "Expected the repro to exercise ScrollBar thumb drag deltas.");
         Assert.True(
@@ -965,7 +974,8 @@ public sealed class TreeViewMeasurePerformanceTests
         FakeProjectFileStore store,
         string projectRoot,
         int sectionCount = 8,
-        int filesPerSection = 12)
+        int filesPerSection = 12,
+        bool longFileNames = false)
     {
         store.CreateDirectory(projectRoot);
 
@@ -982,9 +992,12 @@ public sealed class TreeViewMeasurePerformanceTests
                 for (var fileIndex = 0; fileIndex < filesPerSection; fileIndex++)
                 {
                     var extension = fileIndex % 3 == 0 ? "xml" : fileIndex % 3 == 1 ? "cs" : "json";
+                    var fileName = longFileNames
+                        ? $"Item{fileIndex:00}.ThisIsAnIntentionallyLongProjectExplorerFileNameThatMustTrimWhileTheScrollbarThumbIsHeld.{extension}"
+                        : $"Item{fileIndex:00}.{extension}";
                     store.WriteAllText(
-                        $"{sectionPath}/Item{fileIndex:00}.{extension}",
-                        $"// {topLevelFolder}/Section{section:00}/Item{fileIndex:00}.{extension}");
+                        $"{sectionPath}/{fileName}",
+                        $"// {topLevelFolder}/Section{section:00}/{fileName}");
                 }
             }
         }

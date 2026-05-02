@@ -305,8 +305,42 @@ public class TreeViewItem : ItemsControl
             }
 
             var textX = LayoutSlot.X + GetHeaderTextOffset();
-            var textY = LayoutSlot.Y + ((rowHeight - UiTextRenderer.GetLineHeight(this, FontSize)) / 2f);
-            UiTextRenderer.DrawString(spriteBatch, this, header, new Vector2(textX, textY), Foreground * Opacity, FontSize, opaqueBackground: true);
+            var renderSource = ResolveVirtualizedHeaderRenderSource();
+            var renderFontSize = renderSource.FontSize;
+            var renderText = ResolveVirtualizedHeaderRenderText(header, textX, renderSource);
+            if (string.IsNullOrEmpty(renderText))
+            {
+                return;
+            }
+
+            var textY = LayoutSlot.Y + ((rowHeight - UiTextRenderer.GetLineHeight(renderSource.Element, renderFontSize)) / 2f);
+            UiTextRenderer.DrawString(
+                spriteBatch,
+                renderSource.Element,
+                renderText,
+                new Vector2(textX, textY),
+                renderSource.Foreground * Opacity,
+                renderFontSize,
+                opaqueBackground: true);
+        }
+    }
+
+    internal bool HasVirtualizedDisplaySnapshotForDiagnostics => _hasVirtualizedDisplaySnapshot;
+
+    internal string RenderedHeaderForDiagnostics
+    {
+        get
+        {
+            var header = GetEffectiveHeader();
+            if (string.IsNullOrEmpty(header))
+            {
+                return string.Empty;
+            }
+
+            return ResolveVirtualizedHeaderRenderText(
+                header,
+                LayoutSlot.X + GetHeaderTextOffset(),
+                ResolveVirtualizedHeaderRenderSource());
         }
     }
 
@@ -398,6 +432,63 @@ public class TreeViewItem : ItemsControl
     private string GetEffectiveHeader()
     {
         return _hasVirtualizedDisplaySnapshot ? _virtualizedDisplayHeader : Header;
+    }
+
+    private (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) ResolveVirtualizedHeaderRenderSource()
+    {
+        if (TemplateRoot is TextBlock textBlock)
+        {
+            return (textBlock, textBlock.FontSize, textBlock.Foreground, textBlock.TextTrimming, textBlock.TextWrapping);
+        }
+
+        return (this, FontSize, Foreground, TextTrimming.None, TextWrapping.NoWrap);
+    }
+
+    private string ResolveVirtualizedHeaderRenderText(
+        string header,
+        float textX,
+        (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) renderSource)
+    {
+        if (renderSource.TextTrimming == TextTrimming.None ||
+            renderSource.TextWrapping != TextWrapping.NoWrap ||
+            !float.IsFinite(LayoutSlot.Width))
+        {
+            return header;
+        }
+
+        var availableWidth = MathF.Max(0f, LayoutSlot.Width - (textX - LayoutSlot.X) - Padding.Right);
+        if (availableWidth <= 0f)
+        {
+            return string.Empty;
+        }
+
+        if (UiTextRenderer.MeasureWidth(renderSource.Element, header, renderSource.FontSize) <= availableWidth)
+        {
+            return header;
+        }
+
+        const string ellipsis = "...";
+        if (UiTextRenderer.MeasureWidth(renderSource.Element, ellipsis, renderSource.FontSize) > availableWidth)
+        {
+            return string.Empty;
+        }
+
+        var low = 0;
+        var high = header.Length;
+        while (low < high)
+        {
+            var mid = low + ((high - low + 1) / 2);
+            if (UiTextRenderer.MeasureWidth(renderSource.Element, header[..mid] + ellipsis, renderSource.FontSize) <= availableWidth)
+            {
+                low = mid;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return header[..low] + ellipsis;
     }
 
     private bool GetEffectiveIsExpanded()
