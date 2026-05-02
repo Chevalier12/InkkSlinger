@@ -609,10 +609,18 @@ public class UIElement : DependencyObject
     public virtual void InvalidateArrange()
     {
         var context = _currentInvalidationContext;
+        var origin = context?.Origin ?? this;
+        var immediateSource = context?.ImmediateSource;
+        var reason = context?.Reason ?? "direct-call";
+        if (TryHandleArrangeInvalidation(origin, immediateSource, reason))
+        {
+            return;
+        }
+
         InvalidateArrangeCore(
-            context?.Origin ?? this,
-            context?.ImmediateSource,
-            context?.Reason ?? "direct-call");
+            origin,
+            immediateSource,
+            reason);
     }
 
     public virtual void InvalidateVisual()
@@ -630,6 +638,14 @@ public class UIElement : DependencyObject
     }
 
     protected virtual bool TryHandleMeasureInvalidation(UIElement origin, UIElement? source, string reason)
+    {
+        _ = origin;
+        _ = source;
+        _ = reason;
+        return false;
+    }
+
+    protected virtual bool TryHandleArrangeInvalidation(UIElement origin, UIElement? source, string reason)
     {
         _ = origin;
         _ = source;

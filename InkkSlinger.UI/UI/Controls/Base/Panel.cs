@@ -34,6 +34,8 @@ public class Panel : FrameworkElement
     private readonly List<UIElement> _zOrderedChildrenCache = new();
     private readonly Dictionary<UIElement, int> _childOrderLookup = new();
     private int _childMutationDeferralDepth;
+    private int _childMutationArrangeOnlyDeferralDepth;
+    private int _childMutationLayoutSuppressedDeferralDepth;
     private bool _deferredChildMutationMeasureInvalidation;
     private bool _deferredChildMutationArrangeInvalidation;
     private bool _deferredChildMutationStructureChanged;
@@ -248,13 +250,60 @@ public class Panel : FrameworkElement
 
     protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
     {
-        return (IsMeasuring || IsArrangingOverride) && IsDescendantOfOwnedChildSubtree(descendant);
+        return (IsMeasuring ||
+                IsArrangingOverride ||
+                _childMutationArrangeOnlyDeferralDepth > 0 ||
+                _childMutationLayoutSuppressedDeferralDepth > 0) &&
+               IsDescendantOfOwnedChildSubtree(descendant);
+    }
+
+    protected override bool TryHandleMeasureInvalidation(UIElement origin, UIElement? source, string reason)
+    {
+        if ((_childMutationArrangeOnlyDeferralDepth <= 0 && _childMutationLayoutSuppressedDeferralDepth <= 0) ||
+            origin is not FrameworkElement descendant ||
+            !IsDescendantOfOwnedChildSubtree(descendant))
+        {
+            return base.TryHandleMeasureInvalidation(origin, source, reason);
+        }
+
+        if (_childMutationLayoutSuppressedDeferralDepth <= 0)
+        {
+            _deferredChildMutationArrangeInvalidation = true;
+        }
+
+        return true;
+    }
+
+    protected override bool TryHandleArrangeInvalidation(UIElement origin, UIElement? source, string reason)
+    {
+        if (_childMutationLayoutSuppressedDeferralDepth <= 0 ||
+            origin is not FrameworkElement descendant ||
+            !IsDescendantOfOwnedChildSubtree(descendant))
+        {
+            return base.TryHandleArrangeInvalidation(origin, source, reason);
+        }
+
+        return true;
     }
 
     protected IDisposable DeferChildMutationInvalidations()
     {
         _childMutationDeferralDepth++;
         return new ChildMutationInvalidationDeferral(this);
+    }
+
+    protected IDisposable DeferChildMutationArrangeInvalidations()
+    {
+        _childMutationDeferralDepth++;
+        _childMutationArrangeOnlyDeferralDepth++;
+        return new ChildMutationInvalidationDeferral(this, arrangeOnly: true);
+    }
+
+    protected IDisposable DeferChildMutationLayoutInvalidations()
+    {
+        _childMutationDeferralDepth++;
+        _childMutationLayoutSuppressedDeferralDepth++;
+        return new ChildMutationInvalidationDeferral(this, suppressLayout: true);
     }
 
     internal new static PanelTelemetrySnapshot GetTelemetryAndReset()
@@ -428,9 +477,21 @@ public class Panel : FrameworkElement
         if (_childMutationDeferralDepth > 0)
         {
             _deferredChildMutationStructureChanged = true;
+            if (_childMutationLayoutSuppressedDeferralDepth > 0)
+            {
+                return;
+            }
+
             if (invalidateMeasure)
             {
-                _deferredChildMutationMeasureInvalidation = true;
+                if (_childMutationArrangeOnlyDeferralDepth > 0)
+                {
+                    _deferredChildMutationArrangeInvalidation = true;
+                }
+                else
+                {
+                    _deferredChildMutationMeasureInvalidation = true;
+                }
             }
             else
             {
@@ -452,7 +513,7 @@ public class Panel : FrameworkElement
         UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
     }
 
-    private void EndChildMutationInvalidationDeferral()
+    private void EndChildMutationInvalidationDeferral(bool arrangeOnly, bool suppressLayout)
     {
         if (_childMutationDeferralDepth <= 0)
         {
@@ -460,6 +521,16 @@ public class Panel : FrameworkElement
         }
 
         _childMutationDeferralDepth--;
+        if (arrangeOnly && _childMutationArrangeOnlyDeferralDepth > 0)
+        {
+            _childMutationArrangeOnlyDeferralDepth--;
+        }
+
+        if (suppressLayout && _childMutationLayoutSuppressedDeferralDepth > 0)
+        {
+            _childMutationLayoutSuppressedDeferralDepth--;
+        }
+
         if (_childMutationDeferralDepth > 0)
         {
             return;
@@ -487,10 +558,14 @@ public class Panel : FrameworkElement
     private sealed class ChildMutationInvalidationDeferral : IDisposable
     {
         private Panel? _owner;
+        private readonly bool _arrangeOnly;
+        private readonly bool _suppressLayout;
 
-        public ChildMutationInvalidationDeferral(Panel owner)
+        public ChildMutationInvalidationDeferral(Panel owner, bool arrangeOnly = false, bool suppressLayout = false)
         {
             _owner = owner;
+            _arrangeOnly = arrangeOnly;
+            _suppressLayout = suppressLayout;
         }
 
         public void Dispose()
@@ -502,7 +577,7 @@ public class Panel : FrameworkElement
             }
 
             _owner = null;
-            owner.EndChildMutationInvalidationDeferral();
+            owner.EndChildMutationInvalidationDeferral(_arrangeOnly, _suppressLayout);
         }
     }
 

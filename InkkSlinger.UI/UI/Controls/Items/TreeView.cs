@@ -88,9 +88,13 @@ public class TreeView : ItemsControl
     private readonly HashSet<TreeViewItem> _trackedTreeItems = new();
     private readonly List<VisibleTreeDataEntry> _hierarchicalDataRows = new();
     private readonly Dictionary<object, TreeViewItem> _hierarchicalDataContainers = new();
+    private readonly Queue<TreeViewItem> _recycledHierarchicalDataContainers = new();
     private readonly Dictionary<object, bool> _hierarchicalExpansionOverrides = new();
     private ScrollViewer? _templatedScrollViewer;
     private ScrollViewer? _viewportSubscribedScrollViewer;
+    private float _lastDataHostViewportWidth = float.NaN;
+    private float _lastDataHostViewportHeight = float.NaN;
+    private int _activeScrollViewerLayoutDepth;
     private Panel _itemsHost;
     private object? _hierarchicalItemsSource;
     private Func<object, IEnumerable<object>>? _hierarchicalChildrenSelector;
@@ -117,6 +121,7 @@ public class TreeView : ItemsControl
         UpdateScrollViewerViewportSubscription(_fallbackScrollViewer);
 
         AddHandler<MouseRoutedEventArgs>(UIElement.MouseLeftButtonDownEvent, OnMouseLeftButtonDownSelectItem);
+        AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonUpEvent, OnPreviewMouseLeftButtonUpRefreshDeferredScroll);
     }
 
     public object? HierarchicalItemsSource
@@ -132,6 +137,7 @@ public class TreeView : ItemsControl
             _hierarchicalItemsSource = value;
             _hierarchicalExpansionOverrides.Clear();
             _hierarchicalDataContainers.Clear();
+            _recycledHierarchicalDataContainers.Clear();
             RefreshHierarchicalDataMode();
         }
     }
@@ -251,6 +257,17 @@ public class TreeView : ItemsControl
     public void SelectItem(TreeViewItem item)
     {
         ApplySelectedItem(item);
+    }
+
+    public override void InvalidateMeasure()
+    {
+        if (ShouldConvertStableActiveScrollViewerMeasureInvalidation())
+        {
+            InvalidateArrange();
+            return;
+        }
+
+        base.InvalidateMeasure();
     }
 
     public bool SelectHierarchicalItem(object item)
@@ -394,7 +411,16 @@ public class TreeView : ItemsControl
             MathF.Max(0f, availableSize.Y - (border * 2f) - padding.Vertical));
 
         var scrollViewer = ActiveScrollViewer;
-        scrollViewer.Measure(innerSize);
+        _activeScrollViewerLayoutDepth++;
+        try
+        {
+            scrollViewer.Measure(innerSize);
+        }
+        finally
+        {
+            _activeScrollViewerLayoutDepth--;
+        }
+
         var desired = scrollViewer.DesiredSize;
         return new Vector2(
             desired.X + (border * 2f) + padding.Horizontal,
@@ -415,7 +441,15 @@ public class TreeView : ItemsControl
         var innerWidth = MathF.Max(0f, finalSize.X - (border * 2f) - padding.Horizontal);
         var innerHeight = MathF.Max(0f, finalSize.Y - (border * 2f) - padding.Vertical);
 
-        ActiveScrollViewer.Arrange(new LayoutRect(innerX, innerY, innerWidth, innerHeight));
+        _activeScrollViewerLayoutDepth++;
+        try
+        {
+            ActiveScrollViewer.Arrange(new LayoutRect(innerX, innerY, innerWidth, innerHeight));
+        }
+        finally
+        {
+            _activeScrollViewerLayoutDepth--;
+        }
 
         return finalSize;
     }
@@ -447,9 +481,80 @@ public class TreeView : ItemsControl
         return true;
     }
 
+    protected override bool TryHandleMeasureInvalidation(UIElement origin, UIElement? source, string reason)
+    {
+        _ = source;
+        _ = reason;
+        if (ReferenceEquals(origin, this) &&
+            _activeScrollViewerLayoutDepth > 0 &&
+            IsStableHierarchicalDataViewport())
+        {
+            return true;
+        }
+
+        if (origin is FrameworkElement descendant && ShouldTreatActiveScrollViewerMeasureAsArrangeOnly(descendant))
+        {
+            return true;
+        }
+
+        return base.TryHandleMeasureInvalidation(origin, source, reason);
+    }
+
+    protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
+    {
+        return ShouldTreatActiveScrollViewerMeasureAsArrangeOnly(descendant) ||
+               base.ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(descendant);
+    }
+
     private ScrollViewer ActiveScrollViewer => _templatedScrollViewer ?? _fallbackScrollViewer;
 
     private bool IsHierarchicalDataMode => _hierarchicalItemsSource != null && _hierarchicalChildrenSelector != null;
+
+    private bool ShouldTreatActiveScrollViewerMeasureAsArrangeOnly(FrameworkElement descendant)
+    {
+        if (!IsStableHierarchicalDataViewport())
+        {
+            return false;
+        }
+
+        var activeScrollViewer = ActiveScrollViewer;
+        if (!ReferenceEquals(descendant, activeScrollViewer) &&
+            !IsDescendantOrSelf(activeScrollViewer, descendant))
+        {
+            return false;
+        }
+
+        return AreClose(activeScrollViewer.ViewportWidth, _lastDataHostViewportWidth) &&
+               AreClose(activeScrollViewer.ViewportHeight, _lastDataHostViewportHeight);
+    }
+
+    private bool IsStableHierarchicalDataViewport()
+    {
+        if (!IsHierarchicalDataMode ||
+            _itemsHost is not VirtualizingTreeDataHost ||
+            float.IsNaN(_lastDataHostViewportWidth) ||
+            float.IsNaN(_lastDataHostViewportHeight))
+        {
+            return false;
+        }
+
+        var activeScrollViewer = ActiveScrollViewer;
+        return AreClose(activeScrollViewer.ViewportWidth, _lastDataHostViewportWidth) &&
+               AreClose(activeScrollViewer.ViewportHeight, _lastDataHostViewportHeight);
+    }
+
+    private bool ShouldConvertStableActiveScrollViewerMeasureInvalidation()
+    {
+        if (!IsStableHierarchicalDataViewport())
+        {
+            return false;
+        }
+
+        var activeScrollViewer = ActiveScrollViewer;
+        return activeScrollViewer.NeedsMeasure ||
+               activeScrollViewer.NeedsArrange ||
+               _itemsHost.NeedsArrange;
+    }
 
     private void RefreshHierarchicalDataMode()
     {
@@ -556,11 +661,20 @@ public class TreeView : ItemsControl
     {
         if (!_hierarchicalDataContainers.TryGetValue(row.Item, out var container))
         {
-            container = new TreeViewItem();
+            container = _recycledHierarchicalDataContainers.Count > 0
+                ? _recycledHierarchicalDataContainers.Dequeue()
+                : new TreeViewItem();
             _hierarchicalDataContainers[row.Item] = container;
             ApplyTypographyToItem(container, null, Foreground);
         }
 
+        ApplyHierarchicalDataContainer(container, row, rowIndex);
+        return container;
+    }
+
+    private void ApplyHierarchicalDataContainer(TreeViewItem container, VisibleTreeDataEntry row, int rowIndex)
+    {
+        container.ClearVirtualizedDisplaySnapshot();
         container.Header = GetHierarchicalHeader(row.Item);
         container.Tag = row.Item;
         container.IsExpanded = row.IsExpanded;
@@ -569,7 +683,24 @@ public class TreeView : ItemsControl
         container.VirtualizedTreeRowIndex = rowIndex;
         container.HasVirtualizedChildItems = row.HasChildren;
         PrepareContainerForItemOverride(container, row.Item, rowIndex);
-        return container;
+    }
+
+    private void RecycleHierarchicalDataContainer(TreeViewItem container)
+    {
+        if (ReferenceEquals(container, SelectedItem))
+        {
+            return;
+        }
+
+        if (container.Tag is { } item)
+        {
+            _hierarchicalDataContainers.Remove(item);
+        }
+
+        container.IsSelected = false;
+        container.ClearVirtualizedDisplaySnapshot();
+        container.VirtualizedTreeRowIndex = -1;
+        _recycledHierarchicalDataContainers.Enqueue(container);
     }
 
     private TreeViewItem? FindItemFromSource(UIElement? source)
@@ -620,6 +751,35 @@ public class TreeView : ItemsControl
 
         ApplySelectedItem(clickedItem);
         args.Handled = true;
+    }
+
+    private void OnPreviewMouseLeftButtonUpRefreshDeferredScroll(object? sender, MouseRoutedEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        if (_itemsHost is VirtualizingTreeDataHost dataHost)
+        {
+            dataHost.RefreshPendingStableViewportOffsetChange();
+        }
+    }
+
+    private bool IsActiveScrollViewerThumbCaptured()
+    {
+        if (FocusManager.GetCapturedPointerElement() is not Thumb capturedThumb)
+        {
+            return false;
+        }
+
+        var activeViewer = ActiveScrollViewer;
+        for (UIElement? current = capturedThumb; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (ReferenceEquals(current, activeViewer))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private Vector2 GetExpanderHitTestPoint(TreeViewItem item, Vector2 pointerPosition)
@@ -734,9 +894,30 @@ public class TreeView : ItemsControl
         _ = args;
         if (_itemsHost is VirtualizingTreeDataHost dataHost)
         {
-            dataHost.InvalidateMeasure();
-            dataHost.InvalidateArrange();
+            var activeScrollViewer = ActiveScrollViewer;
+            var viewportWidth = activeScrollViewer.ViewportWidth;
+            var viewportHeight = activeScrollViewer.ViewportHeight;
+            var viewportSizeChanged =
+                !AreClose(_lastDataHostViewportWidth, viewportWidth) ||
+                !AreClose(_lastDataHostViewportHeight, viewportHeight);
+
+            _lastDataHostViewportWidth = viewportWidth;
+            _lastDataHostViewportHeight = viewportHeight;
+            if (viewportSizeChanged)
+            {
+                dataHost.InvalidateMeasure();
+                dataHost.InvalidateArrange();
+            }
+            else
+            {
+                dataHost.RefreshForStableViewportOffsetChange();
+            }
         }
+    }
+
+    private static bool AreClose(float left, float right)
+    {
+        return MathF.Abs(left - right) <= 0.01f;
     }
 
     private void UpdateItemsHost()
@@ -1038,6 +1219,7 @@ public class TreeView : ItemsControl
         private IReadOnlyList<VisibleTreeDataEntry> _rows = Array.Empty<VisibleTreeDataEntry>();
         private int _firstRealizedIndex = -1;
         private int _lastRealizedIndex = -1;
+        private bool _pendingDeferredOffsetRefresh;
 
         public VirtualizingTreeDataHost(TreeView owner)
         {
@@ -1054,13 +1236,14 @@ public class TreeView : ItemsControl
             _rows = rows;
             _firstRealizedIndex = -1;
             _lastRealizedIndex = -1;
+            _pendingDeferredOffsetRefresh = false;
             InvalidateMeasure();
             InvalidateArrange();
         }
 
         protected override Vector2 MeasureOverride(Vector2 availableSize)
         {
-            RealizeRows(availableSize.Y);
+            RealizeRows(availableSize.Y, invalidateMeasureForChildMutations: true);
             var childConstraint = new Vector2(availableSize.X, FallbackRowHeight);
             foreach (var child in Children)
             {
@@ -1076,12 +1259,18 @@ public class TreeView : ItemsControl
 
         protected override Vector2 ArrangeOverride(Vector2 finalSize)
         {
-            RealizeRows(finalSize.Y);
+            RealizeRows(finalSize.Y, invalidateMeasureForChildMutations: false);
+            var childConstraint = new Vector2(finalSize.X, FallbackRowHeight);
             foreach (var child in Children)
             {
                 if (child is not TreeViewItem item || item.VirtualizedTreeRowIndex < 0)
                 {
                     continue;
+                }
+
+                if (item.NeedsMeasure)
+                {
+                    item.Measure(childConstraint);
                 }
 
                 var index = item.VirtualizedTreeRowIndex;
@@ -1095,25 +1284,126 @@ public class TreeView : ItemsControl
             return finalSize;
         }
 
-        private void RealizeRows(float viewportHeight)
+        public void RefreshForStableViewportOffsetChange()
         {
-            var viewer = _owner.ActiveScrollViewer;
-            var offset = MathF.Max(0f, viewer.VerticalOffset);
-            var viewport = float.IsFinite(viewportHeight) && viewportHeight > 0f
-                ? viewportHeight
-                : MathF.Max(viewer.ViewportHeight, FallbackRowHeight);
-            var cacheRows = Math.Max(4, (int)MathF.Ceiling(viewport / FallbackRowHeight));
-            var first = Math.Max(0, (int)MathF.Floor(offset / FallbackRowHeight) - cacheRows);
-            var last = Math.Min(_rows.Count - 1, (int)MathF.Ceiling((offset + viewport) / FallbackRowHeight) + cacheRows);
+            RefreshForStableViewportOffsetChange(forceRealization: false);
+        }
 
-            if (first == _firstRealizedIndex && last == _lastRealizedIndex)
+        public void RefreshPendingStableViewportOffsetChange()
+        {
+            if (!_pendingDeferredOffsetRefresh)
             {
                 return;
             }
 
+            _pendingDeferredOffsetRefresh = false;
+            RefreshForStableViewportOffsetChange(forceRealization: true);
+        }
+
+        private void RefreshForStableViewportOffsetChange(bool forceRealization)
+        {
+            if (!IsMeasureValidForTests ||
+                !IsArrangeValidForTests ||
+                LayoutSlot.Width <= 0f ||
+                LayoutSlot.Height <= 0f)
+            {
+                InvalidateArrangeForDirectLayoutOnly();
+                return;
+            }
+
+            var range = CalculateRealizedRange(LayoutSlot.Height);
+            if (!forceRealization &&
+                _owner.IsActiveScrollViewerThumbCaptured() &&
+                ShouldDeferRealizationDuringThumbDrag(range.First, range.Last))
+            {
+                RetargetRealizedRowsForThumbDrag(range.First, range.Last);
+                _pendingDeferredOffsetRefresh = true;
+                UiRoot.Current?.NotifyDirectRenderInvalidation(this);
+                return;
+            }
+
+            if (RealizeRows(LayoutSlot.Height, invalidateMeasureForChildMutations: false, suppressLayoutInvalidations: true))
+            {
+                InvalidateArrangeForDirectLayoutOnly(invalidateRender: false);
+                Arrange(LayoutSlot);
+            }
+
+            UiRoot.Current?.NotifyDirectRenderInvalidation(this);
+        }
+
+        private bool ShouldDeferRealizationDuringThumbDrag(int first, int last)
+        {
+            if (_firstRealizedIndex < 0 || _lastRealizedIndex < _firstRealizedIndex)
+            {
+                return false;
+            }
+
+            var overlapFirst = Math.Max(first, _firstRealizedIndex);
+            var overlapLast = Math.Min(last, _lastRealizedIndex);
+            var overlapCount = overlapLast >= overlapFirst ? overlapLast - overlapFirst + 1 : 0;
+            var currentCount = _lastRealizedIndex - _firstRealizedIndex + 1;
+            return overlapCount < currentCount / 2;
+        }
+
+        private void RetargetRealizedRowsForThumbDrag(int first, int last)
+        {
+            if (Children.Count == 0 || first > last)
+            {
+                return;
+            }
+
+            var childConstraint = new Vector2(LayoutSlot.Width, FallbackRowHeight);
+            var rowIndex = first;
+            foreach (var child in Children)
+            {
+                if (rowIndex > last || child is not TreeViewItem item)
+                {
+                    continue;
+                }
+
+                var row = _rows[rowIndex];
+                item.ApplyVirtualizedDisplaySnapshot(
+                    _owner.GetHierarchicalHeader(row.Item),
+                    row.HasChildren,
+                    row.IsExpanded,
+                    row.Depth,
+                    rowIndex);
+
+                if (item.NeedsMeasure)
+                {
+                    item.Measure(childConstraint);
+                }
+
+                item.Arrange(new LayoutRect(
+                    LayoutSlot.X,
+                    LayoutSlot.Y + (rowIndex * FallbackRowHeight),
+                    LayoutSlot.Width,
+                    FallbackRowHeight));
+                rowIndex++;
+            }
+        }
+
+        private bool RealizeRows(
+            float viewportHeight,
+            bool invalidateMeasureForChildMutations,
+            bool suppressLayoutInvalidations = false)
+        {
+            var range = CalculateRealizedRange(viewportHeight);
+            var first = range.First;
+            var last = range.Last;
+
+            if (first == _firstRealizedIndex && last == _lastRealizedIndex)
+            {
+                return false;
+            }
+
             _firstRealizedIndex = first;
             _lastRealizedIndex = last;
-            using (DeferChildMutationInvalidations())
+            using (suppressLayoutInvalidations
+                       ? DeferChildMutationLayoutInvalidations()
+                       : invalidateMeasureForChildMutations
+                           ? DeferChildMutationInvalidations()
+                           : DeferChildMutationArrangeInvalidations())
             {
                 for (var childIndex = Children.Count - 1; childIndex >= 0; childIndex--)
                 {
@@ -1125,6 +1415,10 @@ public class TreeView : ItemsControl
                     }
 
                     RemoveChildAt(childIndex);
+                    if (child is TreeViewItem removedTreeItem)
+                    {
+                        _owner.RecycleHierarchicalDataContainer(removedTreeItem);
+                    }
                 }
 
                 for (var rowIndex = first; rowIndex <= last; rowIndex++)
@@ -1137,6 +1431,21 @@ public class TreeView : ItemsControl
                     }
                 }
             }
+
+            return true;
+        }
+
+        private (int First, int Last) CalculateRealizedRange(float viewportHeight)
+        {
+            var viewer = _owner.ActiveScrollViewer;
+            var offset = MathF.Max(0f, viewer.VerticalOffset);
+            var viewport = float.IsFinite(viewportHeight) && viewportHeight > 0f
+                ? viewportHeight
+                : MathF.Max(viewer.ViewportHeight, FallbackRowHeight);
+            var cacheRows = Math.Max(4, (int)MathF.Ceiling(viewport / FallbackRowHeight));
+            var first = Math.Max(0, (int)MathF.Floor(offset / FallbackRowHeight) - cacheRows);
+            var last = Math.Min(_rows.Count - 1, (int)MathF.Ceiling((offset + viewport) / FallbackRowHeight) + cacheRows);
+            return (first, last);
         }
 
         private bool ShouldKeepRealizedChild(TreeViewItem item, int first, int last)

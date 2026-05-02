@@ -11,7 +11,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
-public sealed class InkkOopsLiveRequestDispatcher : IDisposable
+public sealed partial class InkkOopsLiveRequestDispatcher : IDisposable
 {
     private readonly IInkkOopsScriptCatalog _scriptCatalog;
     private readonly InkkOopsArtifacts _artifacts;
@@ -109,6 +109,10 @@ public sealed class InkkOopsLiveRequestDispatcher : IDisposable
                     new InkkOopsPointerUpTargetCommand(CreateTarget(request), CreateAnchor(request), ParseMouseButton(request), CreateMotion(request)),
                     cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.MovePointerPath => await MovePointerPathAsync(request, cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.RunScenario => await RunScenarioAsync(request, cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.ProbeDuringDrag => await ProbeDuringDragAsync(request, cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.AssertNonBlank => await AssertNonBlankAsync(request, cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.DiffTelemetry => DiffTelemetry(request),
                 InkkOopsPipeRequestKinds.DragPathTarget => await ExecuteCommandAsync(request,
                     new InkkOopsDragPathTargetCommand(CreateTarget(request), ParseWaypoints(request), CreateAnchor(request), ParseMouseButton(request), CreateMotion(request)),
                     cancellationToken).ConfigureAwait(false),

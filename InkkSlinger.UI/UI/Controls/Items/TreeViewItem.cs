@@ -9,6 +9,10 @@ public class TreeViewItem : ItemsControl
 {
     internal event EventHandler? ExpandedStateChanged;
     private bool _isApplyingPropagatedForeground;
+    private bool _hasVirtualizedDisplaySnapshot;
+    private string _virtualizedDisplayHeader = string.Empty;
+    private bool _virtualizedDisplayHasChildren;
+    private bool _virtualizedDisplayIsExpanded;
 
     public static readonly DependencyProperty HeaderProperty =
         DependencyProperty.Register(
@@ -84,6 +88,33 @@ public class TreeViewItem : ItemsControl
         set => SetValue(HeaderProperty, value);
     }
 
+    internal string DisplayHeaderForDiagnostics => GetEffectiveHeader();
+
+    public override IEnumerable<UIElement> GetVisualChildren()
+    {
+        if (_hasVirtualizedDisplaySnapshot)
+        {
+            yield break;
+        }
+
+        foreach (var child in base.GetVisualChildren())
+        {
+            yield return child;
+        }
+    }
+
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return _hasVirtualizedDisplaySnapshot ? 0 : base.GetVisualChildCountForTraversal();
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        return _hasVirtualizedDisplaySnapshot
+            ? throw new ArgumentOutOfRangeException(nameof(index))
+            : base.GetVisualChildAtForTraversal(index);
+    }
+
     public bool IsExpanded
     {
         get => GetValue<bool>(IsExpandedProperty);
@@ -155,7 +186,7 @@ public class TreeViewItem : ItemsControl
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var rowHeight = GetRowHeight();
-        var rowWidth = HasTemplateRoot
+        var rowWidth = HasTemplateRoot && !_hasVirtualizedDisplaySnapshot
             ? MeasureTemplatedHeaderWidth(availableSize, rowHeight)
             : MeasureHeaderWidth();
 
@@ -186,7 +217,7 @@ public class TreeViewItem : ItemsControl
     {
         var currentY = LayoutSlot.Y + GetRowHeight();
 
-        if (HasTemplateRoot && TryGetTemplateRoot(out var templateRoot))
+        if (!_hasVirtualizedDisplaySnapshot && HasTemplateRoot && TryGetTemplateRoot(out var templateRoot))
         {
             var padding = Padding;
             var textX = LayoutSlot.X + GetHeaderTextOffset();
@@ -241,7 +272,7 @@ public class TreeViewItem : ItemsControl
             var glyphCy = LayoutSlot.Y + (rowHeight / 2f);    // vertical centre of the row
             var glyphColor = Foreground * 0.65f;
 
-            if (IsExpanded)
+            if (GetEffectiveIsExpanded())
             {
                 // ▼  down-pointing triangle  (8 wide × 5.5 tall)
                 ReadOnlySpan<Vector2> tri =
@@ -265,16 +296,17 @@ public class TreeViewItem : ItemsControl
             }
         }
 
-        if (!string.IsNullOrEmpty(Header))
+        var header = GetEffectiveHeader();
+        if (!string.IsNullOrEmpty(header))
         {
-            if (HasTemplateRoot)
+            if (HasTemplateRoot && !_hasVirtualizedDisplaySnapshot)
             {
                 return;
             }
 
             var textX = LayoutSlot.X + GetHeaderTextOffset();
             var textY = LayoutSlot.Y + ((rowHeight - UiTextRenderer.GetLineHeight(this, FontSize)) / 2f);
-            UiTextRenderer.DrawString(spriteBatch, this, Header, new Vector2(textX, textY), Foreground * Opacity, FontSize, opaqueBackground: true);
+            UiTextRenderer.DrawString(spriteBatch, this, header, new Vector2(textX, textY), Foreground * Opacity, FontSize, opaqueBackground: true);
         }
     }
 
@@ -297,7 +329,40 @@ public class TreeViewItem : ItemsControl
 
     public bool HasChildItems()
     {
-        return HasVirtualizedChildItems || ItemContainers.Count > 0;
+        return _hasVirtualizedDisplaySnapshot
+            ? _virtualizedDisplayHasChildren
+            : HasVirtualizedChildItems || ItemContainers.Count > 0;
+    }
+
+    internal void ApplyVirtualizedDisplaySnapshot(
+        string header,
+        bool hasChildren,
+        bool isExpanded,
+        int depth,
+        int rowIndex)
+    {
+        _hasVirtualizedDisplaySnapshot = true;
+        _virtualizedDisplayHeader = header;
+        _virtualizedDisplayHasChildren = hasChildren;
+        _virtualizedDisplayIsExpanded = isExpanded;
+        UseVirtualizedTreeLayout = true;
+        VirtualizedTreeDepth = depth;
+        VirtualizedTreeRowIndex = rowIndex;
+        InvalidateVisual();
+    }
+
+    internal void ClearVirtualizedDisplaySnapshot()
+    {
+        if (!_hasVirtualizedDisplaySnapshot)
+        {
+            return;
+        }
+
+        _hasVirtualizedDisplaySnapshot = false;
+        _virtualizedDisplayHeader = string.Empty;
+        _virtualizedDisplayHasChildren = false;
+        _virtualizedDisplayIsExpanded = false;
+        InvalidateVisual();
     }
 
     public IReadOnlyList<TreeViewItem> GetChildTreeItems()
@@ -323,10 +388,21 @@ public class TreeViewItem : ItemsControl
     private float MeasureHeaderWidth()
     {
         var padding = Padding;
-        var textWidth = !string.IsNullOrEmpty(Header)
-            ? UiTextRenderer.MeasureWidth(this, Header, FontSize)
+        var header = GetEffectiveHeader();
+        var textWidth = !string.IsNullOrEmpty(header)
+            ? UiTextRenderer.MeasureWidth(this, header, FontSize)
             : 0f;
         return padding.Horizontal + GetVirtualizedDepthOffset() + (HasChildItems() ? 20f : 10f) + textWidth;
+    }
+
+    private string GetEffectiveHeader()
+    {
+        return _hasVirtualizedDisplaySnapshot ? _virtualizedDisplayHeader : Header;
+    }
+
+    private bool GetEffectiveIsExpanded()
+    {
+        return _hasVirtualizedDisplaySnapshot ? _virtualizedDisplayIsExpanded : IsExpanded;
     }
 
     private float MeasureTemplatedHeaderWidth(Vector2 availableSize, float rowHeight)

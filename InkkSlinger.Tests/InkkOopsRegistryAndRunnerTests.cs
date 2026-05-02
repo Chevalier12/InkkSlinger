@@ -204,6 +204,150 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
     }
 
     [Fact]
+    public async Task LiveRequestDispatcher_RunScenario_Writes_Trace_Report_Diff_And_Hints()
+    {
+        var button = new Button
+        {
+            Name = "ScenarioButton",
+            Content = "Trace Me",
+            Width = 120f,
+            Height = 32f
+        };
+        Canvas.SetLeft(button, 40f);
+        Canvas.SetTop(button, 30f);
+        var root = new Canvas { Width = 400f, Height = 240f };
+        root.AddChild(button);
+        using var host = new InkkOopsTestHost(root, width: 400, height: 240);
+        using var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+        var scenarioJson = """
+        {
+          "name": "button-trace",
+          "steps": [
+            { "command": "wait-for-visible", "target": "ScenarioButton", "frames": 2 },
+            { "command": "capture-frame", "artifact": "button-held" },
+            { "command": "get-telemetry", "artifact": "button-mid" },
+            { "command": "assert-nonblank", "target": "ScenarioButton", "minBrightPixels": 1 }
+          ]
+        }
+        """;
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.RunScenario,
+                Text = scenarioJson
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.Contains("scenario=button-trace", response.Value);
+        Assert.Contains("hints=", response.Value);
+        Assert.True(File.Exists(Path.Combine(response.ArtifactDirectory, "button-trace-report.md")));
+        Assert.True(File.Exists(Path.Combine(response.ArtifactDirectory, "button-trace-trace.json")));
+        Assert.True(File.Exists(Path.Combine(response.ArtifactDirectory, "button-trace-artifact-index.json")));
+        var report = File.ReadAllText(Path.Combine(response.ArtifactDirectory, "button-trace-report.md"));
+        Assert.Contains("Telemetry Diff", report);
+        Assert.Contains("Hints", report);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_ProbeDuringDrag_Captures_Transient_Report()
+    {
+        var thumb = new Thumb
+        {
+            Name = "DragThumb",
+            Width = 24f,
+            Height = 24f
+        };
+        Canvas.SetLeft(thumb, 40f);
+        Canvas.SetTop(thumb, 30f);
+        var root = new Canvas { Width = 400f, Height = 240f };
+        root.AddChild(thumb);
+        using var host = new InkkOopsTestHost(root, width: 400, height: 240);
+        using var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.ProbeDuringDrag,
+                TargetName = "DragThumb",
+                DeltaX = 40f,
+                DeltaY = 20f,
+                TravelFrames = 2,
+                ArtifactName = "thumb-drag-probe",
+                MinBrightPixels = 1
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.Contains("scenario=thumb-drag-probe", response.Value);
+        Assert.True(File.Exists(Path.Combine(response.ArtifactDirectory, "thumb-drag-probe-report.md")));
+        Assert.True(host.PointerTrace.Count > 0);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_DiffTelemetry_Returns_Report_With_Hypothesis_Hints()
+    {
+        using var host = new InkkOopsTestHost(new Canvas());
+        using var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+        var before = """
+        artifact_name=before
+        lastPointerMotion=motionStep=1/2 inputMs=0.1 routeMs=0.1
+        scrollViewerSetOffsetsDeferredLayoutPathCount=0
+        lastRenderRetainedNodesDrawn=10
+        """;
+        var after = """
+        artifact_name=after
+        lastPointerMotion=motionStep=1/2 inputMs=12 routeMs=11
+        scrollViewerSetOffsetsDeferredLayoutPathCount=3
+        lastRenderRetainedNodesDrawn=0
+        """;
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.DiffTelemetry,
+                ArtifactName = "diff-proof",
+                Text = before + "\n---INKKOOPS-AFTER---\n" + after
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.Contains("Input route is hot", response.Value);
+        Assert.Contains("deferred layout", response.Value);
+        Assert.Contains("No retained nodes", response.Value);
+        Assert.True(File.Exists(Path.Combine(host.ArtifactRoot, "live-session", "diff-proof.md")) || Directory.GetFiles(host.ArtifactRoot, "diff-proof.md", SearchOption.AllDirectories).Length == 1);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_AssertNonBlank_Samples_Target_Frame_Region()
+    {
+        var button = new Button
+        {
+            Name = "NonBlankButton",
+            Content = "Pixels",
+            Width = 120f,
+            Height = 32f
+        };
+        var root = new Canvas { Width = 400f, Height = 240f };
+        root.AddChild(button);
+        using var host = new InkkOopsTestHost(root, width: 400, height: 240);
+        using var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.AssertNonBlank,
+                TargetName = "NonBlankButton",
+                MinBrightPixels = 1
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.Contains("nonblank=True", response.Value);
+    }
+
+    [Fact]
     public async Task LiveRequestDispatcher_GetProperty_Returns_Value_From_Running_Host()
     {
         var button = new Button

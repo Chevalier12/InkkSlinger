@@ -59,6 +59,15 @@ public sealed class InkkOopsArtifacts : IDisposable
         _bufferedTextArtifacts[fileName] = content ?? string.Empty;
     }
 
+    public string WriteTextArtifact(string fileName, string content)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        var path = GetPath(fileName);
+        _bufferedTextArtifacts[fileName] = content ?? string.Empty;
+        File.WriteAllText(path, content ?? string.Empty, Encoding.UTF8);
+        return path;
+    }
+
     public int? GetLastLoggedActionIndex()
     {
         for (var i = _actionLogLines.Count - 1; i >= 0; i--)

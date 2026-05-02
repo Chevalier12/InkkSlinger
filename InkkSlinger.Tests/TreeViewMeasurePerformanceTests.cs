@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -156,6 +157,140 @@ public sealed class TreeViewMeasurePerformanceTests
             $"treeVisualChildrenDelta={visualChildrenDelta}, treeTraversalCountDelta={traversalCountDelta}, " +
             $"treeMeasureCallDelta={treeMeasureCallDelta}, treeArrangeCallDelta={treeArrangeCallDelta}, " +
             $"aggregateControlVisualChildren={controlTelemetry.GetVisualChildrenCallCount}.");
+    }
+
+    [Fact]
+    public void DesignerProjectExplorerTree_ScrollbarThumbDrag_ShouldNotRemeasureTreePerDragFrame()
+    {
+        var store = new FakeProjectFileStore();
+        const string projectRoot = "C:/projects/PerfTree";
+        PopulateProjectTree(store, projectRoot, sectionCount: 75, filesPerSection: 25);
+
+        var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl />", store);
+        var projectSession = InkkSlinger.Designer.DesignerProjectSession.Open(projectRoot, store);
+        var shell = new InkkSlinger.Designer.DesignerShellView(
+            documentController: documentController,
+            projectSession: projectSession);
+
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, width: 1280, height: 820);
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        var projectExplorerTree = Assert.IsType<TreeView>(shell.FindName("ProjectExplorerTree"));
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(projectExplorerTree.GetVisualChildren()));
+        var verticalBar = GetPrivateScrollBar(scrollViewer, "_verticalBar");
+        var track = Assert.IsType<Track>(FindNamedVisualChild<Track>(verticalBar, "PART_Track"));
+        var thumb = Assert.IsType<Thumb>(FindNamedVisualChild<Thumb>(verticalBar, "PART_Thumb"));
+
+        Assert.True(
+            scrollViewer.ExtentHeight > scrollViewer.ViewportHeight + 0.01f,
+            $"Expected project explorer to overflow vertically, but extent={scrollViewer.ExtentHeight:0.###} viewport={scrollViewer.ViewportHeight:0.###}.");
+        Assert.True(verticalBar.LayoutSlot.Height > 0f, "Expected the Project Explorer vertical scrollbar to be arranged.");
+        Assert.True(thumb.LayoutSlot.Height > 0f, "Expected the Project Explorer scrollbar thumb to be arranged.");
+
+        var thumbRect = verticalBar.GetThumbRectForInput();
+        var start = GetCenter(thumbRect);
+        var maxThumbCenterY = track.LayoutSlot.Y + track.LayoutSlot.Height - (thumbRect.Height / 2f) - 1f;
+        var dragDistance = MathF.Max(0f, maxThumbCenterY - start.Y);
+        Assert.True(dragDistance > 100f, $"Expected enough scrollbar travel for a meaningful drag, but travel={dragDistance:0.###}.");
+
+        var beforeTree = projectExplorerTree.GetFrameworkElementSnapshotForDiagnostics();
+        var beforeViewer = scrollViewer.GetScrollViewerSnapshotForDiagnostics();
+        var beforeBar = verticalBar.GetScrollBarSnapshotForDiagnostics();
+        var headersBeforeDrag = GetVisibleTreeRowHeaders(scrollViewer);
+
+        _ = FrameworkElement.GetTelemetryAndReset();
+        _ = Control.GetTelemetryAndReset();
+        _ = ScrollViewer.GetTelemetryAndReset();
+        _ = ScrollBar.GetTelemetryAndReset();
+        _ = Track.GetTelemetryAndReset();
+        uiRoot.GetTelemetryAndReset();
+
+        const int dragFrames = 60;
+        var previous = start;
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, previous, leftPressed: true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        for (var frame = 1; frame <= dragFrames; frame++)
+        {
+            var current = new Vector2(start.X, start.Y + (dragDistance * frame / dragFrames));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, current, pointerMoved: true));
+            RunLayout(uiRoot, width: 1280, height: 820);
+            previous = current;
+        }
+
+        var headersWhileHeld = GetVisibleTreeRowHeaders(scrollViewer);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, previous, leftReleased: true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        var afterTree = projectExplorerTree.GetFrameworkElementSnapshotForDiagnostics();
+        var afterViewer = scrollViewer.GetScrollViewerSnapshotForDiagnostics();
+        var afterBar = verticalBar.GetScrollBarSnapshotForDiagnostics();
+        var frameworkTelemetry = FrameworkElement.GetTelemetryAndReset();
+        var controlTelemetry = Control.GetTelemetryAndReset();
+        var uiRootTelemetry = uiRoot.GetUiRootTelemetrySnapshot();
+
+        var treeMeasureDelta = afterTree.MeasureCallCount - beforeTree.MeasureCallCount;
+        var treeMeasureWorkDelta = afterTree.MeasureWorkCount - beforeTree.MeasureWorkCount;
+        var treeMeasureMillisecondsDelta = afterTree.MeasureMilliseconds - beforeTree.MeasureMilliseconds;
+        var treeMeasureInvalidatedDuringMeasureDelta =
+            afterTree.MeasureInvalidatedDuringMeasureCount - beforeTree.MeasureInvalidatedDuringMeasureCount;
+        var treeInvalidateMeasureDelta = afterTree.InvalidateMeasureCallCount - beforeTree.InvalidateMeasureCallCount;
+        var treeArrangeDelta = afterTree.ArrangeCallCount - beforeTree.ArrangeCallCount;
+        var treeArrangeMillisecondsDelta = afterTree.ArrangeMilliseconds - beforeTree.ArrangeMilliseconds;
+        var viewerVerticalScrollBarSetOffsetsDelta =
+            afterViewer.SetOffsetsVerticalScrollBarSourceCount - beforeViewer.SetOffsetsVerticalScrollBarSourceCount;
+        var viewerDeferredDelta = afterViewer.SetOffsetsDeferredLayoutPathCount - beforeViewer.SetOffsetsDeferredLayoutPathCount;
+        var viewerMeasurePathDelta =
+            afterViewer.SetOffsetsVirtualizingMeasureInvalidationPathCount - beforeViewer.SetOffsetsVirtualizingMeasureInvalidationPathCount;
+        var viewerArrangeOnlyPathDelta =
+            afterViewer.SetOffsetsVirtualizingArrangeOnlyPathCount - beforeViewer.SetOffsetsVirtualizingArrangeOnlyPathCount;
+        var barDragDelta = afterBar.OnThumbDragDeltaCallCount - beforeBar.OnThumbDragDeltaCallCount;
+        var averageUpdateMs = uiRootTelemetry.UpdateElapsedMs / dragFrames;
+
+        Assert.True(scrollViewer.VerticalOffset > 0f, $"Expected thumb drag to scroll Project Explorer, but offset stayed {scrollViewer.VerticalOffset:0.###}.");
+        Assert.NotEmpty(headersBeforeDrag);
+        Assert.NotEmpty(headersWhileHeld);
+        Assert.NotEqual(headersBeforeDrag[0], headersWhileHeld[0]);
+        Assert.True(viewerVerticalScrollBarSetOffsetsDelta > 0, "Expected the repro to exercise ScrollViewer's VerticalScrollBar SetOffsets path.");
+        Assert.True(barDragDelta > 0, "Expected the repro to exercise ScrollBar thumb drag deltas.");
+        Assert.True(
+            treeMeasureDelta <= 12,
+            $"Dragging the Project Explorer scrollbar thumb should not remeasure the TreeView every drag frame. " +
+            $"treeMeasureDelta={treeMeasureDelta}, treeMeasureWorkDelta={treeMeasureWorkDelta}, treeMeasureMsDelta={treeMeasureMillisecondsDelta:0.###}, " +
+            $"treeInvalidateMeasureDelta={treeInvalidateMeasureDelta}, treeMeasureInvalidatedDuringMeasureDelta={treeMeasureInvalidatedDuringMeasureDelta}, " +
+            $"dragFrames={dragFrames}, verticalOffset={scrollViewer.VerticalOffset:0.###}, " +
+            $"scrollbarSetOffsets={viewerVerticalScrollBarSetOffsetsDelta}, scrollBarDragDeltas={barDragDelta}, " +
+            $"viewerDeferred={viewerDeferredDelta}, viewerMeasurePath={viewerMeasurePathDelta}, viewerArrangeOnlyPath={viewerArrangeOnlyPathDelta}.");
+        Assert.True(
+            treeInvalidateMeasureDelta <= 12,
+            $"Dragging the Project Explorer scrollbar thumb should not keep invalidating TreeView measure. " +
+            $"treeInvalidateMeasureDelta={treeInvalidateMeasureDelta}, treeMeasureDelta={treeMeasureDelta}, " +
+            $"treeMeasureInvalidatedDuringMeasureDelta={treeMeasureInvalidatedDuringMeasureDelta}, dragFrames={dragFrames}.");
+        Assert.True(
+            treeMeasureMillisecondsDelta <= 100d,
+            $"Dragging the Project Explorer scrollbar thumb should keep TreeView measure cost bounded. " +
+            $"treeMeasureDelta={treeMeasureDelta}, treeMeasureWorkDelta={treeMeasureWorkDelta}, treeMeasureMsDelta={treeMeasureMillisecondsDelta:0.###}, treeArrangeDelta={treeArrangeDelta}, " +
+            $"treeInvalidateMeasureDelta={treeInvalidateMeasureDelta}, treeMeasureInvalidatedDuringMeasureDelta={treeMeasureInvalidatedDuringMeasureDelta}, " +
+            $"dragFrames={dragFrames}, verticalOffset={scrollViewer.VerticalOffset:0.###}, " +
+            $"scrollbarSetOffsets={viewerVerticalScrollBarSetOffsetsDelta}, scrollBarDragDeltas={barDragDelta}, " +
+            $"viewerDeferred={viewerDeferredDelta}, viewerMeasurePath={viewerMeasurePathDelta}, viewerArrangeOnlyPath={viewerArrangeOnlyPathDelta}, " +
+            $"averageUpdateMs={averageUpdateMs:0.###}, aggregateFrameworkMeasure={frameworkTelemetry.MeasureCallCount}, " +
+            $"aggregateFrameworkMeasureMs={frameworkTelemetry.MeasureMilliseconds:0.###}, " +
+            $"aggregateControlDpChanges={controlTelemetry.DependencyPropertyChangedCallCount}.");
+        Assert.True(
+            treeArrangeMillisecondsDelta <= 100d,
+            $"Dragging the Project Explorer scrollbar thumb should keep TreeView arrange cost bounded even across a large project extent. " +
+            $"treeArrangeDelta={treeArrangeDelta}, treeArrangeMsDelta={treeArrangeMillisecondsDelta:0.###}, " +
+            $"treeMeasureDelta={treeMeasureDelta}, treeMeasureMsDelta={treeMeasureMillisecondsDelta:0.###}, " +
+            $"treeInvalidateMeasureDelta={treeInvalidateMeasureDelta}, treeMeasureInvalidatedDuringMeasureDelta={treeMeasureInvalidatedDuringMeasureDelta}, " +
+            $"dragFrames={dragFrames}, verticalOffset={scrollViewer.VerticalOffset:0.###}, extent={scrollViewer.ExtentHeight:0.###}, viewport={scrollViewer.ViewportHeight:0.###}, " +
+            $"scrollbarSetOffsets={viewerVerticalScrollBarSetOffsetsDelta}, scrollBarDragDeltas={barDragDelta}, " +
+            $"viewerDeferred={viewerDeferredDelta}, viewerMeasurePath={viewerMeasurePathDelta}, viewerArrangeOnlyPath={viewerArrangeOnlyPathDelta}, " +
+            $"averageUpdateMs={averageUpdateMs:0.###}, aggregateFrameworkArrange={frameworkTelemetry.ArrangeCallCount}, " +
+            $"aggregateFrameworkArrangeMs={frameworkTelemetry.ArrangeMilliseconds:0.###}, " +
+            $"aggregateControlDpChanges={controlTelemetry.DependencyPropertyChangedCallCount}.");
     }
 
     [Fact]
@@ -742,6 +877,15 @@ public sealed class TreeViewMeasurePerformanceTests
         }
     }
 
+    private static string[] GetVisibleTreeRowHeaders(ScrollViewer scrollViewer)
+    {
+        return EnumerateVisualDescendants<TreeViewItem>(scrollViewer)
+            .OrderBy(row => row.LayoutSlot.Y)
+            .Select(row => row.DisplayHeaderForDiagnostics)
+            .Where(static header => !string.IsNullOrEmpty(header))
+            .ToArray();
+    }
+
     private static void RunLayout(UiRoot uiRoot, int width, int height)
     {
         uiRoot.Update(
@@ -749,19 +893,57 @@ public sealed class TreeViewMeasurePerformanceTests
             new Viewport(0, 0, width, height));
     }
 
+    private static ScrollBar GetPrivateScrollBar(ScrollViewer viewer, string fieldName)
+    {
+        var field = typeof(ScrollViewer).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return Assert.IsType<ScrollBar>(field!.GetValue(viewer));
+    }
+
+    private static TElement? FindNamedVisualChild<TElement>(UIElement root, string name)
+        where TElement : FrameworkElement
+    {
+        if (root is TElement typed && typed.Name == name)
+        {
+            return typed;
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            var found = FindNamedVisualChild<TElement>(child, name);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
     private static InputDelta CreatePointerDelta(Vector2 pointer, bool pointerMoved = false, int wheelDelta = 0)
+    {
+        return CreatePointerDelta(pointer, pointer, pointerMoved, wheelDelta);
+    }
+
+    private static InputDelta CreatePointerDelta(
+        Vector2 previous,
+        Vector2 current,
+        bool pointerMoved = false,
+        int wheelDelta = 0,
+        bool leftPressed = false,
+        bool leftReleased = false)
     {
         return new InputDelta
         {
-            Previous = new InputSnapshot(default, default, pointer),
-            Current = new InputSnapshot(default, default, pointer),
+            Previous = new InputSnapshot(default, default, previous),
+            Current = new InputSnapshot(default, default, current),
             PressedKeys = new List<Keys>(),
             ReleasedKeys = new List<Keys>(),
             TextInput = new List<char>(),
-            PointerMoved = pointerMoved,
+            PointerMoved = pointerMoved || leftPressed || leftReleased,
             WheelDelta = wheelDelta,
-            LeftPressed = false,
-            LeftReleased = false,
+            LeftPressed = leftPressed,
+            LeftReleased = leftReleased,
             RightPressed = false,
             RightReleased = false,
             MiddlePressed = false,
@@ -779,7 +961,11 @@ public sealed class TreeViewMeasurePerformanceTests
         return new Vector2(rect.X + (rect.Width / 2f), rect.Y + (rect.Height / 2f));
     }
 
-    private static void PopulateProjectTree(FakeProjectFileStore store, string projectRoot)
+    private static void PopulateProjectTree(
+        FakeProjectFileStore store,
+        string projectRoot,
+        int sectionCount = 8,
+        int filesPerSection = 12)
     {
         store.CreateDirectory(projectRoot);
 
@@ -788,12 +974,12 @@ public sealed class TreeViewMeasurePerformanceTests
             var topLevelPath = $"{projectRoot}/{topLevelFolder}";
             store.CreateDirectory(topLevelPath);
 
-            for (var section = 0; section < 8; section++)
+            for (var section = 0; section < sectionCount; section++)
             {
                 var sectionPath = $"{topLevelPath}/Section{section:00}";
                 store.CreateDirectory(sectionPath);
 
-                for (var fileIndex = 0; fileIndex < 12; fileIndex++)
+                for (var fileIndex = 0; fileIndex < filesPerSection; fileIndex++)
                 {
                     var extension = fileIndex % 3 == 0 ? "xml" : fileIndex % 3 == 1 ? "cs" : "json";
                     store.WriteAllText(

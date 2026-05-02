@@ -50,6 +50,10 @@ public static class InkkOopsPipeRequestKinds
     public const string PointerDownTarget = "pointer-down-target";
     public const string PointerUpTarget = "pointer-up-target";
     public const string MovePointerPath = "move-pointer-path";
+    public const string RunScenario = "run-scenario";
+    public const string ProbeDuringDrag = "probe-during-drag";
+    public const string AssertNonBlank = "assert-nonblank";
+    public const string DiffTelemetry = "diff-telemetry";
 }
 
 public sealed class InkkOopsPipeRequest
@@ -114,6 +118,12 @@ public sealed class InkkOopsPipeRequest
     public string EventType { get; set; } = string.Empty;
     public string ButtonName { get; set; } = string.Empty;
     public string Waypoints { get; set; } = string.Empty;
+
+    public string ScenarioName { get; set; } = string.Empty;
+
+    public int MinBrightPixels { get; set; }
+
+    public float MinAverageLuma { get; set; }
 
     public int TimeoutMilliseconds { get; set; }
 
