@@ -170,6 +170,75 @@ public sealed class TabControlInputTests
     }
 
     [Fact]
+    public void MovingFromSelectedTabContentAreaIntoContentComboBox_ShouldRetargetHoverToComboBox()
+    {
+        var host = new Canvas
+        {
+            Width = 500f,
+            Height = 320f
+        };
+
+        var comboBox = new ComboBox
+        {
+            Width = 140f,
+            Height = 32f
+        };
+        comboBox.Items.Add("Background");
+        comboBox.Items.Add("Foreground");
+
+        var contentPanel = new StackPanel
+        {
+            Margin = new Thickness(24f, 40f, 0f, 0f)
+        };
+        contentPanel.AddChild(comboBox);
+
+        var firstTab = new TabItem
+        {
+            Header = "Source",
+            Content = contentPanel
+        };
+
+        var tabControl = new TabControl
+        {
+            Width = 320f,
+            Height = 220f,
+            HeaderPadding = new Thickness(0f)
+        };
+        tabControl.Items.Add(firstTab);
+        tabControl.Items.Add(new TabItem
+        {
+            Header = "Preview",
+            Content = new Label { Content = "Preview" }
+        });
+
+        host.AddChild(tabControl);
+        Canvas.SetLeft(tabControl, 30f);
+        Canvas.SetTop(tabControl, 20f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+        Assert.True(comboBox.LayoutSlot.Width > 0f);
+        Assert.True(comboBox.LayoutSlot.Height > 0f);
+
+        var contentEntryPoint = new Vector2(firstTab.LayoutSlot.X + 8f, firstTab.LayoutSlot.Y + 8f);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(contentEntryPoint, pointerMoved: true));
+        RunLayout(uiRoot);
+
+        Assert.True(firstTab.IsMouseOver);
+        Assert.False(comboBox.IsMouseOver);
+
+        var comboCenter = new Vector2(
+            comboBox.LayoutSlot.X + (comboBox.LayoutSlot.Width * 0.5f),
+            comboBox.LayoutSlot.Y + (comboBox.LayoutSlot.Height * 0.5f));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(comboCenter, pointerMoved: true));
+        RunLayout(uiRoot);
+
+        var hovered = uiRoot.GetHoveredElementForDiagnostics();
+        Assert.False(firstTab.IsMouseOver, $"hovered={DescribeElement(hovered)}");
+        Assert.True(comboBox.IsMouseOver, $"hovered={DescribeElement(hovered)}");
+    }
+
+    [Fact]
     public void ClickingTabHeader_ShouldUpdateSelectedIndexBindingSource_ByDefault()
     {
         var host = new Canvas
@@ -238,6 +307,16 @@ public sealed class TabControlInputTests
     {
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true));
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true));
+    }
+
+    private static string DescribeElement(UIElement? element)
+    {
+        if (element is FrameworkElement frameworkElement && !string.IsNullOrWhiteSpace(frameworkElement.Name))
+        {
+            return $"{element.GetType().Name}#{frameworkElement.Name}";
+        }
+
+        return element?.GetType().Name ?? "null";
     }
 
     private static InputDelta CreatePointerDelta(

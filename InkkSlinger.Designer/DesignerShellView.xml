@@ -444,9 +444,9 @@
           Margin="4,4,4,0">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="260" MinWidth="210" />
-        <ColumnDefinition Width="4" />
+        <ColumnDefinition Width="8" MinWidth="8" />
         <ColumnDefinition Width="*" MinWidth="200" />
-        <ColumnDefinition Width="4" />
+        <ColumnDefinition Width="8" MinWidth="8" />
         <ColumnDefinition Width="320" MinWidth="220" />
       </Grid.ColumnDefinitions>
 
@@ -505,11 +505,12 @@
 
       <GridSplitter x:Name="ProjectExplorerSplitter"
                     Grid.Column="1"
+                    Width="8"
+                    MinWidth="8"
                     Cursor="SizeWE"
                     Background="#18191B"
                     BorderBrush="Transparent"
                     BorderThickness="0"
-                    Margin="1,0"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
                     ResizeDirection="Columns"
@@ -558,11 +559,12 @@
 
       <GridSplitter x:Name="PreviewDockSplitter"
                     Grid.Column="3"
+                    Width="8"
+                    MinWidth="8"
                     Cursor="SizeWE"
                     Background="#18191B"
                     BorderBrush="Transparent"
                     BorderThickness="0"
-                    Margin="1,0"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
                     ResizeDirection="Columns"

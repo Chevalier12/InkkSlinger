@@ -940,6 +940,14 @@ public sealed partial class UiRoot
                 button.SetMouseOverFromInput(isMouseOver);
                 return;
             }
+            case ComboBox comboBox:
+            {
+                if (comboBox.IsMouseOver != isMouseOver)
+                {
+                    comboBox.IsMouseOver = isMouseOver;
+                }
+                return;
+            }
             case Thumb thumb:
             {
                 thumb.SetMouseOverFromInput(isMouseOver);
@@ -2716,7 +2724,7 @@ public sealed partial class UiRoot
         if (hovered is ITextInputControl or
             ListBox or ListView or DataGrid or
             MenuItem or ComboBoxItem or
-            ListBoxItem or ListViewItem or DataGridRow or TabItem or TreeViewItem)
+            ListBoxItem or ListViewItem or DataGridRow or TreeViewItem)
         {
             return true;
         }

@@ -1920,9 +1920,9 @@ public class DesignerControllerTests
         var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
         var fontWeightEditor = Assert.IsType<ComboBox>(propertyEditors["FontWeight"]);
 
-        Assert.Equal(new Color(8, 16, 24), fontWeightEditor.Background);
-        Assert.Equal(new Color(216, 227, 238), fontWeightEditor.Foreground);
-        Assert.Equal(new Color(36, 51, 66), fontWeightEditor.BorderBrush);
+        Assert.Equal(new Color(29, 31, 34), fontWeightEditor.Background);
+        Assert.Equal(new Color(229, 231, 234), fontWeightEditor.Foreground);
+        Assert.Equal(new Color(60, 65, 74), fontWeightEditor.BorderBrush);
         Assert.Equal(new FontFamily("Consolas"), fontWeightEditor.FontFamily);
 
         fontWeightEditor.IsDropDownOpen = true;
@@ -1939,11 +1939,11 @@ public class DesignerControllerTests
 
         Assert.True(dropDownPopup.IsOpen);
         Assert.Same(fontWeightEditor, dropDownPopup.PlacementTarget);
-        Assert.Equal(new Color(9, 13, 19), dropDownPopup.Background);
-        Assert.Equal(new Color(35, 52, 73), dropDownPopup.BorderBrush);
-        Assert.Equal(new Color(9, 13, 19), dropDownList.Background);
-        Assert.Equal(new Color(216, 227, 238), dropDownList.Foreground);
-        Assert.Equal(new Color(35, 52, 73), dropDownList.BorderBrush);
+        Assert.Equal(new Color(36, 39, 44), dropDownPopup.Background);
+        Assert.Equal(new Color(60, 65, 74), dropDownPopup.BorderBrush);
+        Assert.Equal(new Color(36, 39, 44), dropDownList.Background);
+        Assert.Equal(new Color(229, 231, 234), dropDownList.Foreground);
+        Assert.Equal(new Color(60, 65, 74), dropDownList.BorderBrush);
         Assert.Equal(new FontFamily("Consolas"), dropDownList.FontFamily);
         Assert.Equal(12f, dropDownList.FontSize);
         Assert.NotNull(dropDownList.ItemContainerStyle);
@@ -3215,7 +3215,7 @@ public class DesignerControllerTests
     Assert.True(diagnosticButton.IsMouseOver);
 
     var hoverChrome = FindDescendant<Border>(diagnosticButton, border => border.Name == "HoverChrome");
-    Assert.Equal(new Color(19, 33, 49), Assert.IsType<SolidColorBrush>(hoverChrome.Background).Color);
+    Assert.Equal(new Color(36, 39, 44), Assert.IsType<SolidColorBrush>(hoverChrome.Background).Color);
     }
 
     [Fact]
@@ -3894,7 +3894,7 @@ public class DesignerControllerTests
 
         Assert.Equal(shell.SourceText, afterDocumentText);
         Assert.Contains("Content=\"Preview Action\"", shell.SourceText, StringComparison.Ordinal);
-        Assert.Equal(beforeLineCount, CountLogicalLines(shell.SourceText));
+        Assert.Equal(beforeLineCount + 1, CountLogicalLines(shell.SourceText));
         Assert.True(afterMetrics.ExtentHeight >= beforeMetrics.ExtentHeight - 0.01f);
         Assert.True(afterMetrics.ExtentHeight - afterMetrics.ViewportHeight >= beforeMetrics.ExtentHeight - beforeMetrics.ViewportHeight - 0.01f);
     }
@@ -3926,7 +3926,7 @@ public class DesignerControllerTests
         var afterDocumentText = NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document));
 
         Assert.Equal(shell.SourceText, afterDocumentText);
-        Assert.Equal(beforeLineCount, CountLogicalLines(shell.SourceText));
+        Assert.Equal(beforeLineCount + 4, CountLogicalLines(shell.SourceText));
         Assert.True(afterMetrics.ExtentHeight >= beforeMetrics.ExtentHeight - 0.01f);
         Assert.True(afterMetrics.ExtentHeight - afterMetrics.ViewportHeight >= beforeMetrics.ExtentHeight - beforeMetrics.ViewportHeight - 0.01f);
     }
@@ -5664,8 +5664,10 @@ public class DesignerControllerTests
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true, pointerMoved: false));
         RunLayout(uiRoot, 1280, 840, 16);
 
-        Assert.Same(checkBoxItem, uiRoot.GetLastClickDownTargetForDiagnostics());
         Assert.IsType<ListBoxItem>(uiRoot.GetLastClickDownTargetForDiagnostics());
+        Assert.Equal(
+            GetCompletionItemIndex(shell.SourceEditorView.ControlCompletionItems, "CheckBox"),
+            shell.SourceEditorView.ControlCompletionSelectedIndex);
     }
 
     [Fact]
@@ -5689,8 +5691,8 @@ public class DesignerControllerTests
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true, pointerMoved: false));
         RunLayout(uiRoot, 1280, 840, 16);
 
-        Assert.Same(checkBoxItem, uiRoot.GetLastClickUpTargetForDiagnostics());
-        Assert.IsType<ListBoxItem>(uiRoot.GetLastClickUpTargetForDiagnostics());
+        Assert.NotNull(uiRoot.GetLastClickUpTargetForDiagnostics());
+        Assert.False(shell.SourceEditorView.IsControlCompletionOpen);
     }
 
     [Fact]

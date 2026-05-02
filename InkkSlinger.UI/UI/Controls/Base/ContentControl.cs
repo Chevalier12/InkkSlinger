@@ -145,6 +145,7 @@ public class ContentControl : Control
     private UIElement? _contentElement;
     private ContentPresenter? _activeContentPresenter;
     private bool _isForcingDeferredContentElementBuild;
+    private bool _deferredContentReleasedForVirtualization;
     protected UIElement? ContentElement => _contentElement;
 
     protected virtual bool ShouldCreateImplicitContentElement(object? content, DataTemplate? selectedTemplate)
@@ -583,6 +584,32 @@ public class ContentControl : Control
         }
     }
 
+    internal void ReleaseDeferredContentElementForVirtualization()
+    {
+        if (_activeContentPresenter != null || _contentElement == null)
+        {
+            return;
+        }
+
+        var selectedTemplate = DataTemplateResolver.ResolveTemplateForContent(
+            this,
+            Content,
+            ContentTemplate,
+            ContentTemplateSelector,
+            this);
+        if (!ShouldDeferContentElementBuild(Content, selectedTemplate))
+        {
+            return;
+        }
+
+        _contentElement.SetVisualParent(null);
+        _contentElement.SetLogicalParent(null);
+        _contentElement = null;
+        _deferredContentReleasedForVirtualization = true;
+    }
+
+    internal bool RequiresContentMeasureAfterVirtualizationRelease => _deferredContentReleasedForVirtualization;
+
     private void UpdateContentElement(object? content)
     {
         var start = Stopwatch.GetTimestamp();
@@ -705,6 +732,7 @@ public class ContentControl : Control
     private void AttachContentElement(UIElement element)
     {
         _contentElement = element;
+        _deferredContentReleasedForVirtualization = false;
         _contentElement.SetVisualParent(this);
         _contentElement.SetLogicalParent(this);
         _runtimeUpdateContentElementAttachedNewElementCount++;

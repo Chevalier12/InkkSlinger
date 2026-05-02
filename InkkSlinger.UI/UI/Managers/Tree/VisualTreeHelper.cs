@@ -1470,6 +1470,11 @@ public static class VisualTreeHelper
             return false;
         }
 
+        if (child is VirtualizingStackPanel panel && IsScrollViewerOwnedVirtualizingContentHost(panel))
+        {
+            return false;
+        }
+
         return !UsesTransformBasedScrollHitTesting(child);
     }
 

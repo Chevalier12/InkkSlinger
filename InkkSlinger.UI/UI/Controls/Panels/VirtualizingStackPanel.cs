@@ -545,6 +545,7 @@ public class VirtualizingStackPanel : Panel
                 _lastArrangeViewportOffset = context.OffsetPrimary;
                 _lastArrangedChildOrderVersion = _childOrderVersion;
                 ClearPendingUnrealizedLayoutSlots();
+                SyncScrollDataFromCurrentCaches(finalSize);
             }
             else
             {
@@ -558,6 +559,7 @@ public class VirtualizingStackPanel : Panel
                 _lastArrangeViewportOffset = 0f;
                 _lastArrangedChildOrderVersion = _childOrderVersion;
                 ClearPendingUnrealizedLayoutSlots();
+                SyncScrollDataFromCurrentCaches(finalSize);
             }
 
             var ancestorViewer = FindAncestorScrollViewer();
@@ -1385,7 +1387,7 @@ public class VirtualizingStackPanel : Panel
                     continue;
                 }
 
-                if (forceMeasure || child.NeedsMeasure)
+                if (forceMeasure || child.NeedsMeasure || RequiresMeasureAfterVirtualizationRelease(child))
                 {
                     child.Measure(childConstraint);
                 }
@@ -1468,13 +1470,20 @@ public class VirtualizingStackPanel : Panel
         var clampedLast = Math.Min(Children.Count - 1, last);
         for (var i = clampedFirst; i <= clampedLast; i++)
         {
-            if (Children[i] is FrameworkElement child && child.NeedsMeasure)
+            if (Children[i] is FrameworkElement child &&
+                (child.NeedsMeasure || RequiresMeasureAfterVirtualizationRelease(child)))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static bool RequiresMeasureAfterVirtualizationRelease(FrameworkElement child)
+    {
+        return child is Control { RequiresMeasureAfterVirtualizationRelease: true } ||
+               child is ContentControl { RequiresContentMeasureAfterVirtualizationRelease: true };
     }
 
     private bool RangeNeedsArrange(int first, int last)
@@ -1980,6 +1989,11 @@ public class VirtualizingStackPanel : Panel
             if (Children[i] is FrameworkElement child)
             {
                 child.Arrange(emptySlot);
+                if (child is ContentControl contentControl)
+                {
+                    contentControl.ReleaseDeferredContentElementForVirtualization();
+                    contentControl.ReleaseTemplateForVirtualization();
+                }
             }
         }
 
@@ -2453,6 +2467,16 @@ public class VirtualizingStackPanel : Panel
         _viewportWidth = MathF.Max(0f, _viewportWidth);
         _viewportHeight = MathF.Max(0f, _viewportHeight);
         CoerceOffsets();
+    }
+
+    private void SyncScrollDataFromCurrentCaches(Vector2 viewportSize)
+    {
+        var extentPrimary = GetTotalPrimarySize();
+        var extentSecondary = ResolveExtentSecondary(viewportSize);
+        var desired = Orientation == Orientation.Vertical
+            ? new Vector2(extentSecondary, extentPrimary)
+            : new Vector2(extentPrimary, extentSecondary);
+        UpdateScrollDataFromMeasure(viewportSize, desired);
     }
 
     private void UpdateViewportFromFinalSize(Vector2 finalSize)

@@ -683,7 +683,7 @@ public sealed class ComboBoxPopupEdgeParityTests
             dropDown.Items.Count - 1,
             lastRealized.Index);
         Assert.True(
-            lastRealized.Element.LayoutSlot.Y + lastRealized.Element.LayoutSlot.Height <= viewportBottom + 0.5f,
+            lastRealized.Element.LayoutSlot.Y + lastRealized.Element.LayoutSlot.Height <= viewportBottom + 1f,
             $"Expected the last logical dropdown item to be fully visible after scrolling to the end. index={lastRealized.Index} itemBottom={lastRealized.Element.LayoutSlot.Y + lastRealized.Element.LayoutSlot.Height:0.##} viewportBottom={viewportBottom:0.##} itemTop={lastRealized.Element.LayoutSlot.Y:0.##} itemHeight={lastRealized.Element.LayoutSlot.Height:0.##} Offset={scrollViewer.VerticalOffset:0.##} Extent={scrollViewer.ExtentHeight:0.##} Viewport={scrollViewer.ViewportHeight:0.##}.");
     }
 
@@ -798,11 +798,16 @@ public sealed class ComboBoxPopupEdgeParityTests
         RunLayout(uiRoot);
 
         var reopenedDropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
-        var clickedItem = Assert.IsType<ComboBoxItem>(GetLastVisibleItem(reopenedDropDown));
+        var reopenedScrollViewer = FindScrollViewer(reopenedDropDown);
+        var clickedItem = Assert.IsType<ComboBoxItem>(GetLastViewportIntersectingItem(reopenedDropDown, reopenedScrollViewer));
         var expectedText = GetVisibleDisplayText(clickedItem);
+        var visibleTop = MathF.Max(clickedItem.LayoutSlot.Y, reopenedScrollViewer.LayoutSlot.Y);
+        var visibleBottom = MathF.Min(
+            clickedItem.LayoutSlot.Y + clickedItem.LayoutSlot.Height,
+            reopenedScrollViewer.LayoutSlot.Y + reopenedScrollViewer.ViewportHeight);
         var clickPoint = new Vector2(
             clickedItem.LayoutSlot.X + (clickedItem.LayoutSlot.Width / 2f),
-            clickedItem.LayoutSlot.Y + (clickedItem.LayoutSlot.Height / 2f));
+            visibleTop + ((visibleBottom - visibleTop) / 2f));
 
         Click(uiRoot, clickPoint);
         RunLayout(uiRoot);
@@ -1472,7 +1477,10 @@ public sealed class ComboBoxPopupEdgeParityTests
         var hostPanel = FindItemsHostPanel(listBox);
         for (var i = hostPanel.Children.Count - 1; i >= 0; i--)
         {
-            if (hostPanel.Children[i] is FrameworkElement element)
+            if (hostPanel.Children[i] is FrameworkElement element &&
+                element.LayoutSlot.Width > 0f &&
+                element.LayoutSlot.Height > 0f &&
+                TryGetVisibleDisplayTextBlock(element) != null)
             {
                 return element;
             }

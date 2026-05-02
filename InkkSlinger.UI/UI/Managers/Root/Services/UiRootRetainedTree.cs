@@ -639,6 +639,15 @@ public sealed partial class UiRoot
             return false;
         }
 
+        if (!RetainedDirectChildSpanMatchesCurrentVisualChildren(
+                visual,
+                renderNodeIndex,
+                subtreeEndIndexExclusive))
+        {
+            _renderListNeedsFullRebuild = true;
+            return false;
+        }
+
         var translatedRoot = updated.WithSubtreeMetadata(
             subtreeEndIndexExclusive,
             previous.HasSubtreeBoundsSnapshot,
@@ -658,6 +667,32 @@ public sealed partial class UiRoot
 
         subtreeMetadataChanged = !HasEquivalentSubtreeMetadata(previous, translatedRoot);
         return true;
+    }
+
+    private bool RetainedDirectChildSpanMatchesCurrentVisualChildren(
+        UIElement visual,
+        int renderNodeIndex,
+        int subtreeEndIndexExclusive)
+    {
+        var expectedChildNodeIndex = renderNodeIndex + 1;
+        foreach (var child in visual.GetRetainedRenderChildren())
+        {
+            if (!_renderNodeIndices.TryGetValue(child, out var childNodeIndex) ||
+                childNodeIndex != expectedChildNodeIndex ||
+                childNodeIndex < 0 ||
+                childNodeIndex >= _retainedRenderList.Count)
+            {
+                return false;
+            }
+
+            expectedChildNodeIndex = _retainedRenderList[childNodeIndex].SubtreeEndIndexExclusive;
+            if (expectedChildNodeIndex > subtreeEndIndexExclusive)
+            {
+                return false;
+            }
+        }
+
+        return expectedChildNodeIndex == subtreeEndIndexExclusive;
     }
 
     private static RenderNode TranslateRetainedSubtreeNode(

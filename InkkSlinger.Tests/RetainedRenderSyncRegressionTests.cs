@@ -330,6 +330,44 @@ public sealed class RetainedRenderSyncRegressionTests
     }
 
     [Fact]
+    public void ScrollTranslationSync_OnVirtualizingPanelWithMissingChildIndex_RebuildsDescendantTracking()
+    {
+        var root = new Panel();
+        var virtualizingPanel = new VirtualizingStackPanel
+        {
+            Orientation = Orientation.Vertical,
+            IsVirtualizing = true,
+            CacheLength = 0f,
+            CacheLengthUnit = VirtualizationCacheLengthUnit.Page
+        };
+
+        for (var i = 0; i < 12; i++)
+        {
+            virtualizingPanel.AddChild(new Border { Height = 24f });
+        }
+
+        root.AddChild(virtualizingPanel);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 320, 120));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        var realizedChild = virtualizingPanel.Children[virtualizingPanel.FirstRealizedIndex];
+        uiRoot.RemoveRetainedNodeIndexForTests(realizedChild);
+
+        virtualizingPanel.RenderTransform = new TranslateTransform { Y = -12f };
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        _ = uiRoot.GetRetainedNodeSubtreeEndIndexForTests(realizedChild);
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
     public void StructureMismatch_MissingChildIndex_TriggersFullRebuildAndRecovery()
     {
         var root = new Panel();

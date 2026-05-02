@@ -220,6 +220,7 @@ public class Control : FrameworkElement, ICommandSource
     private bool _isCommandDisablingIsEnabled;
     private bool _isUpdatingIsEnabled;
     private bool _isApplyingImplicitStyle;
+    private bool _templateReleasedForVirtualization;
     private Style? _activeImplicitStyle;
     private Style? _composedImplicitStyle;
     private Style? _composedImplicitResourceStyle;
@@ -474,6 +475,19 @@ public class Control : FrameworkElement, ICommandSource
     }
 
     protected bool HasTemplateRoot => _templateRoot != null;
+
+    internal void ReleaseTemplateForVirtualization()
+    {
+        if (_templateRoot == null)
+        {
+            return;
+        }
+
+        ClearTemplateTree();
+        _templateReleasedForVirtualization = true;
+    }
+
+    internal bool RequiresMeasureAfterVirtualizationRelease => _templateReleasedForVirtualization;
 
     public bool ApplyTemplate()
     {
@@ -922,6 +936,7 @@ public class Control : FrameworkElement, ICommandSource
         ClearTemplateTree();
 
         _templateRoot = root;
+        _templateReleasedForVirtualization = false;
         _templateRoot.SetVisualParent(this);
         _templateRoot.SetLogicalParent(this);
 
