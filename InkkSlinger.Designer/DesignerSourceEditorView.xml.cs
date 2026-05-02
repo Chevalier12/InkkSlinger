@@ -655,15 +655,16 @@ public partial class DesignerSourceEditorView : UserControl
         _suppressSourceEditorChanges = true;
         try
         {
-            var refreshedIncrementally = _collapsedXmlFoldRangeKeys.Count == 0 &&
-                !string.IsNullOrEmpty(previousText) &&
-                DesignerXmlSyntaxHighlighter.TryPopulateDocumentIncrementally(SourceEditor.Document, previousText, displayText);
-            if (!refreshedIncrementally)
+            SourceEditor.UpdateDocumentPresentation(document =>
             {
-                DesignerXmlSyntaxHighlighter.PopulateDocument(SourceEditor.Document, displayText);
-            }
-
-            SourceEditor.RefreshDocumentMetrics();
+                var refreshedIncrementally = _collapsedXmlFoldRangeKeys.Count == 0 &&
+                    !string.IsNullOrEmpty(previousText) &&
+                    DesignerXmlSyntaxHighlighter.TryPopulateDocumentIncrementally(document, previousText, displayText);
+                if (!refreshedIncrementally)
+                {
+                    DesignerXmlSyntaxHighlighter.PopulateDocument(document, displayText);
+                }
+            });
 
             var updatedTextLength = DocumentEditing.GetText(SourceEditor.Document).Length;
             var clampedSelectionStart = Math.Clamp(selectionStart, 0, updatedTextLength);

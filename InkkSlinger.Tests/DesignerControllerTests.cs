@@ -373,6 +373,30 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void SourceEditor_LoadLargeDocument_BatchesRichTextBoxInvalidation()
+    {
+        var sourceEditorView = new InkkSlinger.Designer.DesignerSourceEditorView();
+        var innerEditor = sourceEditorView.Editor.Editor;
+        var before = innerEditor.GetFrameworkElementSnapshotForDiagnostics();
+        var largeSource = string.Join(
+            "\n",
+            Enumerable.Range(1, 620).Select(static line => $"<TextBlock Text=\"Line {line}\" />"));
+
+        sourceEditorView.SourceText = largeSource;
+
+        var after = innerEditor.GetFrameworkElementSnapshotForDiagnostics();
+        var measureInvalidationDelta = after.InvalidateMeasureCallCount - before.InvalidateMeasureCallCount;
+        var visualInvalidationDelta = after.InvalidateVisualCallCount - before.InvalidateVisualCallCount;
+        Assert.Contains("Line 620", sourceEditorView.Editor.DocumentText, StringComparison.Ordinal);
+        Assert.True(
+            measureInvalidationDelta <= 8,
+            $"Expected large document loads to batch RichTextBox measure invalidations, but saw {measureInvalidationDelta} invalidations for 620 lines.");
+        Assert.True(
+            visualInvalidationDelta <= 12,
+            $"Expected large document loads to batch RichTextBox visual invalidations, but saw {visualInvalidationDelta} invalidations for 620 lines.");
+    }
+
+    [Fact]
     public void SelectVisualNode_KnownNode_UpdatesInspectorState()
     {
         var controller = new InkkSlinger.Designer.DesignerController();
