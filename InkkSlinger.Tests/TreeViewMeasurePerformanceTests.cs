@@ -303,6 +303,83 @@ public sealed class TreeViewMeasurePerformanceTests
     }
 
     [Fact]
+    public void DesignerProjectExplorerTree_ThumbDragBackToTop_ShouldReplaceSnapshotRowsWithCurrentRange()
+    {
+        var store = new FakeProjectFileStore();
+        const string projectRoot = "C:/projects/PerfTree";
+        PopulateProjectTree(store, projectRoot, sectionCount: 75, filesPerSection: 25, longFileNames: true);
+
+        var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl />", store);
+        var projectSession = InkkSlinger.Designer.DesignerProjectSession.Open(projectRoot, store);
+        var shell = new InkkSlinger.Designer.DesignerShellView(
+            documentController: documentController,
+            projectSession: projectSession);
+
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, width: 1280, height: 820);
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        var projectExplorerTree = Assert.IsType<TreeView>(shell.FindName("ProjectExplorerTree"));
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(projectExplorerTree.GetVisualChildren()));
+        var verticalBar = GetPrivateScrollBar(scrollViewer, "_verticalBar");
+        var track = Assert.IsType<Track>(FindNamedVisualChild<Track>(verticalBar, "PART_Track"));
+        var thumb = Assert.IsType<Thumb>(FindNamedVisualChild<Thumb>(verticalBar, "PART_Thumb"));
+
+        var initialRows = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
+        Assert.NotEmpty(initialRows);
+        Assert.True(CountRowsIntersecting(initialRows, projectExplorerTree.LayoutSlot) > 0);
+
+        var thumbRect = verticalBar.GetThumbRectForInput();
+        var start = GetCenter(thumbRect);
+        var maxThumbCenterY = track.LayoutSlot.Y + track.LayoutSlot.Height - (thumbRect.Height / 2f) - 1f;
+        var dragDistance = MathF.Max(0f, maxThumbCenterY - start.Y);
+        Assert.True(dragDistance > 100f, $"Expected enough scrollbar travel for a meaningful drag, but travel={dragDistance:0.###}.");
+
+        const int dragFrames = 16;
+        var previous = start;
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, previous, leftPressed: true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        for (var frame = 1; frame <= dragFrames; frame++)
+        {
+            var current = new Vector2(start.X, start.Y + (dragDistance * frame / dragFrames));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, current, pointerMoved: true));
+            RunLayout(uiRoot, width: 1280, height: 820);
+            previous = current;
+        }
+
+        var farRowsWhileHeld = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
+        Assert.True(scrollViewer.VerticalOffset > scrollViewer.ViewportHeight);
+        Assert.Contains(farRowsWhileHeld, static row => row.HasVirtualizedDisplaySnapshotForDiagnostics);
+
+        var backStart = previous;
+        var previousBack = backStart;
+        for (var frame = 1; frame <= dragFrames; frame++)
+        {
+            var current = new Vector2(start.X, backStart.Y + ((start.Y - backStart.Y) * frame / dragFrames));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(previousBack, current, pointerMoved: true));
+            RunLayout(uiRoot, width: 1280, height: 820);
+            previousBack = current;
+        }
+
+        Assert.True(scrollViewer.VerticalOffset <= 1f, $"Expected thumb drag back to the top to return offset near 0, but offset={scrollViewer.VerticalOffset:0.###}.");
+        var rowsWhileHeldAtTop = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
+        Assert.DoesNotContain(rowsWhileHeldAtTop, static row => row.HasVirtualizedDisplaySnapshotForDiagnostics);
+        Assert.True(
+            CountRowsIntersecting(rowsWhileHeldAtTop, projectExplorerTree.LayoutSlot) > 0,
+            $"Expected current top rows to intersect the Project Explorer viewport while the thumb is still held. offset={scrollViewer.VerticalOffset:0.###}.");
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(start, start, leftReleased: true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        var rowsAfterRelease = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
+        Assert.DoesNotContain(rowsAfterRelease, static row => row.HasVirtualizedDisplaySnapshotForDiagnostics);
+        Assert.True(
+            CountRowsIntersecting(rowsAfterRelease, projectExplorerTree.LayoutSlot) > 0,
+            $"Expected committed top rows to intersect the Project Explorer viewport after thumb release. offset={scrollViewer.VerticalOffset:0.###}.");
+    }
+
+    [Fact]
     public void DesignerProjectExplorerTree_TemplatedTrimmedRows_ShouldStayBoundedAndWithinFrameBudget()
     {
         var store = new FakeProjectFileStore();
@@ -893,6 +970,19 @@ public sealed class TreeViewMeasurePerformanceTests
             .Select(row => row.DisplayHeaderForDiagnostics)
             .Where(static header => !string.IsNullOrEmpty(header))
             .ToArray();
+    }
+
+    private static int CountRowsIntersecting(IEnumerable<TreeViewItem> rows, LayoutRect bounds)
+    {
+        return rows.Count(row => row.TryGetRenderBoundsInRootSpace(out var rowBounds) && Intersects(rowBounds, bounds));
+    }
+
+    private static bool Intersects(LayoutRect first, LayoutRect second)
+    {
+        return first.X < second.X + second.Width &&
+               first.X + first.Width > second.X &&
+               first.Y < second.Y + second.Height &&
+               first.Y + first.Height > second.Y;
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height)

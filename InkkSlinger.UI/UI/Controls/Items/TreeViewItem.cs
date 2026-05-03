@@ -326,7 +326,9 @@ public class TreeViewItem : ItemsControl
         }
     }
 
-    internal bool HasVirtualizedDisplaySnapshotForDiagnostics => _hasVirtualizedDisplaySnapshot;
+    internal bool HasVirtualizedDisplaySnapshot => _hasVirtualizedDisplaySnapshot;
+
+    internal bool HasVirtualizedDisplaySnapshotForDiagnostics => HasVirtualizedDisplaySnapshot;
 
     internal bool IsSelectedForRenderDiagnostics => GetEffectiveIsSelected();
 

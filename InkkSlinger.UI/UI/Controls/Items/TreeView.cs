@@ -1395,7 +1395,9 @@ public class TreeView : ItemsControl
             var first = range.First;
             var last = range.Last;
 
-            if (first == _firstRealizedIndex && last == _lastRealizedIndex)
+            if (first == _firstRealizedIndex &&
+                last == _lastRealizedIndex &&
+                HasCurrentRealizedRows(first, last))
             {
                 return false;
             }
@@ -1432,6 +1434,32 @@ public class TreeView : ItemsControl
                     {
                         InsertChild(Children.Count, container);
                     }
+                }
+            }
+
+            return true;
+        }
+
+        private bool HasCurrentRealizedRows(int first, int last)
+        {
+            if (first > last)
+            {
+                return Children.Count == 0;
+            }
+
+            var expectedCount = last - first + 1;
+            if (Children.Count != expectedCount)
+            {
+                return false;
+            }
+
+            foreach (var child in Children)
+            {
+                if (child is not TreeViewItem item ||
+                    item.HasVirtualizedDisplaySnapshot ||
+                    !ShouldKeepRealizedChild(item, first, last))
+                {
+                    return false;
                 }
             }
 
