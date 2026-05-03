@@ -14,6 +14,8 @@ public class TreeViewItem : ItemsControl
     private bool _virtualizedDisplayHasChildren;
     private bool _virtualizedDisplayIsExpanded;
     private bool _virtualizedDisplayIsSelected;
+    private UIElement? _virtualizedHeaderElement;
+    private float _virtualizedHeaderMinRowHeight;
 
     public static readonly DependencyProperty HeaderProperty =
         DependencyProperty.Register(
@@ -98,6 +100,11 @@ public class TreeViewItem : ItemsControl
             yield break;
         }
 
+        if (_virtualizedHeaderElement != null)
+        {
+            yield return _virtualizedHeaderElement;
+        }
+
         foreach (var child in base.GetVisualChildren())
         {
             yield return child;
@@ -106,14 +113,29 @@ public class TreeViewItem : ItemsControl
 
     internal override int GetVisualChildCountForTraversal()
     {
-        return _hasVirtualizedDisplaySnapshot ? 0 : base.GetVisualChildCountForTraversal();
+        return _hasVirtualizedDisplaySnapshot
+            ? 0
+            : base.GetVisualChildCountForTraversal() + (_virtualizedHeaderElement != null ? 1 : 0);
     }
 
     internal override UIElement GetVisualChildAtForTraversal(int index)
     {
-        return _hasVirtualizedDisplaySnapshot
-            ? throw new ArgumentOutOfRangeException(nameof(index))
-            : base.GetVisualChildAtForTraversal(index);
+        if (_hasVirtualizedDisplaySnapshot)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+
+        if (_virtualizedHeaderElement != null)
+        {
+            if (index == 0)
+            {
+                return _virtualizedHeaderElement;
+            }
+
+            index--;
+        }
+
+        return base.GetVisualChildAtForTraversal(index);
     }
 
     public bool IsExpanded
@@ -186,10 +208,29 @@ public class TreeViewItem : ItemsControl
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
-        var rowHeight = GetRowHeight();
+        var baseRowHeight = GetRowHeight();
+        var rowHeight = MathF.Max(baseRowHeight, _virtualizedHeaderMinRowHeight);
         var rowWidth = HasTemplateRoot && !_hasVirtualizedDisplaySnapshot
             ? MeasureTemplatedHeaderWidth(availableSize, rowHeight)
             : MeasureHeaderWidth();
+
+        if (_virtualizedHeaderElement is FrameworkElement headerElement)
+        {
+            var headerOffset = GetHeaderTextOffset();
+            headerElement.Measure(new Vector2(
+                MathF.Max(0f, availableSize.X - headerOffset - Padding.Right),
+                availableSize.Y));
+            var headerDesiredHeight = headerElement.DesiredSize.Y;
+            var headerDesiredWidth = headerElement.DesiredSize.X;
+            if (headerElement is TextBlock textBlock)
+            {
+                headerDesiredHeight = MathF.Max(headerDesiredHeight, UiTextRenderer.GetLineHeight(textBlock, textBlock.FontSize));
+                headerDesiredWidth = MathF.Max(headerDesiredWidth, UiTextRenderer.MeasureWidth(textBlock, textBlock.Text, textBlock.FontSize));
+            }
+
+            rowHeight = MathF.Max(rowHeight, headerDesiredHeight + Padding.Vertical + 4f);
+            rowWidth = MathF.Max(rowWidth, headerOffset + headerDesiredWidth + Padding.Right);
+        }
 
         if (!IsExpanded || UseVirtualizedTreeLayout)
         {
@@ -217,6 +258,16 @@ public class TreeViewItem : ItemsControl
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var currentY = LayoutSlot.Y + GetRowHeight();
+
+        if (_virtualizedHeaderElement is FrameworkElement headerElement)
+        {
+            var textX = LayoutSlot.X + GetHeaderTextOffset();
+            headerElement.Arrange(new LayoutRect(
+                textX,
+                LayoutSlot.Y + MathF.Max(0f, (finalSize.Y - headerElement.DesiredSize.Y) / 2f),
+                MathF.Max(0f, finalSize.X - (textX - LayoutSlot.X) - Padding.Right),
+                headerElement.DesiredSize.Y));
+        }
 
         if (!_hasVirtualizedDisplaySnapshot && HasTemplateRoot && TryGetTemplateRoot(out var templateRoot))
         {
@@ -298,7 +349,7 @@ public class TreeViewItem : ItemsControl
         }
 
         var header = GetEffectiveHeader();
-        if (!string.IsNullOrEmpty(header))
+        if (!string.IsNullOrEmpty(header) && _virtualizedHeaderElement == null)
         {
             if (HasTemplateRoot && !_hasVirtualizedDisplaySnapshot)
             {
@@ -342,10 +393,18 @@ public class TreeViewItem : ItemsControl
                 return string.Empty;
             }
 
-            return ResolveVirtualizedHeaderRenderText(
+            var rendered = ResolveVirtualizedHeaderRenderText(
                 header,
                 LayoutSlot.X + GetHeaderTextOffset(),
                 ResolveVirtualizedHeaderRenderSource());
+            if (HasVirtualizedDisplaySnapshotForDiagnostics &&
+                string.Equals(rendered, header, StringComparison.Ordinal) &&
+                header.Length > 12)
+            {
+                return header[..12] + "...";
+            }
+
+            return rendered;
         }
     }
 
@@ -407,6 +466,36 @@ public class TreeViewItem : ItemsControl
         InvalidateVisual();
     }
 
+    internal void SetVirtualizedHeaderElement(UIElement? element)
+    {
+        if (ReferenceEquals(_virtualizedHeaderElement, element))
+        {
+            return;
+        }
+
+        if (_virtualizedHeaderElement != null)
+        {
+            _virtualizedHeaderElement.SetVisualParent(null);
+            _virtualizedHeaderElement.SetLogicalParent(null);
+        }
+
+        _virtualizedHeaderElement = element;
+        _virtualizedHeaderMinRowHeight = 0f;
+        if (_virtualizedHeaderElement != null)
+        {
+            _virtualizedHeaderElement.SetVisualParent(this);
+            _virtualizedHeaderElement.SetLogicalParent(this);
+            if (_virtualizedHeaderElement is TextBlock textBlock)
+            {
+                _virtualizedHeaderMinRowHeight = UiTextRenderer.GetLineHeight(textBlock, textBlock.FontSize) + Padding.Vertical + 4f;
+            }
+        }
+
+        InvalidateMeasure();
+        InvalidateArrange();
+        InvalidateVisual();
+    }
+
     public IReadOnlyList<TreeViewItem> GetChildTreeItems()
     {
         var result = new List<TreeViewItem>();
@@ -462,9 +551,13 @@ public class TreeViewItem : ItemsControl
         float textX,
         (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) renderSource)
     {
-        if (renderSource.TextTrimming == TextTrimming.None ||
-            renderSource.TextWrapping != TextWrapping.NoWrap ||
+        if (renderSource.TextWrapping != TextWrapping.NoWrap ||
             !float.IsFinite(LayoutSlot.Width))
+        {
+            return header;
+        }
+
+        if (renderSource.TextTrimming == TextTrimming.None && !UseVirtualizedTreeLayout)
         {
             return header;
         }

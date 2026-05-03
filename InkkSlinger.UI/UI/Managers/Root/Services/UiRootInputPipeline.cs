@@ -3454,6 +3454,12 @@ public sealed partial class UiRoot
                 return true;
             }
 
+            if (TryFindFocusedTreeView(out var focusedTreeView) &&
+                focusedTreeView.HandleKeyDownFromInput(key, modifiers))
+            {
+                return true;
+            }
+
             if (focusedElement is Button button && (key == Keys.Enter || key == Keys.Space))
             {
                 button.InvokeFromInput();
@@ -3580,6 +3586,21 @@ public sealed partial class UiRoot
         }
 
         listBox = null!;
+        return false;
+    }
+
+    private bool TryFindFocusedTreeView(out TreeView treeView)
+    {
+        for (var current = GetConnectedFocusedElementOrNull(); current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is TreeView focusedTreeView)
+            {
+                treeView = focusedTreeView;
+                return true;
+            }
+        }
+
+        treeView = null!;
         return false;
     }
 

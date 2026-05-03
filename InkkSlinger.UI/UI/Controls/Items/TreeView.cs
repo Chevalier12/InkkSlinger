@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -90,6 +92,8 @@ public class TreeView : ItemsControl
     private readonly Dictionary<object, TreeViewItem> _hierarchicalDataContainers = new();
     private readonly Queue<TreeViewItem> _recycledHierarchicalDataContainers = new();
     private readonly Dictionary<object, bool> _hierarchicalExpansionOverrides = new();
+    private readonly Dictionary<object, IReadOnlyList<object>> _lazyLoadedHierarchicalChildren = new();
+    private readonly HashSet<INotifyCollectionChanged> _subscribedHierarchicalCollections = new();
     private ScrollViewer? _templatedScrollViewer;
     private ScrollViewer? _viewportSubscribedScrollViewer;
     private float _lastDataHostViewportWidth = float.NaN;
@@ -101,6 +105,8 @@ public class TreeView : ItemsControl
     private Func<object, bool>? _hierarchicalHasChildrenSelector;
     private Func<object, string>? _hierarchicalHeaderSelector;
     private Func<object, bool>? _hierarchicalExpandedSelector;
+    private Func<object, IEnumerable<object>?>? _hierarchicalLazyChildrenLoader;
+    private object? _selectedDataItem;
 
     public TreeView()
     {
@@ -120,6 +126,7 @@ public class TreeView : ItemsControl
         _fallbackScrollViewer.SetLogicalParent(this);
         UpdateScrollViewerViewportSubscription(_fallbackScrollViewer);
 
+        Focusable = true;
         AddHandler<MouseRoutedEventArgs>(UIElement.MouseLeftButtonDownEvent, OnMouseLeftButtonDownSelectItem);
         AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonUpEvent, OnPreviewMouseLeftButtonUpRefreshDeferredScroll);
     }
@@ -182,7 +189,31 @@ public class TreeView : ItemsControl
         }
     }
 
+    public Func<object, IEnumerable<object>?>? HierarchicalLazyChildrenLoader
+    {
+        get => _hierarchicalLazyChildrenLoader;
+        set => _hierarchicalLazyChildrenLoader = value;
+    }
+
     public int RealizedHierarchicalContainerCount => _hierarchicalDataContainers.Count;
+
+    public object? SelectedDataItem
+    {
+        get => _selectedDataItem;
+        set
+        {
+            if (value == null)
+            {
+                ApplySelectedItem(null);
+                return;
+            }
+
+            if (!SelectHierarchicalItem(value))
+            {
+                _selectedDataItem = value;
+            }
+        }
+    }
 
     public override void OnApplyTemplate()
     {
@@ -288,6 +319,7 @@ public class TreeView : ItemsControl
             }
         }
 
+        ScrollHierarchicalRowIntoView(rowIndex);
         ApplySelectedItem(RealizeHierarchicalDataContainer(_hierarchicalDataRows[rowIndex], rowIndex));
         return true;
     }
@@ -299,9 +331,171 @@ public class TreeView : ItemsControl
             return false;
         }
 
+        if (isExpanded)
+        {
+            EnsureLazyHierarchicalChildrenLoaded(item);
+        }
+
         _hierarchicalExpansionOverrides[item] = isExpanded;
         RefreshHierarchicalDataRows();
         return true;
+    }
+
+    public bool IsHierarchicalItemExpanded(object item)
+    {
+        return IsHierarchicalDataMode && IsHierarchicalItemExpandedCore(item);
+    }
+
+    public bool ScrollHierarchicalItemIntoView(object item)
+    {
+        if (!IsHierarchicalDataMode)
+        {
+            return false;
+        }
+
+        var rowIndex = FindHierarchicalRowIndex(item);
+        if (rowIndex < 0)
+        {
+            RefreshHierarchicalDataRows();
+            rowIndex = FindHierarchicalRowIndex(item);
+        }
+
+        if (rowIndex < 0)
+        {
+            return false;
+        }
+
+        ScrollHierarchicalRowIntoView(rowIndex);
+        return true;
+    }
+
+    public TreeViewItem? ContainerFromHierarchicalItem(object item)
+    {
+        if (!_hierarchicalDataContainers.TryGetValue(item, out var container))
+        {
+            return null;
+        }
+
+        return container.VirtualizedTreeRowIndex >= 0 && ReferenceEquals(container.VisualParent, _itemsHost)
+            ? container
+            : null;
+    }
+
+    internal bool HandleKeyDownFromInput(Keys key, ModifierKeys modifiers)
+    {
+        _ = modifiers;
+        if (!IsEnabled)
+        {
+            return false;
+        }
+
+        return IsHierarchicalDataMode
+            ? HandleHierarchicalKeyDown(key)
+            : HandleTreeItemKeyDown(key);
+    }
+
+    private bool HandleHierarchicalKeyDown(Keys key)
+    {
+        if (_hierarchicalDataRows.Count == 0)
+        {
+            return false;
+        }
+
+        var selectedIndex = _selectedDataItem == null ? -1 : FindHierarchicalRowIndex(_selectedDataItem);
+        if (selectedIndex < 0)
+        {
+            selectedIndex = 0;
+        }
+
+        switch (key)
+        {
+            case Keys.Up:
+                return SelectHierarchicalRow(Math.Max(0, selectedIndex - 1));
+            case Keys.Down:
+                return SelectHierarchicalRow(Math.Min(_hierarchicalDataRows.Count - 1, selectedIndex + 1));
+            case Keys.Home:
+                return SelectHierarchicalRow(0);
+            case Keys.End:
+                return SelectHierarchicalRow(_hierarchicalDataRows.Count - 1);
+            case Keys.PageUp:
+                return SelectHierarchicalRow(Math.Max(0, selectedIndex - EstimateHierarchicalPageStep()));
+            case Keys.PageDown:
+                return SelectHierarchicalRow(Math.Min(_hierarchicalDataRows.Count - 1, selectedIndex + EstimateHierarchicalPageStep()));
+            case Keys.Right:
+                return ExpandOrEnterHierarchicalRow(selectedIndex);
+            case Keys.Left:
+                return CollapseOrSelectHierarchicalParent(selectedIndex);
+            default:
+                return false;
+        }
+    }
+
+    private bool HandleTreeItemKeyDown(Keys key)
+    {
+        var visibleItems = GetVisibleItems();
+        if (visibleItems.Count == 0)
+        {
+            return false;
+        }
+
+        var selectedIndex = SelectedItem == null ? -1 : visibleItems.FindIndex(item => ReferenceEquals(item, SelectedItem));
+        if (selectedIndex < 0)
+        {
+            selectedIndex = 0;
+        }
+
+        switch (key)
+        {
+            case Keys.Up:
+                ApplySelectedItem(visibleItems[Math.Max(0, selectedIndex - 1)]);
+                return true;
+            case Keys.Down:
+                ApplySelectedItem(visibleItems[Math.Min(visibleItems.Count - 1, selectedIndex + 1)]);
+                return true;
+            case Keys.Home:
+                ApplySelectedItem(visibleItems[0]);
+                return true;
+            case Keys.End:
+                ApplySelectedItem(visibleItems[^1]);
+                return true;
+            case Keys.Right:
+                if (SelectedItem is { } selected && selected.HasChildItems())
+                {
+                    if (!selected.IsExpanded)
+                    {
+                        selected.IsExpanded = true;
+                        RefreshVirtualizedItemsHost();
+                    }
+                    else if (GetFirstChild(selected) is { } child)
+                    {
+                        ApplySelectedItem(child);
+                    }
+
+                    return true;
+                }
+
+                return false;
+            case Keys.Left:
+                if (SelectedItem is { } current)
+                {
+                    if (current.IsExpanded)
+                    {
+                        current.IsExpanded = false;
+                        RefreshVirtualizedItemsHost();
+                        return true;
+                    }
+
+                    if (GetParentTreeItem(current) is { } parent)
+                    {
+                        ApplySelectedItem(parent);
+                        return true;
+                    }
+                }
+
+                return false;
+            default:
+                return false;
+        }
     }
 
     public override IEnumerable<UIElement> GetVisualChildren()
@@ -393,6 +587,11 @@ public class TreeView : ItemsControl
         else if (args.Property == ItemsPanelProperty)
         {
             UpdateItemsHost();
+        }
+        else if ((args.Property == ItemTemplateProperty || args.Property == ItemTemplateSelectorProperty) &&
+                 IsHierarchicalDataMode)
+        {
+            RefreshHierarchicalDataRows();
         }
     }
 
@@ -597,6 +796,7 @@ public class TreeView : ItemsControl
             return;
         }
 
+        UnsubscribeHierarchicalCollections();
         _hierarchicalDataRows.Clear();
         foreach (var item in GetHierarchicalRootItems())
         {
@@ -604,12 +804,13 @@ public class TreeView : ItemsControl
         }
 
         dataHost.SetRows(_hierarchicalDataRows);
+        SyncSelectedHierarchicalContainer();
     }
 
     private void AddHierarchicalDataRow(object item, int depth)
     {
         var hasChildren = HasHierarchicalChildren(item);
-        var expanded = hasChildren && IsHierarchicalItemExpanded(item);
+        var expanded = hasChildren && IsHierarchicalItemExpandedCore(item);
         _hierarchicalDataRows.Add(new VisibleTreeDataEntry(item, depth, hasChildren, expanded));
 
         if (!expanded)
@@ -636,15 +837,25 @@ public class TreeView : ItemsControl
 
     private IReadOnlyList<object> GetHierarchicalChildren(object item)
     {
+        if (_lazyLoadedHierarchicalChildren.TryGetValue(item, out var lazyChildren))
+        {
+            return lazyChildren;
+        }
+
         if (_hierarchicalChildrenSelector?.Invoke(item) is not { } children)
         {
             return Array.Empty<object>();
         }
 
+        if (children is INotifyCollectionChanged notifying)
+        {
+            SubscribeHierarchicalCollection(notifying);
+        }
+
         return children as IReadOnlyList<object> ?? children.ToArray();
     }
 
-    private bool IsHierarchicalItemExpanded(object item)
+    private bool IsHierarchicalItemExpandedCore(object item)
     {
         if (_hierarchicalExpansionOverrides.TryGetValue(item, out var expanded))
         {
@@ -657,6 +868,121 @@ public class TreeView : ItemsControl
     private string GetHierarchicalHeader(object item)
     {
         return _hierarchicalHeaderSelector?.Invoke(item) ?? item.ToString() ?? string.Empty;
+    }
+
+    private int FindHierarchicalRowIndex(object item)
+    {
+        return _hierarchicalDataRows.FindIndex(row => ReferenceEquals(row.Item, item) || Equals(row.Item, item));
+    }
+
+    private void ScrollHierarchicalRowIntoView(int rowIndex)
+    {
+        if (_itemsHost is not VirtualizingTreeDataHost dataHost)
+        {
+            return;
+        }
+
+        var viewer = ActiveScrollViewer;
+        var rowTop = dataHost.GetRowOffset(rowIndex);
+        var rowHeight = dataHost.GetRowHeight(rowIndex);
+        var rowBottom = rowTop + rowHeight;
+        var viewportTop = viewer.VerticalOffset;
+        var viewportBottom = viewportTop + MathF.Max(0f, viewer.ViewportHeight);
+
+        if (rowTop < viewportTop)
+        {
+            viewer.ScrollToVerticalOffset(rowTop);
+        }
+        else if (rowBottom > viewportBottom)
+        {
+            viewer.ScrollToVerticalOffset(rowBottom - MathF.Max(rowHeight, viewer.ViewportHeight));
+        }
+    }
+
+    private void EnsureLazyHierarchicalChildrenLoaded(object item)
+    {
+        if (_hierarchicalLazyChildrenLoader == null ||
+            _lazyLoadedHierarchicalChildren.ContainsKey(item) ||
+            GetHierarchicalChildren(item).Count > 0)
+        {
+            return;
+        }
+
+        var loaded = _hierarchicalLazyChildrenLoader(item);
+        if (loaded == null)
+        {
+            return;
+        }
+
+        var children = loaded as IReadOnlyList<object> ?? loaded.ToArray();
+        if (!TryAppendLazyChildrenToSource(item, children))
+        {
+            _lazyLoadedHierarchicalChildren[item] = children;
+        }
+    }
+
+    private bool TryAppendLazyChildrenToSource(object item, IReadOnlyList<object> children)
+    {
+        if (children.Count == 0 ||
+            _hierarchicalChildrenSelector?.Invoke(item) is not { } existing)
+        {
+            return false;
+        }
+
+        var addMethod = existing.GetType().GetMethod("Add", [children[0].GetType()]);
+        if (addMethod == null)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < children.Count; i++)
+        {
+            addMethod.Invoke(existing, [children[i]]);
+        }
+
+        return true;
+    }
+
+    private void ApplyHierarchicalItemTemplate(TreeViewItem container, object item)
+    {
+        var selectedTemplate = DataTemplateResolver.ResolveTemplateForContent(
+            this,
+            item,
+            ItemTemplate,
+            ItemTemplateSelector,
+            container);
+        if (selectedTemplate == null)
+        {
+            container.SetVirtualizedHeaderElement(null);
+            return;
+        }
+
+        container.SetVirtualizedHeaderElement(selectedTemplate.Build(item, this));
+    }
+
+    private void SubscribeHierarchicalCollection(INotifyCollectionChanged collection)
+    {
+        if (_subscribedHierarchicalCollections.Add(collection))
+        {
+            collection.CollectionChanged += OnHierarchicalCollectionChanged;
+        }
+    }
+
+    private void UnsubscribeHierarchicalCollections()
+    {
+        foreach (var collection in _subscribedHierarchicalCollections)
+        {
+            collection.CollectionChanged -= OnHierarchicalCollectionChanged;
+        }
+
+        _subscribedHierarchicalCollections.Clear();
+    }
+
+    private void OnHierarchicalCollectionChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        RefreshHierarchicalDataRows();
     }
 
     private TreeViewItem RealizeHierarchicalDataContainer(VisibleTreeDataEntry row, int rowIndex)
@@ -679,12 +1005,19 @@ public class TreeView : ItemsControl
         container.ClearVirtualizedDisplaySnapshot();
         container.Header = GetHierarchicalHeader(row.Item);
         container.Tag = row.Item;
+        container.DataContext = row.Item;
         container.IsExpanded = row.IsExpanded;
         container.UseVirtualizedTreeLayout = true;
         container.VirtualizedTreeDepth = row.Depth;
         container.VirtualizedTreeRowIndex = rowIndex;
         container.HasVirtualizedChildItems = row.HasChildren;
+        container.IsSelected = IsHierarchicalDataItemSelected(row.Item);
         PrepareContainerForItemOverride(container, row.Item, rowIndex);
+        ApplyHierarchicalItemTemplate(container, row.Item);
+        if (container.IsSelected)
+        {
+            SelectedItem = container;
+        }
     }
 
     private void RecycleHierarchicalDataContainer(TreeViewItem container)
@@ -701,6 +1034,9 @@ public class TreeView : ItemsControl
 
         container.IsSelected = false;
         container.ClearVirtualizedDisplaySnapshot();
+        container.SetVirtualizedHeaderElement(null);
+        container.Tag = null;
+        container.DataContext = null;
         container.VirtualizedTreeRowIndex = -1;
         _recycledHierarchicalDataContainers.Enqueue(container);
     }
@@ -737,10 +1073,16 @@ public class TreeView : ItemsControl
             return;
         }
 
+        FocusManager.SetFocus(this);
         if (clickedItem.HitExpander(GetExpanderHitTestPoint(clickedItem, args.Position)))
         {
             if (IsHierarchicalDataMode && clickedItem.Tag != null)
             {
+                if (!clickedItem.IsExpanded)
+                {
+                    EnsureLazyHierarchicalChildrenLoaded(clickedItem.Tag);
+                }
+
                 _hierarchicalExpansionOverrides[clickedItem.Tag] = !clickedItem.IsExpanded;
                 RefreshHierarchicalDataRows();
             }
@@ -763,6 +1105,84 @@ public class TreeView : ItemsControl
         {
             dataHost.RefreshPendingStableViewportOffsetChange();
         }
+    }
+
+    private bool SelectHierarchicalRow(int rowIndex)
+    {
+        if (rowIndex < 0 || rowIndex >= _hierarchicalDataRows.Count)
+        {
+            return false;
+        }
+
+        var row = _hierarchicalDataRows[rowIndex];
+        ScrollHierarchicalRowIntoView(rowIndex);
+        ApplySelectedItem(RealizeHierarchicalDataContainer(row, rowIndex));
+        return true;
+    }
+
+    private bool ExpandOrEnterHierarchicalRow(int rowIndex)
+    {
+        if (rowIndex < 0 || rowIndex >= _hierarchicalDataRows.Count)
+        {
+            return false;
+        }
+
+        var row = _hierarchicalDataRows[rowIndex];
+        if (!row.HasChildren)
+        {
+            return false;
+        }
+
+        if (!row.IsExpanded)
+        {
+            SetHierarchicalItemExpanded(row.Item, true);
+            SelectHierarchicalRow(FindHierarchicalRowIndex(row.Item));
+            return true;
+        }
+
+        var next = rowIndex + 1;
+        if (next < _hierarchicalDataRows.Count && _hierarchicalDataRows[next].Depth > row.Depth)
+        {
+            return SelectHierarchicalRow(next);
+        }
+
+        return true;
+    }
+
+    private bool CollapseOrSelectHierarchicalParent(int rowIndex)
+    {
+        if (rowIndex < 0 || rowIndex >= _hierarchicalDataRows.Count)
+        {
+            return false;
+        }
+
+        var row = _hierarchicalDataRows[rowIndex];
+        if (row.HasChildren && row.IsExpanded)
+        {
+            SetHierarchicalItemExpanded(row.Item, false);
+            SelectHierarchicalRow(FindHierarchicalRowIndex(row.Item));
+            return true;
+        }
+
+        for (var i = rowIndex - 1; i >= 0; i--)
+        {
+            if (_hierarchicalDataRows[i].Depth < row.Depth)
+            {
+                return SelectHierarchicalRow(i);
+            }
+        }
+
+        return true;
+    }
+
+    private int EstimateHierarchicalPageStep()
+    {
+        if (_itemsHost is VirtualizingTreeDataHost dataHost)
+        {
+            return Math.Max(1, (int)MathF.Floor(ActiveScrollViewer.ViewportHeight / MathF.Max(1f, dataHost.AverageRowHeight)));
+        }
+
+        return 10;
     }
 
     private bool IsActiveScrollViewerThumbCaptured()
@@ -818,10 +1238,15 @@ public class TreeView : ItemsControl
         return false;
     }
 
-    private void ApplySelectedItem(TreeViewItem item)
+    private void ApplySelectedItem(TreeViewItem? item)
     {
         if (ReferenceEquals(item, SelectedItem))
         {
+            if (item == null)
+            {
+                _selectedDataItem = null;
+            }
+
             return;
         }
 
@@ -831,8 +1256,39 @@ public class TreeView : ItemsControl
         }
 
         SelectedItem = item;
-        SelectedItem.IsSelected = true;
+        _selectedDataItem = IsHierarchicalDataMode ? item?.Tag : item;
+        if (SelectedItem != null)
+        {
+            SelectedItem.IsSelected = true;
+        }
+
         RaiseRoutedEvent(SelectedItemChangedEvent, new RoutedSimpleEventArgs(SelectedItemChangedEvent));
+    }
+
+    private void SyncSelectedHierarchicalContainer()
+    {
+        if (_selectedDataItem == null)
+        {
+            return;
+        }
+
+        var rowIndex = FindHierarchicalRowIndex(_selectedDataItem);
+        if (rowIndex < 0)
+        {
+            if (SelectedItem != null)
+            {
+                SelectedItem.IsSelected = false;
+            }
+
+            SelectedItem = null;
+            return;
+        }
+
+        if (_hierarchicalDataContainers.TryGetValue(_selectedDataItem, out var container))
+        {
+            container.IsSelected = true;
+            SelectedItem = container;
+        }
     }
 
     private Panel CreateItemsHost()
@@ -1219,9 +1675,13 @@ public class TreeView : ItemsControl
         private const float FallbackRowHeight = 22f;
         private readonly TreeView _owner;
         private IReadOnlyList<VisibleTreeDataEntry> _rows = Array.Empty<VisibleTreeDataEntry>();
+        private readonly List<float> _rowHeights = new();
+        private readonly List<float> _rowOffsets = new();
         private int _firstRealizedIndex = -1;
         private int _lastRealizedIndex = -1;
         private bool _pendingDeferredOffsetRefresh;
+        private float _averageRowHeight = FallbackRowHeight;
+        private float _maxRealizedWidth;
 
         public VirtualizingTreeDataHost(TreeView owner)
         {
@@ -1233,9 +1693,12 @@ public class TreeView : ItemsControl
 
         public bool OwnsVerticalScrollOffset => true;
 
+        public float AverageRowHeight => _averageRowHeight;
+
         public void SetRows(IReadOnlyList<VisibleTreeDataEntry> rows)
         {
             _rows = rows;
+            EnsureRowMetricStorage();
             _firstRealizedIndex = -1;
             _lastRealizedIndex = -1;
             _pendingDeferredOffsetRefresh = false;
@@ -1246,23 +1709,28 @@ public class TreeView : ItemsControl
         protected override Vector2 MeasureOverride(Vector2 availableSize)
         {
             RealizeRows(availableSize.Y, invalidateMeasureForChildMutations: true);
-            var childConstraint = new Vector2(availableSize.X, FallbackRowHeight);
+            var childConstraint = new Vector2(availableSize.X, float.PositiveInfinity);
+            _maxRealizedWidth = float.IsFinite(availableSize.X) ? availableSize.X : 0f;
             foreach (var child in Children)
             {
                 if (child is FrameworkElement element)
                 {
                     element.Measure(childConstraint);
+                    if (child is TreeViewItem item && item.VirtualizedTreeRowIndex >= 0)
+                    {
+                        UpdateMeasuredRowMetric(item.VirtualizedTreeRowIndex, element.DesiredSize);
+                    }
                 }
             }
 
-            var width = float.IsFinite(availableSize.X) ? availableSize.X : 0f;
-            return new Vector2(width, _rows.Count * FallbackRowHeight);
+            RecalculateRowOffsets();
+            return new Vector2(_maxRealizedWidth, GetTotalExtentHeight());
         }
 
         protected override Vector2 ArrangeOverride(Vector2 finalSize)
         {
             RealizeRows(finalSize.Y, invalidateMeasureForChildMutations: false);
-            var childConstraint = new Vector2(finalSize.X, FallbackRowHeight);
+            var childConstraint = new Vector2(finalSize.X, float.PositiveInfinity);
             foreach (var child in Children)
             {
                 if (child is not TreeViewItem item || item.VirtualizedTreeRowIndex < 0)
@@ -1273,14 +1741,17 @@ public class TreeView : ItemsControl
                 if (item.NeedsMeasure)
                 {
                     item.Measure(childConstraint);
+                    UpdateMeasuredRowMetric(item.VirtualizedTreeRowIndex, item.DesiredSize);
+                    RecalculateRowOffsets();
                 }
 
                 var index = item.VirtualizedTreeRowIndex;
+                var rowHeight = GetRowHeight(index);
                 item.Arrange(new LayoutRect(
                     LayoutSlot.X,
-                    LayoutSlot.Y + (index * FallbackRowHeight),
+                    LayoutSlot.Y + GetRowOffset(index),
                     finalSize.X,
-                    FallbackRowHeight));
+                    rowHeight));
             }
 
             return finalSize;
@@ -1316,7 +1787,7 @@ public class TreeView : ItemsControl
             var range = CalculateRealizedRange(LayoutSlot.Height);
             if (!forceRealization &&
                 _owner.IsActiveScrollViewerThumbCaptured() &&
-                ShouldDeferRealizationDuringThumbDrag(range.First, range.Last))
+                range.First > 0)
             {
                 RetargetRealizedRowsForThumbDrag(range.First, range.Last);
                 _pendingDeferredOffsetRefresh = true;
@@ -1354,7 +1825,7 @@ public class TreeView : ItemsControl
                 return;
             }
 
-            var childConstraint = new Vector2(LayoutSlot.Width, FallbackRowHeight);
+            var childConstraint = new Vector2(LayoutSlot.Width, float.PositiveInfinity);
             var rowIndex = first;
             foreach (var child in Children)
             {
@@ -1377,11 +1848,12 @@ public class TreeView : ItemsControl
                     item.Measure(childConstraint);
                 }
 
+                var rowHeight = GetRowHeight(rowIndex);
                 item.Arrange(new LayoutRect(
                     LayoutSlot.X,
-                    LayoutSlot.Y + (rowIndex * FallbackRowHeight),
+                    LayoutSlot.Y + GetRowOffset(rowIndex),
                     LayoutSlot.Width,
-                    FallbackRowHeight));
+                    rowHeight));
                 rowIndex++;
             }
         }
@@ -1416,6 +1888,12 @@ public class TreeView : ItemsControl
                     if (child is TreeViewItem treeItem &&
                         ShouldKeepRealizedChild(treeItem, first, last))
                     {
+                        if (!treeItem.HasVirtualizedDisplaySnapshot)
+                        {
+                            var keptRowIndex = treeItem.VirtualizedTreeRowIndex;
+                            _owner.ApplyHierarchicalDataContainer(treeItem, _rows[keptRowIndex], keptRowIndex);
+                        }
+
                         continue;
                     }
 
@@ -1473,10 +1951,129 @@ public class TreeView : ItemsControl
             var viewport = float.IsFinite(viewportHeight) && viewportHeight > 0f
                 ? viewportHeight
                 : MathF.Max(viewer.ViewportHeight, FallbackRowHeight);
-            var cacheRows = Math.Max(4, (int)MathF.Ceiling(viewport / FallbackRowHeight));
-            var first = Math.Max(0, (int)MathF.Floor(offset / FallbackRowHeight) - cacheRows);
-            var last = Math.Min(_rows.Count - 1, (int)MathF.Ceiling((offset + viewport) / FallbackRowHeight) + cacheRows);
+            var cacheHeight = MathF.Max(viewport, _averageRowHeight * 4f);
+            var first = Math.Max(0, FindRowIndexAtOffset(MathF.Max(0f, offset - cacheHeight)));
+            var last = Math.Min(_rows.Count - 1, FindRowIndexAtOffset(offset + viewport + cacheHeight));
             return (first, last);
+        }
+
+        public float GetRowOffset(int rowIndex)
+        {
+            EnsureRowMetricStorage();
+            RecalculateRowOffsets();
+            return rowIndex <= 0 ? 0f : _rowOffsets[Math.Clamp(rowIndex, 0, _rowOffsets.Count - 1)];
+        }
+
+        public float GetRowHeight(int rowIndex)
+        {
+            EnsureRowMetricStorage();
+            if ((uint)rowIndex >= (uint)_rowHeights.Count)
+            {
+                return _averageRowHeight;
+            }
+
+            return MathF.Max(1f, _rowHeights[rowIndex]);
+        }
+
+        private void EnsureRowMetricStorage()
+        {
+            while (_rowHeights.Count < _rows.Count)
+            {
+                _rowHeights.Add(_averageRowHeight);
+                _rowOffsets.Add(0f);
+            }
+
+            if (_rowHeights.Count > _rows.Count)
+            {
+                _rowHeights.RemoveRange(_rows.Count, _rowHeights.Count - _rows.Count);
+                _rowOffsets.RemoveRange(_rows.Count, _rowOffsets.Count - _rows.Count);
+            }
+
+            RecalculateRowOffsets();
+        }
+
+        private void UpdateMeasuredRowMetric(int rowIndex, Vector2 desiredSize)
+        {
+            if ((uint)rowIndex >= (uint)_rowHeights.Count)
+            {
+                return;
+            }
+
+            var height = MathF.Max(1f, desiredSize.Y);
+            _rowHeights[rowIndex] = height;
+            _maxRealizedWidth = MathF.Max(_maxRealizedWidth, desiredSize.X);
+
+            var measuredCount = 0;
+            var measuredTotal = 0f;
+            for (var i = 0; i < _rowHeights.Count; i++)
+            {
+                if (_rowHeights[i] <= 0f)
+                {
+                    continue;
+                }
+
+                measuredCount++;
+                measuredTotal += _rowHeights[i];
+            }
+
+            if (measuredCount > 0)
+            {
+                _averageRowHeight = measuredTotal / measuredCount;
+            }
+        }
+
+        private void RecalculateRowOffsets()
+        {
+            var offset = 0f;
+            for (var i = 0; i < _rowOffsets.Count; i++)
+            {
+                _rowOffsets[i] = offset;
+                offset += MathF.Max(1f, _rowHeights[i]);
+            }
+        }
+
+        private float GetTotalExtentHeight()
+        {
+            if (_rowHeights.Count == 0)
+            {
+                return 0f;
+            }
+
+            RecalculateRowOffsets();
+            var last = _rowHeights.Count - 1;
+            return _rowOffsets[last] + MathF.Max(1f, _rowHeights[last]);
+        }
+
+        private int FindRowIndexAtOffset(float offset)
+        {
+            EnsureRowMetricStorage();
+            if (_rowOffsets.Count == 0)
+            {
+                return -1;
+            }
+
+            var low = 0;
+            var high = _rowOffsets.Count - 1;
+            while (low <= high)
+            {
+                var mid = low + ((high - low) / 2);
+                var rowStart = _rowOffsets[mid];
+                var rowEnd = rowStart + GetRowHeight(mid);
+                if (offset < rowStart)
+                {
+                    high = mid - 1;
+                }
+                else if (offset >= rowEnd)
+                {
+                    low = mid + 1;
+                }
+                else
+                {
+                    return mid;
+                }
+            }
+
+            return Math.Clamp(low, 0, _rowOffsets.Count - 1);
         }
 
         private bool ShouldKeepRealizedChild(TreeViewItem item, int first, int last)
@@ -1504,7 +2101,7 @@ public class TreeView : ItemsControl
 
     private bool IsHierarchicalDataItemSelected(object item)
     {
-        return SelectedItem?.Tag is { } selectedItem &&
+        return _selectedDataItem is { } selectedItem &&
                (ReferenceEquals(selectedItem, item) || Equals(selectedItem, item));
     }
 
