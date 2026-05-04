@@ -87,6 +87,20 @@ public sealed class TreeViewVirtualizationParityTests
     }
 
     [Fact]
+    public void HierarchicalContainer_ExposesBackingItemWithoutUsingTag()
+    {
+        var root = CreateLargeTree(4);
+        var (uiRoot, treeView) = CreateHierarchicalFixture(root, height: 140f);
+
+        RunLayout(uiRoot);
+
+        var firstChild = treeView.ContainerFromHierarchicalItem(root.Children[0]);
+        Assert.NotNull(firstChild);
+        Assert.Same(root.Children[0], firstChild.HierarchicalDataItem);
+        Assert.Null(firstChild.Tag);
+    }
+
+    [Fact]
     public void ExpandedObservableChildCollectionChange_RefreshesRowsIncrementallyEnoughToPreserveSelection()
     {
         var root = CreateLargeTree(4);

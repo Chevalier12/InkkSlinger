@@ -1,3 +1,5 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Xunit;
 
 namespace InkkSlinger.Tests;
@@ -31,6 +33,47 @@ public class DesignerShellProjectExplorerTests
         Assert.False(harness.DocumentController.IsDirty);
     }
 
+    [Fact]
+    public void ProjectExplorer_UsesPlainHeaders_AndOnlyShowsParentAffordancesForActualChildren()
+    {
+        var harness = CreateHarness();
+        harness.ProjectFiles.CreateDirectory("C:/projects/Sample/Views");
+        harness.ProjectFiles.CreateDirectory("C:/projects/Sample/EmptyFolder");
+        harness.ProjectFiles.WriteAllText("C:/projects/Sample/Views/Main.xml", "<UserControl />");
+        harness.ProjectSession.Refresh();
+
+        var shell = new InkkSlinger.Designer.DesignerShellView(
+            documentController: harness.DocumentController,
+            projectSession: harness.ProjectSession);
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot);
+        RunLayout(uiRoot);
+
+        var treeView = Assert.IsType<TreeView>(shell.FindName("ProjectExplorerTree"));
+        var rootNode = shell.ViewModel.ProjectRootNode!;
+        var viewsNode = rootNode.Children.Single(child => child.Name == "Views");
+        var emptyFolderNode = rootNode.Children.Single(child => child.Name == "EmptyFolder");
+        var mainFileNode = viewsNode.Children.Single(child => child.Name == "Main.xml");
+
+        Assert.True(treeView.ScrollHierarchicalItemIntoView(mainFileNode));
+        RunLayout(uiRoot);
+
+        var viewsItem = treeView.ContainerFromHierarchicalItem(viewsNode);
+        var emptyFolderItem = treeView.ContainerFromHierarchicalItem(emptyFolderNode);
+        var mainFileItem = treeView.ContainerFromHierarchicalItem(mainFileNode);
+
+        Assert.NotNull(viewsItem);
+        Assert.NotNull(emptyFolderItem);
+        Assert.NotNull(mainFileItem);
+
+        Assert.Equal("Views", viewsItem!.Header);
+        Assert.True(viewsItem.HasChildItems());
+        Assert.Equal("EmptyFolder", emptyFolderItem!.Header);
+        Assert.False(emptyFolderItem.HasChildItems());
+        Assert.Equal("Main.xml", mainFileItem!.Header);
+        Assert.False(mainFileItem.HasChildItems());
+    }
+
     private static ShellHarness CreateHarness()
     {
         var projectFiles = new FakeProjectFileStore();
@@ -38,6 +81,13 @@ public class DesignerShellProjectExplorerTests
         var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl />", projectFiles);
         var projectSession = InkkSlinger.Designer.DesignerProjectSession.Open("C:/projects/Sample", projectFiles);
         return new ShellHarness(projectFiles, documentController, projectSession);
+    }
+
+    private static void RunLayout(UiRoot uiRoot)
+    {
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 1280, 820));
     }
 
     private sealed record ShellHarness(

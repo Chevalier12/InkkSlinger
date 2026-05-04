@@ -96,7 +96,7 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
     {
         _ = sender;
         _ = args;
-        if (ProjectExplorerTree.SelectedItem is TreeViewItem { Tag: DesignerProjectNode node })
+        if (ProjectExplorerTree.SelectedItem?.HierarchicalDataItem is DesignerProjectNode node)
         {
             _viewModel.SelectProjectNode(node);
         }
@@ -113,8 +113,8 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
         }
 
         ProjectExplorerTree.HierarchicalChildrenSelector = static item => item is DesignerProjectNode node ? node.Children : Array.Empty<DesignerProjectNode>();
-        ProjectExplorerTree.HierarchicalHasChildrenSelector = static item => item is DesignerProjectNode { IsFolder: true };
-        ProjectExplorerTree.HierarchicalHeaderSelector = static item => item is DesignerProjectNode node ? (node.IsFolder ? "[+] " : "    ") + node.Name : string.Empty;
+        ProjectExplorerTree.HierarchicalHasChildrenSelector = static item => item is DesignerProjectNode node && node.Children.Count > 0;
+        ProjectExplorerTree.HierarchicalHeaderSelector = static item => item is DesignerProjectNode node ? node.Name : string.Empty;
         ProjectExplorerTree.HierarchicalExpandedSelector = static item => item is DesignerProjectNode { IsFolder: true };
         ProjectExplorerTree.HierarchicalItemsSource = new[] { _viewModel.ProjectRootNode };
 

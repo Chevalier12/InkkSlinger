@@ -306,7 +306,6 @@ public partial class TreeView
             container.ClearVirtualizedDisplaySnapshot();
             container.Header = GetHeader(row.Item);
             container.VirtualizedTreeDataItem = row.Item;
-            container.Tag = row.Item;
             container.DataContext = row.Item;
             container.IsExpanded = row.IsExpanded;
             container.UseVirtualizedTreeLayout = true;
@@ -338,7 +337,6 @@ public partial class TreeView
             container.ClearVirtualizedDisplaySnapshot();
             container.SetVirtualizedHeaderElement(null);
             container.VirtualizedTreeDataItem = null;
-            container.Tag = null;
             container.DataContext = null;
             container.VirtualizedTreeRowIndex = -1;
             _recycledContainers.Enqueue(container);

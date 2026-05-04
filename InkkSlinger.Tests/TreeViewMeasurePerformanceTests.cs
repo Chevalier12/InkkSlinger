@@ -1010,8 +1010,8 @@ public sealed class TreeViewMeasurePerformanceTests
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HierarchicalChildrenSelector = static item => item is ProjectNode node ? node.Children : Array.Empty<ProjectNode>(),
-            HierarchicalHasChildrenSelector = static item => item is ProjectNode { IsFolder: true },
-            HierarchicalHeaderSelector = static item => item is ProjectNode node ? (node.IsFolder ? "[+] " : "    ") + node.Name : string.Empty,
+            HierarchicalHasChildrenSelector = static item => item is ProjectNode node && node.Children.Count > 0,
+            HierarchicalHeaderSelector = static item => item is ProjectNode node ? node.Name : string.Empty,
             HierarchicalExpandedSelector = static item => item is ProjectNode { IsFolder: true },
             HierarchicalItemsSource = new[] { root }
         };

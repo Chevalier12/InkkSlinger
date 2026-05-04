@@ -83,6 +83,8 @@ public partial class TreeViewItem : ItemsControl
 
     internal object? VirtualizedTreeDataItem { get; set; }
 
+    public object? HierarchicalDataItem => VirtualizedTreeDataItem;
+
     internal float RowHitHeightForInput => GetRowHeight();
 
     internal int VirtualizedTreeDepth { get; set; }

@@ -544,10 +544,10 @@ internal sealed class DesignerProjectExplorerCollapseItemAndAssertNoStaleDescend
     {
         var treeView = ResolveTreeView(session);
         var targetItem = ResolveItem(treeView);
-        var targetNode = targetItem.Tag as DesignerProjectNode
+        var targetNode = targetItem.HierarchicalDataItem as DesignerProjectNode
             ?? throw new InkkOopsCommandException(
                 InkkOopsFailureCategory.SemanticProviderMissing,
-                $"TreeViewItem '{ItemText}' does not expose a DesignerProjectNode tag.");
+            $"TreeViewItem '{ItemText}' does not expose a DesignerProjectNode hierarchical data item.");
         var staleDescendants = EnumerateTreeItems(treeView)
             .Select(item => CreateNodeSnapshot(item, targetNode.FullPath))
             .Where(snapshot => snapshot.IsDescendantOfTarget)
@@ -622,7 +622,7 @@ internal sealed class DesignerProjectExplorerCollapseItemAndAssertNoStaleDescend
 
     private static NodeSnapshot CreateNodeSnapshot(TreeViewItem item, string targetPath)
     {
-        var fullPath = item.Tag is DesignerProjectNode node ? node.FullPath : string.Empty;
+        var fullPath = item.HierarchicalDataItem is DesignerProjectNode node ? node.FullPath : string.Empty;
         item.TryGetRenderBoundsInRootSpace(out var bounds);
         return new NodeSnapshot(
             item.Header,
