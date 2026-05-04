@@ -98,13 +98,57 @@ public class DesignerShellProjectExplorerTests
         Assert.Equal("Main.xml", mainFileItem!.Header);
         Assert.False(mainFileItem.HasChildItems());
 
-        var viewsExpander = Assert.IsType<TextBlock>(FindNamedVisualChild<TextBlock>(viewsItem, "PART_Expander"));
-        var emptyFolderExpander = Assert.IsType<TextBlock>(FindNamedVisualChild<TextBlock>(emptyFolderItem, "PART_Expander"));
-        var fileExpander = Assert.IsType<TextBlock>(FindNamedVisualChild<TextBlock>(mainFileItem, "PART_Expander"));
+        var viewsExpander = Assert.IsType<Grid>(FindNamedVisualChild<Grid>(viewsItem, "PART_Expander"));
+        var emptyFolderExpander = Assert.IsType<Grid>(FindNamedVisualChild<Grid>(emptyFolderItem, "PART_Expander"));
+        var fileExpander = Assert.IsType<Grid>(FindNamedVisualChild<Grid>(mainFileItem, "PART_Expander"));
+        var chevronUp = Assert.IsType<Viewbox>(FindNamedVisualChild<Viewbox>(viewsExpander, "ProjectExplorerChevronUp"));
+        var chevronDown = Assert.IsType<Viewbox>(FindNamedVisualChild<Viewbox>(viewsExpander, "ProjectExplorerChevronDown"));
+        var chevronUpPath = Assert.IsType<PathShape>(FindNamedVisualChild<PathShape>(chevronUp, "ProjectExplorerChevronUpPath"));
+        var chevronDownPath = Assert.IsType<PathShape>(FindNamedVisualChild<PathShape>(chevronDown, "ProjectExplorerChevronDownPath"));
 
-        Assert.Equal("v", viewsExpander.Text);
+        Assert.Equal(10, chevronUp.Width);
+        Assert.Equal(10, chevronUp.Height);
+        Assert.Equal(10, chevronDown.Width);
+        Assert.Equal(10, chevronDown.Height);
+        Assert.IsType<PathGeometry>(chevronUpPath.Data);
+        Assert.IsType<PathGeometry>(chevronDownPath.Data);
+        AssertMatchingFilledCaretGeometry(chevronUpPath, chevronDownPath);
+        Assert.Equal(Visibility.Collapsed, chevronUp.Visibility);
+        Assert.Equal(Visibility.Visible, chevronDown.Visibility);
         Assert.Equal(Visibility.Collapsed, emptyFolderExpander.Visibility);
         Assert.Equal(Visibility.Collapsed, fileExpander.Visibility);
+    }
+
+    private static void AssertMatchingFilledCaretGeometry(PathShape chevronUp, PathShape chevronDown)
+    {
+        var upBounds = GetSingleClosedFigureBounds(chevronUp);
+        var downBounds = GetSingleClosedFigureBounds(chevronDown);
+
+        Assert.Equal(0f, chevronUp.StrokeThickness, precision: 3);
+        Assert.Equal(chevronUp.StrokeThickness, chevronDown.StrokeThickness, precision: 3);
+        Assert.Equal(255, chevronUp.Fill.A);
+        Assert.Equal(chevronUp.Fill.A, chevronDown.Fill.A);
+        Assert.Equal(upBounds.Width, downBounds.Width, precision: 3);
+        Assert.Equal(upBounds.Height, downBounds.Height, precision: 3);
+        Assert.True(upBounds.Width > upBounds.Height);
+        Assert.True(upBounds.Width <= 10f);
+        Assert.True(upBounds.Height <= 10f);
+    }
+
+    private static LayoutRect GetSingleClosedFigureBounds(PathShape chevron)
+    {
+        var geometry = Assert.IsType<PathGeometry>(chevron.Data);
+        var figures = geometry.GetFlattenedFigures();
+        var figure = Assert.Single(figures);
+        Assert.True(figure.IsClosed);
+        Assert.Equal(4, figure.Points.Count);
+        Assert.Equal(figure.Points[0], figure.Points[^1]);
+
+        var minX = figure.Points.Min(point => point.X);
+        var minY = figure.Points.Min(point => point.Y);
+        var maxX = figure.Points.Max(point => point.X);
+        var maxY = figure.Points.Max(point => point.Y);
+        return new LayoutRect(minX, minY, maxX - minX, maxY - minY);
     }
 
     private static ShellHarness CreateHarness()
