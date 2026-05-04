@@ -1959,8 +1959,7 @@ public class ScrollViewer : ContentControl
         WriteOffsetProperties(nextHorizontal, nextVertical);
         ViewportChanged?.Invoke(this, EventArgs.Empty);
 
-        if (!NeedsMeasure &&
-            !NeedsArrange)
+        if (CanApplyOffsetWithoutDeferredLayout())
         {
             if (ContentElement is VirtualizingStackPanel virtualizingStackPanel)
             {
@@ -2045,6 +2044,44 @@ public class ScrollViewer : ContentControl
         _runtimePopupCloseCallCount++;
         _diagSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         _runtimeSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+    }
+
+    private bool CanApplyOffsetWithoutDeferredLayout()
+    {
+        if (NeedsMeasure)
+        {
+            return false;
+        }
+
+        if (!NeedsArrange)
+        {
+            return true;
+        }
+
+        return CanReuseTransformScrolledContentArrangeWhileViewerArrangePending();
+    }
+
+    private bool CanReuseTransformScrolledContentArrangeWhileViewerArrangePending()
+    {
+        if (!UsesTransformBasedContentScrolling() || ContentElement is not FrameworkElement content)
+        {
+            return false;
+        }
+
+        if (content.NeedsMeasure || content.NeedsArrange || _contentViewportRect.Width <= 0f || _contentViewportRect.Height <= 0f)
+        {
+            return false;
+        }
+
+        var arrangedWidth = ResolveContentArrangeWidth(content, _contentViewportRect);
+        var arrangedHeight = ResolveContentArrangeHeight(content, _contentViewportRect);
+        var arrangeRect = new LayoutRect(
+            _contentViewportRect.X,
+            _contentViewportRect.Y,
+            arrangedWidth,
+            arrangedHeight);
+
+        return CanReuseExistingContentArrange(content, arrangeRect);
     }
 
     private void SyncViewerOwnedVirtualizingScrollMetrics(VirtualizingStackPanel virtualizingStackPanel)
@@ -2395,7 +2432,7 @@ public class ScrollViewer : ContentControl
         }
     }
 
-    private static object CoerceOffsetValue(DependencyObject dependencyObject, object value, bool horizontalAxis)
+    private static object CoerceOffsetValue(DependencyObject dependencyObject, object? value, bool horizontalAxis)
     {
         if (dependencyObject is not ScrollViewer viewer)
         {

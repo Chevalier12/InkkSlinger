@@ -921,7 +921,7 @@ public sealed partial class UiRoot
 
     private static bool IsHoverHostElement(UIElement element)
     {
-        return element is ITextInputControl or Button or ComboBox or Thumb or GridSplitter or ResizeGrip or ColorPicker or ColorSpectrum or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
+        return element is ITextInputControl or Button or ComboBox or ScrollBar or Thumb or GridSplitter or ResizeGrip or ColorPicker or ColorSpectrum or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
     }
 
     private static void SetHoverState(UIElement? element, bool isMouseOver)
@@ -945,6 +945,14 @@ public sealed partial class UiRoot
                 if (comboBox.IsMouseOver != isMouseOver)
                 {
                     comboBox.IsMouseOver = isMouseOver;
+                }
+                return;
+            }
+            case ScrollBar scrollBar:
+            {
+                if (scrollBar.IsMouseOver != isMouseOver)
+                {
+                    scrollBar.IsMouseOver = isMouseOver;
                 }
                 return;
             }
@@ -2136,7 +2144,66 @@ public sealed partial class UiRoot
             return false;
         }
 
+        if (PointerInsideAncestorScrollBar(hovered, pointerPosition))
+        {
+            return false;
+        }
+
         return hovered.HitTest(pointerPosition);
+    }
+
+    private bool PointerInsideAncestorScrollBar(UIElement element, Vector2 pointerPosition)
+    {
+        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is ScrollViewer scrollViewer && PointerInsideVisibleScrollBar(scrollViewer, pointerPosition))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool PointerInsideVisibleScrollBar(ScrollViewer scrollViewer, Vector2 pointerPosition)
+    {
+        if (!scrollViewer.IsVisible || !scrollViewer.IsEnabled || !scrollViewer.IsHitTestVisible)
+        {
+            return false;
+        }
+
+        var slot = scrollViewer.LayoutSlot;
+        if (slot.Width <= 0f || slot.Height <= 0f)
+        {
+            return false;
+        }
+
+        var thickness = MathF.Max(0f, scrollViewer.ScrollBarThickness);
+        if (thickness <= 0f)
+        {
+            return false;
+        }
+
+        var verticalVisible = scrollViewer.VerticalScrollBarVisibility == ScrollBarVisibility.Visible ||
+                              (scrollViewer.VerticalScrollBarVisibility == ScrollBarVisibility.Auto &&
+                               scrollViewer.ExtentHeight > scrollViewer.ViewportHeight + 0.01f);
+        if (verticalVisible &&
+            pointerPosition.X >= slot.X + MathF.Max(0f, slot.Width - thickness) &&
+            pointerPosition.X <= slot.X + slot.Width &&
+            pointerPosition.Y >= slot.Y &&
+            pointerPosition.Y <= slot.Y + slot.Height)
+        {
+            return true;
+        }
+
+        var horizontalVisible = scrollViewer.HorizontalScrollBarVisibility == ScrollBarVisibility.Visible ||
+                                (scrollViewer.HorizontalScrollBarVisibility == ScrollBarVisibility.Auto &&
+                                 scrollViewer.ExtentWidth > scrollViewer.ViewportWidth + 0.01f);
+        return horizontalVisible &&
+               pointerPosition.X >= slot.X &&
+               pointerPosition.X <= slot.X + slot.Width &&
+               pointerPosition.Y >= slot.Y + MathF.Max(0f, slot.Height - thickness) &&
+               pointerPosition.Y <= slot.Y + slot.Height;
     }
 
     private bool RequiresPrecisePointerContainmentCheck(UIElement element)
@@ -2373,6 +2440,20 @@ public sealed partial class UiRoot
                     "HoveredHostSubtree",
                     $"eligible=false reason=host-anchor-gate pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} hovered={CanvasThumbInvestigationLog.DescribeElement(hovered)} host={CanvasThumbInvestigationLog.DescribeElement(hostAnchor)} pointerInsideHost={pointerInsideHost}");
             }
+            return false;
+        }
+
+        if (TryFindAncestor<ScrollViewer>(hostAnchor, out var ownerScrollViewer) &&
+            ownerScrollViewer != null &&
+            PointerInsideVisibleScrollBar(ownerScrollViewer, pointerPosition))
+        {
+            if (shouldTrace)
+            {
+                CanvasThumbInvestigationLog.Write(
+                    "HoveredHostSubtree",
+                    $"eligible=false reason=scrollbar-hit pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} hovered={CanvasThumbInvestigationLog.DescribeElement(hovered)} host={CanvasThumbInvestigationLog.DescribeElement(hostAnchor)}");
+            }
+
             return false;
         }
 
@@ -2919,13 +3000,25 @@ public sealed partial class UiRoot
         }
         var hostMs = Stopwatch.GetElapsedTime(hostStart).TotalMilliseconds;
 
+        ScrollViewer? ownerScrollViewer = null;
+        if (host is IScrollTransformContent &&
+            ScrollViewer.GetUseTransformContentScrolling(host) &&
+            TryFindAncestor<ScrollViewer>(host, out var resolvedOwnerScrollViewer) &&
+            resolvedOwnerScrollViewer != null)
+        {
+            ownerScrollViewer = resolvedOwnerScrollViewer;
+        }
+
+        if (ownerScrollViewer != null && PointerInsideVisibleScrollBar(ownerScrollViewer, pointerPosition))
+        {
+            detail = $"container={container.GetType().Name} scrollbarHit=true nearest={nearestMs:0.###}ms host={hostMs:0.###}ms";
+            return false;
+        }
+
         var probeStart = Stopwatch.GetTimestamp();
         var probeX = pointerPosition.X;
         var probeY = pointerPosition.Y;
-        if (host is IScrollTransformContent &&
-            ScrollViewer.GetUseTransformContentScrolling(host) &&
-            TryFindAncestor<ScrollViewer>(host, out var ownerScrollViewer) &&
-            ownerScrollViewer != null)
+        if (ownerScrollViewer != null)
         {
             probeX += ownerScrollViewer.HorizontalOffset;
             probeY += ownerScrollViewer.VerticalOffset;

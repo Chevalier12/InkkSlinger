@@ -481,6 +481,49 @@ public class InputDispatchOptimizationTests
     }
 
     [Fact]
+    public void TreeViewPointerMove_FromItemToVerticalScrollBar_DoesNotReuseTreeViewItemHover()
+    {
+        var root = new Canvas
+        {
+            Width = 420f,
+            Height = 260f
+        };
+        var treeView = new TreeView
+        {
+            Width = 260f,
+            Height = 180f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        for (var i = 0; i < 80; i++)
+        {
+            treeView.Items.Add(new TreeViewItem { Header = $"Node {i}", Width = 260f });
+        }
+
+        root.AddChild(treeView);
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 420, 260, 16);
+
+        var scrollViewer = FindTreeViewScrollViewer(treeView);
+        Assert.True(scrollViewer.ExtentHeight > scrollViewer.ViewportHeight);
+        var first = (TreeViewItem)treeView.GetItemContainersForPresenter()[0];
+        var itemPoint = GetCenter(first.LayoutSlot);
+        var scrollbarPoint = new Vector2(
+            scrollViewer.LayoutSlot.X + scrollViewer.LayoutSlot.Width - 3f,
+            first.LayoutSlot.Y + (first.LayoutSlot.Height * 0.5f));
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: itemPoint));
+        Assert.Same(first, uiRoot.GetHoveredElementForDiagnostics());
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: scrollbarPoint));
+        var hovered = uiRoot.GetHoveredElementForDiagnostics();
+
+        Assert.NotSame(first, hovered);
+        Assert.Null(FindSelfOrAncestor<TreeViewItem>(hovered));
+        Assert.NotNull(FindSelfOrAncestor<ScrollBar>(hovered));
+    }
+
+    [Fact]
     public void StationaryNoInput_AfterHover_UsesNoInputBypass()
     {
         var root = new Panel();
@@ -810,6 +853,20 @@ public class InputDispatchOptimizationTests
         }
 
         return false;
+    }
+
+    private static T? FindSelfOrAncestor<T>(UIElement? element)
+        where T : UIElement
+    {
+        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)

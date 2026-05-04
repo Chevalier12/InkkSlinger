@@ -1677,10 +1677,12 @@ public class TreeView : ItemsControl
         private IReadOnlyList<VisibleTreeDataEntry> _rows = Array.Empty<VisibleTreeDataEntry>();
         private readonly List<float> _rowHeights = new();
         private readonly List<float> _rowOffsets = new();
+        private bool _rowOffsetsDirty = true;
         private int _firstRealizedIndex = -1;
         private int _lastRealizedIndex = -1;
         private bool _pendingDeferredOffsetRefresh;
         private float _averageRowHeight = FallbackRowHeight;
+        private float _rowHeightTotal;
         private float _maxRealizedWidth;
 
         public VirtualizingTreeDataHost(TreeView owner)
@@ -1698,6 +1700,10 @@ public class TreeView : ItemsControl
         public void SetRows(IReadOnlyList<VisibleTreeDataEntry> rows)
         {
             _rows = rows;
+            _rowHeights.Clear();
+            _rowOffsets.Clear();
+            _rowHeightTotal = 0f;
+            _rowOffsetsDirty = true;
             EnsureRowMetricStorage();
             _firstRealizedIndex = -1;
             _lastRealizedIndex = -1;
@@ -1723,7 +1729,6 @@ public class TreeView : ItemsControl
                 }
             }
 
-            RecalculateRowOffsets();
             return new Vector2(_maxRealizedWidth, GetTotalExtentHeight());
         }
 
@@ -1742,7 +1747,6 @@ public class TreeView : ItemsControl
                 {
                     item.Measure(childConstraint);
                     UpdateMeasuredRowMetric(item.VirtualizedTreeRowIndex, item.DesiredSize);
-                    RecalculateRowOffsets();
                 }
 
                 var index = item.VirtualizedTreeRowIndex;
@@ -1959,8 +1963,7 @@ public class TreeView : ItemsControl
 
         public float GetRowOffset(int rowIndex)
         {
-            EnsureRowMetricStorage();
-            RecalculateRowOffsets();
+            EnsureRowOffsetsCurrent();
             return rowIndex <= 0 ? 0f : _rowOffsets[Math.Clamp(rowIndex, 0, _rowOffsets.Count - 1)];
         }
 
@@ -1977,19 +1980,42 @@ public class TreeView : ItemsControl
 
         private void EnsureRowMetricStorage()
         {
+            var changed = false;
             while (_rowHeights.Count < _rows.Count)
             {
                 _rowHeights.Add(_averageRowHeight);
                 _rowOffsets.Add(0f);
+                _rowHeightTotal += _averageRowHeight;
+                changed = true;
             }
 
             if (_rowHeights.Count > _rows.Count)
             {
+                for (var i = _rows.Count; i < _rowHeights.Count; i++)
+                {
+                    _rowHeightTotal -= _rowHeights[i];
+                }
+
                 _rowHeights.RemoveRange(_rows.Count, _rowHeights.Count - _rows.Count);
                 _rowOffsets.RemoveRange(_rows.Count, _rowOffsets.Count - _rows.Count);
+                changed = true;
             }
 
-            RecalculateRowOffsets();
+            if (!changed)
+            {
+                return;
+            }
+
+            if (_rowHeights.Count == 0)
+            {
+                _rowHeightTotal = 0f;
+            }
+            else
+            {
+                _averageRowHeight = _rowHeightTotal / _rowHeights.Count;
+            }
+
+            _rowOffsetsDirty = true;
         }
 
         private void UpdateMeasuredRowMetric(int rowIndex, Vector2 desiredSize)
@@ -2000,36 +2026,40 @@ public class TreeView : ItemsControl
             }
 
             var height = MathF.Max(1f, desiredSize.Y);
+            var previousHeight = _rowHeights[rowIndex];
+            if (AreClose(previousHeight, height))
+            {
+                _maxRealizedWidth = MathF.Max(_maxRealizedWidth, desiredSize.X);
+                return;
+            }
+
             _rowHeights[rowIndex] = height;
+            _rowHeightTotal += height - previousHeight;
             _maxRealizedWidth = MathF.Max(_maxRealizedWidth, desiredSize.X);
-
-            var measuredCount = 0;
-            var measuredTotal = 0f;
-            for (var i = 0; i < _rowHeights.Count; i++)
+            if (_rowHeights.Count > 0)
             {
-                if (_rowHeights[i] <= 0f)
-                {
-                    continue;
-                }
-
-                measuredCount++;
-                measuredTotal += _rowHeights[i];
+                _averageRowHeight = _rowHeightTotal / _rowHeights.Count;
             }
 
-            if (measuredCount > 0)
-            {
-                _averageRowHeight = measuredTotal / measuredCount;
-            }
+            _rowOffsetsDirty = true;
         }
 
-        private void RecalculateRowOffsets()
+        private void EnsureRowOffsetsCurrent()
         {
+            EnsureRowMetricStorage();
+            if (!_rowOffsetsDirty)
+            {
+                return;
+            }
+
             var offset = 0f;
             for (var i = 0; i < _rowOffsets.Count; i++)
             {
                 _rowOffsets[i] = offset;
                 offset += MathF.Max(1f, _rowHeights[i]);
             }
+
+            _rowOffsetsDirty = false;
         }
 
         private float GetTotalExtentHeight()
@@ -2039,14 +2069,14 @@ public class TreeView : ItemsControl
                 return 0f;
             }
 
-            RecalculateRowOffsets();
+            EnsureRowOffsetsCurrent();
             var last = _rowHeights.Count - 1;
             return _rowOffsets[last] + MathF.Max(1f, _rowHeights[last]);
         }
 
         private int FindRowIndexAtOffset(float offset)
         {
-            EnsureRowMetricStorage();
+            EnsureRowOffsetsCurrent();
             if (_rowOffsets.Count == 0)
             {
                 return -1;

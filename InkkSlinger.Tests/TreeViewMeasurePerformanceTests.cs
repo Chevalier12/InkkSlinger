@@ -127,11 +127,16 @@ public sealed class TreeViewMeasurePerformanceTests
 
         var beforeControl = projectExplorerTree.GetControlSnapshotForDiagnostics();
         var beforeFramework = projectExplorerTree.GetFrameworkElementSnapshotForDiagnostics();
+        var beforeViewer = scrollViewer.GetScrollViewerSnapshotForDiagnostics();
         _ = Control.GetTelemetryAndReset();
         uiRoot.GetTelemetryAndReset();
 
         const int wheelTicks = 12;
-        for (var i = 0; i < wheelTicks; i++)
+        uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+        uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        for (var i = 2; i < wheelTicks; i++)
         {
             uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
             RunLayout(uiRoot, width: 1280, height: 820);
@@ -139,6 +144,7 @@ public sealed class TreeViewMeasurePerformanceTests
 
         var afterControl = projectExplorerTree.GetControlSnapshotForDiagnostics();
         var afterFramework = projectExplorerTree.GetFrameworkElementSnapshotForDiagnostics();
+        var afterViewer = scrollViewer.GetScrollViewerSnapshotForDiagnostics();
         var controlTelemetry = Control.GetTelemetryAndReset();
         var uiRootTelemetry = uiRoot.GetUiRootTelemetrySnapshot();
 
@@ -148,14 +154,28 @@ public sealed class TreeViewMeasurePerformanceTests
         var traversalCountDelta = afterControl.GetVisualChildCountForTraversalCallCount - beforeControl.GetVisualChildCountForTraversalCallCount;
         var treeMeasureCallDelta = afterFramework.MeasureCallCount - beforeFramework.MeasureCallCount;
         var treeArrangeCallDelta = afterFramework.ArrangeCallCount - beforeFramework.ArrangeCallCount;
+        var viewerDeferredDelta = afterViewer.SetOffsetsDeferredLayoutPathCount - beforeViewer.SetOffsetsDeferredLayoutPathCount;
+        var viewerTransformDelta = afterViewer.SetOffsetsTransformInvalidationPathCount - beforeViewer.SetOffsetsTransformInvalidationPathCount;
+        var viewerSetOffsetsMsDelta = afterViewer.SetOffsetsMilliseconds - beforeViewer.SetOffsetsMilliseconds;
+        var averageSetOffsetsMs = viewerSetOffsetsMsDelta / wheelTicks;
 
         Assert.True(scrollViewer.VerticalOffset > 0f, $"Expected project explorer to scroll, but offset stayed {scrollViewer.VerticalOffset:0.###}.");
+        Assert.Equal(0, viewerDeferredDelta);
+        Assert.True(
+            viewerTransformDelta >= wheelTicks,
+            $"Designer project explorer wheel scrolling should keep using the transform invalidation path even when a prior wheel tick left ScrollViewer arrange pending. " +
+            $"viewerTransformDelta={viewerTransformDelta}, viewerDeferredDelta={viewerDeferredDelta}, wheelTicks={wheelTicks}.");
+        Assert.True(
+            averageSetOffsetsMs <= 4d,
+            $"Designer project explorer wheel scrolling should not spend most of a frame inside ScrollViewer.SetOffsets. " +
+            $"averageSetOffsetsMs={averageSetOffsetsMs:0.###}, viewerSetOffsetsMsDelta={viewerSetOffsetsMsDelta:0.###}, wheelTicks={wheelTicks}.");
         Assert.True(
             averageUpdateMs <= frameBudgetMs,
             $"Designer project explorer average wheel frame cost {averageUpdateMs:0.###}ms exceeds {frameBudgetMs}ms 60fps budget. " +
             $"wheelTicks={wheelTicks}, verticalOffset={scrollViewer.VerticalOffset:0.###}, " +
             $"treeVisualChildrenDelta={visualChildrenDelta}, treeTraversalCountDelta={traversalCountDelta}, " +
             $"treeMeasureCallDelta={treeMeasureCallDelta}, treeArrangeCallDelta={treeArrangeCallDelta}, " +
+            $"viewerDeferredDelta={viewerDeferredDelta}, viewerTransformDelta={viewerTransformDelta}, averageSetOffsetsMs={averageSetOffsetsMs:0.###}, " +
             $"aggregateControlVisualChildren={controlTelemetry.GetVisualChildrenCallCount}.");
     }
 
