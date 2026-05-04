@@ -732,7 +732,7 @@ public class TextBlock : FrameworkElement
             return layoutText;
         }
 
-        var availableWidth = MathF.Max(0f, RenderSize.X);
+        var availableWidth = ResolveVisibleTrimWidth();
         if (availableWidth <= 0f)
         {
             return string.Empty;
@@ -766,6 +766,50 @@ public class TextBlock : FrameworkElement
         }
 
         return layoutText[..low] + ellipsis;
+    }
+
+    private float ResolveVisibleTrimWidth()
+    {
+        var availableWidth = MathF.Max(0f, RenderSize.X);
+        if (!TryFindTransformScrollViewer(out var viewer, out _))
+        {
+            return availableWidth;
+        }
+
+        return MathF.Max(0f, availableWidth + viewer.HorizontalOffset);
+    }
+
+    private bool TryFindTransformScrollViewer(out ScrollViewer viewer, out UIElement content)
+    {
+        for (UIElement? current = VisualParent; current != null; current = current.VisualParent)
+        {
+            if (current is not IScrollTransformContent || current is not UIElement transformContent)
+            {
+                continue;
+            }
+
+            if (transformContent.VisualParent is ScrollViewer visualViewer &&
+                ReferenceEquals(visualViewer.Content, transformContent) &&
+                ScrollViewer.GetUseTransformContentScrolling(transformContent))
+            {
+                viewer = visualViewer;
+                content = transformContent;
+                return true;
+            }
+
+            if (transformContent.LogicalParent is ScrollViewer logicalViewer &&
+                ReferenceEquals(logicalViewer.Content, transformContent) &&
+                ScrollViewer.GetUseTransformContentScrolling(transformContent))
+            {
+                viewer = logicalViewer;
+                content = transformContent;
+                return true;
+            }
+        }
+
+        viewer = null!;
+        content = null!;
+        return false;
     }
 
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)

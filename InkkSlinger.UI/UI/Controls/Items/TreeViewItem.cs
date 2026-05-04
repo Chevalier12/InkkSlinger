@@ -562,7 +562,7 @@ public class TreeViewItem : ItemsControl
             return header;
         }
 
-        var availableWidth = MathF.Max(0f, LayoutSlot.Width - (textX - LayoutSlot.X) - Padding.Right);
+        var availableWidth = MathF.Max(0f, LayoutSlot.Width - (textX - LayoutSlot.X) - Padding.Right + GetTransformScrollHorizontalOffset());
         if (availableWidth <= 0f)
         {
             return string.Empty;
@@ -595,6 +595,33 @@ public class TreeViewItem : ItemsControl
         }
 
         return header[..low] + ellipsis;
+    }
+
+    private float GetTransformScrollHorizontalOffset()
+    {
+        for (UIElement? current = VisualParent; current != null; current = current.VisualParent)
+        {
+            if (current is not IScrollTransformContent || current is not UIElement transformContent)
+            {
+                continue;
+            }
+
+            if (transformContent.VisualParent is ScrollViewer visualViewer &&
+                ReferenceEquals(visualViewer.Content, transformContent) &&
+                ScrollViewer.GetUseTransformContentScrolling(transformContent))
+            {
+                return MathF.Max(0f, visualViewer.HorizontalOffset);
+            }
+
+            if (transformContent.LogicalParent is ScrollViewer logicalViewer &&
+                ReferenceEquals(logicalViewer.Content, transformContent) &&
+                ScrollViewer.GetUseTransformContentScrolling(transformContent))
+            {
+                return MathF.Max(0f, logicalViewer.HorizontalOffset);
+            }
+        }
+
+        return 0f;
     }
 
     private bool GetEffectiveIsExpanded()

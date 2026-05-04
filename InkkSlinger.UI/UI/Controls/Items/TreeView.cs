@@ -1683,7 +1683,7 @@ public class TreeView : ItemsControl
         private bool _pendingDeferredOffsetRefresh;
         private float _averageRowHeight = FallbackRowHeight;
         private float _rowHeightTotal;
-        private float _maxRealizedWidth;
+        private float _estimatedExtentWidth;
 
         public VirtualizingTreeDataHost(TreeView owner)
         {
@@ -1691,7 +1691,7 @@ public class TreeView : ItemsControl
             Background = Color.Transparent;
         }
 
-        public bool OwnsHorizontalScrollOffset => false;
+        public bool OwnsHorizontalScrollOffset => true;
 
         public bool OwnsVerticalScrollOffset => true;
 
@@ -1708,6 +1708,7 @@ public class TreeView : ItemsControl
             _firstRealizedIndex = -1;
             _lastRealizedIndex = -1;
             _pendingDeferredOffsetRefresh = false;
+            _estimatedExtentWidth = EstimateExtentWidth(rows);
             InvalidateMeasure();
             InvalidateArrange();
         }
@@ -1716,7 +1717,6 @@ public class TreeView : ItemsControl
         {
             RealizeRows(availableSize.Y, invalidateMeasureForChildMutations: true);
             var childConstraint = new Vector2(availableSize.X, float.PositiveInfinity);
-            _maxRealizedWidth = float.IsFinite(availableSize.X) ? availableSize.X : 0f;
             foreach (var child in Children)
             {
                 if (child is FrameworkElement element)
@@ -1729,7 +1729,8 @@ public class TreeView : ItemsControl
                 }
             }
 
-            return new Vector2(_maxRealizedWidth, GetTotalExtentHeight());
+            var viewportWidth = float.IsFinite(availableSize.X) ? MathF.Max(0f, availableSize.X) : 0f;
+            return new Vector2(MathF.Max(viewportWidth, _estimatedExtentWidth), GetTotalExtentHeight());
         }
 
         protected override Vector2 ArrangeOverride(Vector2 finalSize)
@@ -2029,19 +2030,41 @@ public class TreeView : ItemsControl
             var previousHeight = _rowHeights[rowIndex];
             if (AreClose(previousHeight, height))
             {
-                _maxRealizedWidth = MathF.Max(_maxRealizedWidth, desiredSize.X);
                 return;
             }
 
             _rowHeights[rowIndex] = height;
             _rowHeightTotal += height - previousHeight;
-            _maxRealizedWidth = MathF.Max(_maxRealizedWidth, desiredSize.X);
             if (_rowHeights.Count > 0)
             {
                 _averageRowHeight = _rowHeightTotal / _rowHeights.Count;
             }
 
             _rowOffsetsDirty = true;
+        }
+
+        private float EstimateExtentWidth(IReadOnlyList<VisibleTreeDataEntry> rows)
+        {
+            var maxWidth = 0f;
+            for (var i = 0; i < rows.Count; i++)
+            {
+                maxWidth = MathF.Max(maxWidth, EstimateRowWidth(rows[i]));
+            }
+
+            return maxWidth;
+        }
+
+        private float EstimateRowWidth(VisibleTreeDataEntry row)
+        {
+            var header = _owner.GetHierarchicalHeader(row.Item);
+            if (string.IsNullOrEmpty(header))
+            {
+                return row.Depth * 16f + 26f;
+            }
+
+            var depthOffset = MathF.Max(0f, row.Depth) * 16f;
+            var glyphAndPadding = row.HasChildren ? 20f : 10f;
+            return depthOffset + glyphAndPadding + UiTextRenderer.MeasureWidth(_owner, header, _owner.FontSize);
         }
 
         private void EnsureRowOffsetsCurrent()

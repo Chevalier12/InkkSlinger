@@ -470,6 +470,63 @@ public sealed class TreeViewMeasurePerformanceTests
     }
 
     [Fact]
+    public void TreeViewHierarchicalData_HorizontalExtent_ShouldIncludeUnrealizedLongRows()
+    {
+        var (treeView, root, longNode) = CreateTreeWithUnrealizedLongRow();
+        var host = new Canvas { Width = 360f, Height = 160f };
+        host.AddChild(treeView);
+        var uiRoot = new UiRoot(host);
+
+        RunLayout(uiRoot, width: 360, height: 160);
+        RunLayout(uiRoot, width: 360, height: 160);
+
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(treeView.GetVisualChildren()));
+        var initialExtentWidth = scrollViewer.ExtentWidth;
+
+        Assert.True(
+            initialExtentWidth > scrollViewer.ViewportWidth + 200f,
+            $"The horizontal extent should include the longest visible hierarchical row before that row is realized. " +
+            $"extent={initialExtentWidth:0.###}, viewport={scrollViewer.ViewportWidth:0.###}, root={root.Name}.");
+
+        Assert.True(treeView.ScrollHierarchicalItemIntoView(longNode));
+        RunLayout(uiRoot, width: 360, height: 160);
+        RunLayout(uiRoot, width: 360, height: 160);
+
+        Assert.Equal(initialExtentWidth, scrollViewer.ExtentWidth, precision: 1);
+    }
+
+    [Fact]
+    public void TreeViewHierarchicalData_HorizontalScroll_ShouldUntrimVisibleLongRowText()
+    {
+        var (treeView, _, longNode) = CreateTreeWithUnrealizedLongRow();
+        var host = new Canvas { Width = 360f, Height = 160f };
+        host.AddChild(treeView);
+        var uiRoot = new UiRoot(host);
+
+        RunLayout(uiRoot, width: 360, height: 160);
+        RunLayout(uiRoot, width: 360, height: 160);
+
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(treeView.GetVisualChildren()));
+        Assert.True(treeView.ScrollHierarchicalItemIntoView(longNode));
+        RunLayout(uiRoot, width: 360, height: 160);
+
+        var row = treeView.ContainerFromHierarchicalItem(longNode);
+        Assert.NotNull(row);
+        var renderedAtLeft = row.RenderedHeaderForDiagnostics;
+
+        scrollViewer.ScrollToHorizontalOffset(scrollViewer.ExtentWidth - scrollViewer.ViewportWidth);
+        RunLayout(uiRoot, width: 360, height: 160);
+
+        var renderedAtRight = row.RenderedHeaderForDiagnostics;
+        Assert.EndsWith("...", renderedAtLeft, StringComparison.Ordinal);
+        Assert.True(
+            renderedAtRight.Length > renderedAtLeft.Length,
+            $"Horizontal scrolling should expand the visible trim budget for the same long row. " +
+            $"left='{renderedAtLeft}', right='{renderedAtRight}', offset={scrollViewer.HorizontalOffset:0.###}, " +
+            $"extent={scrollViewer.ExtentWidth:0.###}, viewport={scrollViewer.ViewportWidth:0.###}.");
+    }
+
+    [Fact]
     public void TreeViewVirtualizingHost_WheelBurstWithinInitialCache_ShouldNotRealizeRowsDuringWheel()
     {
         var treeView = new TreeView
@@ -930,6 +987,36 @@ public sealed class TreeViewMeasurePerformanceTests
         }
 
         return root;
+    }
+
+    private static (TreeView TreeView, ProjectNode Root, ProjectNode LongNode) CreateTreeWithUnrealizedLongRow()
+    {
+        var root = new ProjectNode("InkkSlinger", isFolder: true);
+        for (var i = 0; i < 160; i++)
+        {
+            root.Children.Add(new ProjectNode($"ShortFile{i:000}.xml", isFolder: false));
+        }
+
+        var longNode = new ProjectNode(
+            "ThisIsTheLongestProjectExplorerFileNameAndItMustDefineTheHorizontalExtentBeforeItIsRealized.xml",
+            isFolder: false);
+        root.Children.Add(longNode);
+
+        var treeView = new TreeView
+        {
+            Name = "ProjectExplorerTree",
+            Width = 220f,
+            Height = 120f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HierarchicalChildrenSelector = static item => item is ProjectNode node ? node.Children : Array.Empty<ProjectNode>(),
+            HierarchicalHasChildrenSelector = static item => item is ProjectNode { IsFolder: true },
+            HierarchicalHeaderSelector = static item => item is ProjectNode node ? (node.IsFolder ? "[+] " : "    ") + node.Name : string.Empty,
+            HierarchicalExpandedSelector = static item => item is ProjectNode { IsFolder: true },
+            HierarchicalItemsSource = new[] { root }
+        };
+
+        return (treeView, root, longNode);
     }
 
     private static int CountProjectNodes(ProjectNode node)
