@@ -71,6 +71,28 @@ public class DesignerHostViewModelTests
     }
 
     [Fact]
+    public void HostView_WorkspaceShellStartCommand_ReturnsHostToStartPage()
+    {
+        var harness = CreateHarness();
+        harness.ProjectFiles.CreateDirectory("C:/projects/Sample");
+        harness.ProjectFiles.WriteAllText("C:/projects/Sample/App.xml", "<Application />");
+        var host = harness.CreateHost();
+        var view = new InkkSlinger.Designer.DesignerHostView(host);
+
+        host.OpenProjectCommand.Execute("C:/projects/Sample");
+
+        Assert.Equal(InkkSlinger.Designer.DesignerHostViewState.Workspace, host.CurrentViewState);
+        var workspaceHost = Assert.IsType<InkkSlinger.ContentControl>(view.FindName("WorkspaceHost"));
+        var shell = Assert.IsType<InkkSlinger.Designer.DesignerShellView>(workspaceHost.Content);
+
+        shell.ViewModel.BackToStartCommand.Execute(null);
+
+        Assert.Equal(InkkSlinger.Designer.DesignerHostViewState.StartPage, host.CurrentViewState);
+        Assert.Null(host.CurrentProjectSession);
+        Assert.Null(workspaceHost.Content);
+    }
+
+    [Fact]
     public void RemoveRecentProjectCommand_RemovesProjectFromRecentsWithoutLeavingStartPage()
     {
         var harness = CreateHarness();

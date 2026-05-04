@@ -24,22 +24,18 @@ internal static class Program
 
     private static UIElement CreateStartupView(bool useWorkspaceStartup, InkkOopsRuntimeOptions inkkOopsOptions)
     {
+        var hostView = new DesignerHostView();
         if (!useWorkspaceStartup)
         {
-            return new DesignerHostView();
+            return hostView;
         }
 
-        var projectSession = TryOpenStartupProjectSession(inkkOopsOptions.LaunchProjectPath);
-        return new DesignerShellView(projectSession: projectSession);
-    }
-
-    private static DesignerProjectSession? TryOpenStartupProjectSession(string projectPath)
-    {
-        if (string.IsNullOrWhiteSpace(projectPath) || !System.IO.Directory.Exists(projectPath))
+        if (!string.IsNullOrWhiteSpace(inkkOopsOptions.LaunchProjectPath) &&
+            System.IO.Directory.Exists(inkkOopsOptions.LaunchProjectPath))
         {
-            return null;
+            hostView.ViewModel.OpenProjectCommand.Execute(inkkOopsOptions.LaunchProjectPath);
         }
 
-        return DesignerProjectSession.Open(projectPath, new PhysicalDesignerProjectFileStore());
+        return hostView;
     }
 }

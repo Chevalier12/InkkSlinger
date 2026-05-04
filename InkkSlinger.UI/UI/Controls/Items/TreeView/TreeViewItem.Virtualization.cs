@@ -119,6 +119,9 @@ public partial class TreeViewItem
         _snapshotExpanderRelativeY = TryGetTemplateChildRelativeY("PART_Expander", out var expanderRelativeY)
             ? expanderRelativeY
             : float.NaN;
+        _snapshotExpanderTextRelativeX = TryGetTemplateChildRelativeXWithinTemplateRoot("PART_Expander", out var expanderTextRelativeX)
+            ? expanderTextRelativeX
+            : float.NaN;
     }
 
     private bool TryGetTemplateChildRelativeY(string childName, out float relativeY)
@@ -135,6 +138,21 @@ public partial class TreeViewItem
         return float.IsFinite(relativeY) && relativeY >= 0f && relativeY <= LayoutSlot.Height;
     }
 
+    private bool TryGetTemplateChildRelativeXWithinTemplateRoot(string childName, out float relativeX)
+    {
+        relativeX = 0f;
+        if (GetTemplateChild(childName) is not FrameworkElement element ||
+            TemplateRoot is not FrameworkElement templateRoot ||
+            element.LayoutSlot.Width <= 0f ||
+            templateRoot.LayoutSlot.Width <= 0f)
+        {
+            return false;
+        }
+
+        relativeX = element.LayoutSlot.X - templateRoot.LayoutSlot.X;
+        return float.IsFinite(relativeX) && relativeX >= 0f && relativeX <= templateRoot.LayoutSlot.Width;
+    }
+
     internal void ClearVirtualizedDisplaySnapshot(bool updateHasItems = true)
     {
         if (!_virtualizedDisplaySnapshot.HasValue)
@@ -144,6 +162,7 @@ public partial class TreeViewItem
 
         _virtualizedDisplaySnapshot = null;
         _snapshotHeaderTextRelativeY = float.NaN;
+        _snapshotExpanderTextRelativeX = float.NaN;
         _snapshotExpanderRelativeY = float.NaN;
         if (updateHasItems)
         {

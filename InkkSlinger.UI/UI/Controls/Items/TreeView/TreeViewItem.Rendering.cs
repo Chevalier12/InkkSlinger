@@ -59,17 +59,18 @@ public partial class TreeViewItem
             if (!string.IsNullOrEmpty(glyph))
             {
                 var slotWidth = GetTemplateExpanderSnapshotSlotWidth();
-                var glyphWidth = UiTextRenderer.MeasureWidth(this, glyph, FontSize);
-                var glyphHeight = UiTextRenderer.GetLineHeight(this, FontSize);
-                var glyphX = LayoutSlot.X + GetVirtualizedDepthOffset() + padding.Left + MathF.Max(0f, (slotWidth - glyphWidth) / 2f);
+                var renderSource = ResolveVirtualizedExpanderRenderSource();
+                var glyphWidth = UiTextRenderer.MeasureWidth(renderSource.Element, glyph, renderSource.FontSize);
+                var glyphHeight = UiTextRenderer.GetLineHeight(renderSource.Element, renderSource.FontSize);
+                var glyphX = GetVirtualizedExpanderRenderX(slotWidth, glyphWidth);
                 var glyphY = GetVirtualizedExpanderRenderY(rowHeight, glyphHeight);
                 UiTextRenderer.DrawString(
                     spriteBatch,
-                    this,
+                    renderSource.Element,
                     glyph,
                     new Vector2(glyphX, glyphY),
-                    Foreground * Opacity,
-                    FontSize,
+                    renderSource.Foreground * Opacity,
+                    renderSource.FontSize,
                     opaqueBackground: true);
             }
         }

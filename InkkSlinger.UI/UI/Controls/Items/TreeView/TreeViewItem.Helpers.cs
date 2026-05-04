@@ -19,7 +19,11 @@ public partial class TreeViewItem
 
     internal float SnapshotHeaderTextRelativeYForDiagnostics => _snapshotHeaderTextRelativeY;
 
+    internal float SnapshotExpanderTextRelativeXForDiagnostics => _snapshotExpanderTextRelativeX;
+
     internal float VirtualizedHeaderRenderFontSizeForDiagnostics => ResolveVirtualizedHeaderRenderSource().FontSize;
+
+    internal float VirtualizedExpanderRenderFontSizeForDiagnostics => ResolveVirtualizedExpanderRenderSource().FontSize;
 
     public IReadOnlyList<TreeViewItem> GetChildTreeItems()
     {
@@ -67,6 +71,16 @@ public partial class TreeViewItem
             : LayoutSlot.Y + MathF.Max(0f, (rowHeight - glyphHeight) / 2f);
     }
 
+    private float GetVirtualizedExpanderRenderX(float slotWidth, float glyphWidth)
+    {
+        if (_virtualizedDisplaySnapshot.HasValue && float.IsFinite(_snapshotExpanderTextRelativeX))
+        {
+            return LayoutSlot.X + GetTemplateRootOffset() + _snapshotExpanderTextRelativeX;
+        }
+
+        return LayoutSlot.X + GetVirtualizedDepthOffset() + Padding.Left + MathF.Max(0f, (slotWidth - glyphWidth) / 2f);
+    }
+
     private float MeasureHeaderWidth()
     {
         var padding = Padding;
@@ -89,14 +103,14 @@ public partial class TreeViewItem
 
     private (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) ResolveVirtualizedHeaderRenderSource()
     {
-        if (_virtualizedDisplaySnapshot.HasValue)
-        {
-            return (this, FontSize, Foreground, TextTrimming.None, TextWrapping.NoWrap);
-        }
-
         if (GetTemplateChild("HeaderText") is TextBlock headerTextBlock)
         {
             return (headerTextBlock, headerTextBlock.FontSize, headerTextBlock.Foreground, headerTextBlock.TextTrimming, headerTextBlock.TextWrapping);
+        }
+
+        if (_virtualizedDisplaySnapshot.HasValue)
+        {
+            return (this, FontSize, Foreground, TextTrimming.None, TextWrapping.NoWrap);
         }
 
         if (TemplateRoot is TextBlock textBlock)
@@ -105,6 +119,21 @@ public partial class TreeViewItem
         }
 
         return (this, FontSize, Foreground, TextTrimming.None, TextWrapping.NoWrap);
+    }
+
+    private (FrameworkElement Element, float FontSize, Color Foreground) ResolveVirtualizedExpanderRenderSource()
+    {
+        if (GetTemplateChild("PART_Expander") is TextBlock expanderTextBlock)
+        {
+            return (expanderTextBlock, expanderTextBlock.FontSize, expanderTextBlock.Foreground);
+        }
+
+        if (GetTemplateChild("PART_Expander") is FrameworkElement expanderElement)
+        {
+            return (expanderElement, FontSize, Foreground);
+        }
+
+        return (this, FontSize, Foreground);
     }
 
     private string ResolveVirtualizedHeaderRenderText(

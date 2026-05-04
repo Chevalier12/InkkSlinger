@@ -116,6 +116,33 @@ public sealed class TreeViewItemRenderingRegressionTests
     }
 
     [Fact]
+    public void VirtualizedDisplaySnapshot_WithTemplatedExpander_UsesTemplateExpanderTypography()
+    {
+        var item = new TreeViewItem
+        {
+            Header = "Old leaf",
+            ShowsBuiltInExpander = false,
+            Template = CreateTemplatedExpanderTemplate(expanderFontSize: 9f),
+            FontSize = 22f
+        };
+
+        item.ApplyTemplate();
+        item.Measure(new Vector2(240f, 40f));
+        item.Arrange(new LayoutRect(0f, 0f, 240f, 30f));
+
+        item.ApplyVirtualizedDisplaySnapshot(
+            "Runtime",
+            hasChildren: true,
+            isExpanded: true,
+            isSelected: false,
+            depth: 1,
+            rowIndex: 42);
+
+        Assert.Equal(9f, item.VirtualizedExpanderRenderFontSizeForDiagnostics);
+        Assert.Equal(0f, item.SnapshotExpanderTextRelativeXForDiagnostics);
+    }
+
+    [Fact]
     public void RecycledVirtualizedFolderContainer_ReusedForLeaf_ClearsExpanderPresentation()
     {
         var item = new TreeViewItem
@@ -137,7 +164,7 @@ public sealed class TreeViewItemRenderingRegressionTests
         Assert.Equal(Visibility.Collapsed, item.ExpanderGlyphVisibility);
     }
 
-    private static ControlTemplate CreateTemplatedExpanderTemplate(float headerFontSize = 12f)
+    private static ControlTemplate CreateTemplatedExpanderTemplate(float headerFontSize = 12f, float expanderFontSize = 12f)
     {
         var template = new ControlTemplate(_ =>
         {
@@ -149,6 +176,7 @@ public sealed class TreeViewItemRenderingRegressionTests
             {
                 Name = "PART_Expander",
                 Width = 14f,
+                FontSize = expanderFontSize,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };

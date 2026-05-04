@@ -14,6 +14,7 @@ public partial class TreeViewItem : ItemsControl
     private UIElement? _virtualizedHeaderElement;
     private float _virtualizedHeaderMinRowHeight;
     private float _snapshotHeaderTextRelativeY = float.NaN;
+    private float _snapshotExpanderTextRelativeX = float.NaN;
     private float _snapshotExpanderRelativeY = float.NaN;
 
     private readonly record struct VirtualizedDisplaySnapshot(
