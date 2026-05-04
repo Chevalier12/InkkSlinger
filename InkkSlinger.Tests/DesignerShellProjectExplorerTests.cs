@@ -34,6 +34,31 @@ public class DesignerShellProjectExplorerTests
     }
 
     [Fact]
+    public void SelectProjectNode_UnsupportedFileExtension_DoesNotOpenDocument()
+    {
+        var harness = CreateHarness();
+        harness.ProjectFiles.CreateDirectory("C:/projects/Sample/bin");
+        harness.ProjectFiles.CreateDirectory("C:/projects/Sample/bin/Debug");
+        harness.ProjectFiles.CreateDirectory("C:/projects/Sample/bin/Debug/net9.0");
+        harness.ProjectFiles.WriteAllText("C:/projects/Sample/bin/Debug/net9.0/InkkSlinger.DemoApp.dll", "binary-looking-text");
+        harness.ProjectSession.Refresh();
+        var viewModel = harness.CreateShellViewModel();
+        var fileNode = viewModel.ProjectRootNode!
+            .Children.Single(child => child.Name == "bin")
+            .Children.Single(child => child.Name == "Debug")
+            .Children.Single(child => child.Name == "net9.0")
+            .Children.Single(child => child.Name == "InkkSlinger.DemoApp.dll");
+
+        viewModel.SelectProjectNode(fileNode);
+
+        Assert.Equal("C:/projects/Sample/bin/Debug/net9.0/InkkSlinger.DemoApp.dll", viewModel.SelectedProjectNode?.FullPath);
+        Assert.Null(harness.DocumentController.CurrentPath);
+        Assert.Equal("<UserControl />", viewModel.SourceText);
+        Assert.False(harness.DocumentController.IsDirty);
+        Assert.Contains(".xml, .cs, and .txt", viewModel.DocumentStatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ProjectExplorer_UsesPlainHeaders_AndOnlyShowsParentAffordancesForActualChildren()
     {
         var harness = CreateHarness();

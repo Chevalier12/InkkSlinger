@@ -37,6 +37,13 @@ public sealed class DesignerProjectNode
 
 public sealed class DesignerProjectSession
 {
+    private static readonly HashSet<string> SupportedDocumentExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".xml",
+        ".cs",
+        ".txt"
+    };
+
     private readonly IDesignerProjectFileStore _fileStore;
 
     private DesignerProjectSession(string rootPath, IDesignerProjectFileStore fileStore)
@@ -57,6 +64,12 @@ public sealed class DesignerProjectSession
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
         ArgumentNullException.ThrowIfNull(fileStore);
         return new DesignerProjectSession(rootPath, fileStore);
+    }
+
+    public static bool IsSupportedDocumentPath(string? path)
+    {
+        return !string.IsNullOrWhiteSpace(path) &&
+            SupportedDocumentExtensions.Contains(Path.GetExtension(path));
     }
 
     public void Refresh()
@@ -109,6 +122,11 @@ public sealed class DesignerProjectSession
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(documentController);
         var normalizedPath = NormalizePath(path);
+        if (!IsSupportedDocumentPath(normalizedPath))
+        {
+            throw new NotSupportedException("Designer can only open .xml, .cs, and .txt files.");
+        }
+
         documentController.OpenPath(normalizedPath);
         return FindNode(normalizedPath) ?? new DesignerProjectNode(GetName(normalizedPath), normalizedPath, isFolder: false);
     }

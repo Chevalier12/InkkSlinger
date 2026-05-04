@@ -143,6 +143,44 @@ public class DesignerProjectSessionTests
         Assert.False(documentController.IsDirty);
     }
 
+    [Theory]
+    [InlineData("C:/projects/Sample/App.xml")]
+    [InlineData("C:/projects/Sample/App.XML")]
+    [InlineData("C:/projects/Sample/View.cs")]
+    [InlineData("C:/projects/Sample/Notes.txt")]
+    public void IsSupportedDocumentPath_AllowsDesignerTextFileExtensions(string path)
+    {
+        Assert.True(InkkSlinger.Designer.DesignerProjectSession.IsSupportedDocumentPath(path));
+    }
+
+    [Theory]
+    [InlineData("C:/projects/Sample/bin/Debug/net9.0/InkkSlinger.DemoApp.dll")]
+    [InlineData("C:/projects/Sample/README.md")]
+    [InlineData("C:/projects/Sample/image.png")]
+    [InlineData("C:/projects/Sample/file")]
+    public void IsSupportedDocumentPath_BlocksUnsupportedProjectFileExtensions(string path)
+    {
+        Assert.False(InkkSlinger.Designer.DesignerProjectSession.IsSupportedDocumentPath(path));
+    }
+
+    [Fact]
+    public void OpenDocument_UnsupportedExtension_DoesNotLoadProjectFile()
+    {
+        var store = new FakeProjectFileStore();
+        store.CreateDirectory("C:/projects/Sample");
+        store.WriteAllText("C:/projects/Sample/bin/App.dll", "binary-looking-text");
+        var session = InkkSlinger.Designer.DesignerProjectSession.Open("C:/projects/Sample", store);
+        var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl />", store);
+
+        var exception = Assert.Throws<NotSupportedException>(() =>
+            session.OpenDocument("C:/projects/Sample/bin/App.dll", documentController));
+
+        Assert.Contains(".xml, .cs, and .txt", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(documentController.CurrentPath);
+        Assert.Equal("<UserControl />", documentController.CurrentText);
+        Assert.False(documentController.IsDirty);
+    }
+
     private sealed class FakeProjectFileStore : InkkSlinger.Designer.IDesignerProjectFileStore, InkkSlinger.Designer.IDesignerDocumentFileStore
     {
         private readonly HashSet<string> _directories = new(StringComparer.OrdinalIgnoreCase);

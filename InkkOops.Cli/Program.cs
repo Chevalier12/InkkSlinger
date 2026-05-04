@@ -14,7 +14,7 @@ static int PrintUsage(int exitCode = 1)
     Console.Error.WriteLine("  inkkoops list");
     Console.Error.WriteLine("  inkkoops run --script <name> --launch [--project <path>] [--pipe <name>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops run --script <name> --attach [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
-    Console.Error.WriteLine("  inkkoops live --attach --command <ping|get-host-info|get-property|assert-property|assert-exists|assert-not-exists|move-pointer|move-pointer-target|hover|click|invoke|drag|double-click-target|right-click-target|leave-target|pointer-down|pointer-up|pointer-down-target|pointer-up-target|key-down|key-up|text-input|set-clipboard-text|maximize-window|resize-window|wait-frames|wait-for-element|wait-for-visible|wait-for-enabled|wait-for-in-viewport|wait-for-interactive|wait-for-idle|wheel|scroll-to|scroll-by|scroll-into-view|get-telemetry|get-target-diagnostics|screenshot|take-screenshot|capture-frame|dump-telemetry|move-pointer-path|drag-path-target|assert-automation-event|run-scenario|probe-during-drag|assert-nonblank|diff-telemetry> [--scenario <json-file>] [--scope <name>] [--owner <name>] [--target <name>] [--property <name>] [--expected <value>] [--key-name <name>] [--text <text>] [--event-type <type>] [--button <left|right|middle|xbutton1|xbutton2>] [--waypoints <json>] [--width <px>] [--height <px>] [--x <value>] [--y <value>] [--anchor <center|top-left|top-right|bottom-left|bottom-right|offset>] [--offset-x <value>] [--offset-y <value>] [--frames <count>] [--travel-frames <count>] [--step-distance <value>] [--easing <linear|ease-in-out>] [--dwell-frames <count>] [--delta <value>] [--delta-x <value>] [--delta-y <value>] [--horizontal <percent>] [--vertical <percent>] [--padding <value>] [--min-bright-pixels <count>] [--min-average-luma <value>] [--artifact <name>] [--compact] [--counters <names>] [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
+    Console.Error.WriteLine("  inkkoops live --attach --command <ping|get-host-info|get-property|assert-property|assert-exists|assert-not-exists|move-pointer|move-pointer-target|hover|click|invoke|drag|double-click-target|right-click-target|leave-target|pointer-down|pointer-up|pointer-down-target|pointer-up-target|key-down|key-up|text-input|set-clipboard-text|maximize-window|resize-window|wait-frames|wait-for-element|wait-for-visible|wait-for-enabled|wait-for-in-viewport|wait-for-interactive|wait-for-idle|wheel|scroll-to|scroll-by|scroll-into-view|get-telemetry|get-target-diagnostics|screenshot|take-screenshot|capture-frame|dump-telemetry|move-pointer-path|drag-path-target|assert-automation-event|run-scenario|probe-during-drag|probe-scrollbar-thumb-drag|assert-nonblank|diff-telemetry> [--scenario <json-file>] [--scope <name>] [--owner <name>] [--target <name>] [--property <name>] [--expected <value>] [--key-name <name>] [--text <text>] [--event-type <type>] [--button <left|right|middle|xbutton1|xbutton2>] [--waypoints <json>] [--width <px>] [--height <px>] [--x <value>] [--y <value>] [--anchor <center|top-left|top-right|bottom-left|bottom-right|offset>] [--offset-x <value>] [--offset-y <value>] [--frames <count>] [--samples <count>] [--axis <vertical|horizontal>] [--from <top|bottom|left|right|0..1>] [--to <top|bottom|left|right|0..1>] [--travel-frames <count>] [--step-distance <value>] [--easing <linear|ease-in-out>] [--dwell-frames <count>] [--delta <value>] [--delta-x <value>] [--delta-y <value>] [--horizontal <percent>] [--vertical <percent>] [--padding <value>] [--min-bright-pixels <count>] [--min-average-luma <value>] [--artifact <name>] [--compact] [--counters <names>] [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops record --launch [--project <path>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops <recording-path> [--project <path>] [--artifacts <path>]");
     return exitCode;
@@ -197,6 +197,8 @@ static InkkOopsPipeRequest? BuildAttachRequest(Dictionary<string, string> option
         "scenario" => InkkOopsPipeRequestKinds.RunScenario,
         "probe-during-drag" => InkkOopsPipeRequestKinds.ProbeDuringDrag,
         "probe-drag" => InkkOopsPipeRequestKinds.ProbeDuringDrag,
+        "probe-scrollbar-thumb-drag" => InkkOopsPipeRequestKinds.ProbeScrollbarThumbDrag,
+        "probe-scrollbar-drag" => InkkOopsPipeRequestKinds.ProbeScrollbarThumbDrag,
         "assert-nonblank" => InkkOopsPipeRequestKinds.AssertNonBlank,
         "assert-frame-nonblank" => InkkOopsPipeRequestKinds.AssertNonBlank,
         "diff-telemetry" => InkkOopsPipeRequestKinds.DiffTelemetry,
@@ -279,6 +281,12 @@ static InkkOopsPipeRequest? BuildAttachRequest(Dictionary<string, string> option
         ButtonName = options.TryGetValue("button", out var buttonName) ? buttonName : string.Empty,
         Waypoints = options.TryGetValue("waypoints", out var waypoints) ? waypoints : string.Empty,
         ScenarioName = options.TryGetValue("scenario-name", out var scenarioName) ? scenarioName : string.Empty,
+        Axis = options.TryGetValue("axis", out var axis) ? axis : string.Empty,
+        From = options.TryGetValue("from", out var from) ? from : string.Empty,
+        To = options.TryGetValue("to", out var to) ? to : string.Empty,
+        SampleCount = options.TryGetValue("samples", out var samplesText) && int.TryParse(samplesText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var samples)
+            ? samples
+            : 0,
         MinBrightPixels = options.TryGetValue("min-bright-pixels", out var minBrightText) && int.TryParse(minBrightText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var minBright)
             ? minBright
             : 1,

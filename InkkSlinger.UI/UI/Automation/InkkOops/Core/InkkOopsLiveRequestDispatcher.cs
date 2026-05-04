@@ -111,6 +111,7 @@ public sealed partial class InkkOopsLiveRequestDispatcher : IDisposable
                 InkkOopsPipeRequestKinds.MovePointerPath => await MovePointerPathAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.RunScenario => await RunScenarioAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.ProbeDuringDrag => await ProbeDuringDragAsync(request, cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.ProbeScrollbarThumbDrag => await ProbeScrollbarThumbDragAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.AssertNonBlank => await AssertNonBlankAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.DiffTelemetry => DiffTelemetry(request),
                 InkkOopsPipeRequestKinds.DragPathTarget => await ExecuteCommandAsync(request,
@@ -324,6 +325,315 @@ public sealed partial class InkkOopsLiveRequestDispatcher : IDisposable
         await _session.CaptureFrameAsync(artifactName, cancellationToken).ConfigureAwait(false);
         return Complete(request, value: $"Screenshot saved to artifact '{artifactName}'.");
     }
+
+    private async Task<InkkOopsPipeResponse> ProbeScrollbarThumbDragAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.TargetName))
+        {
+            throw new ArgumentException("TargetName is required for probe-scrollbar-thumb-drag.", nameof(request));
+        }
+
+        var axis = ParseScrollbarProbeAxis(request.Axis);
+        var fromPercent = ResolveScrollbarProbePercent(request.From, axis, defaultValue: 1f);
+        var toPercent = ResolveScrollbarProbePercent(request.To, axis, defaultValue: 0f);
+        var sampleCount = Math.Clamp(request.SampleCount > 0 ? request.SampleCount : request.FrameCount > 0 ? request.FrameCount : 12, 1, 60);
+        var dwellFrames = Math.Max(1, request.DwellFrames);
+        var travelFrames = Math.Max(1, request.TravelFrames > 0 ? request.TravelFrames : 8);
+        var artifactPrefix = string.IsNullOrWhiteSpace(request.ArtifactName) ? "scrollbar-thumb-drag" : request.ArtifactName.Trim();
+        var motion = new InkkOopsPointerMotion(
+            TravelFrames: travelFrames,
+            StepDistance: ResolveStepDistance(request),
+            Easing: ParseEasing(request.Easing));
+
+        await SetScrollViewerOffsetForProbeAsync(request, axis, 0f, cancellationToken).ConfigureAwait(false);
+        await _session.WaitFramesAsync(dwellFrames, cancellationToken).ConfigureAwait(false);
+
+        var initial = await CaptureScrollbarProbeGeometryAsync(request, axis, cancellationToken).ConfigureAwait(false);
+        await _session.PressPointerAsync(initial.ThumbCenter, ParseMouseButton(request), cancellationToken).ConfigureAwait(false);
+        await _session.MovePointerAsync(initial.GetPointAtPercent(fromPercent), motion, cancellationToken).ConfigureAwait(false);
+        await _session.ReleasePointerAsync(initial.GetPointAtPercent(fromPercent), ParseMouseButton(request), cancellationToken).ConfigureAwait(false);
+        await _session.WaitFramesAsync(dwellFrames, cancellationToken).ConfigureAwait(false);
+        await CaptureScrollbarProbeSampleAsync(request, artifactPrefix, "released-at-from", axis, fromPercent, cancellationToken).ConfigureAwait(false);
+
+        var heldStart = await CaptureScrollbarProbeGeometryAsync(request, axis, cancellationToken).ConfigureAwait(false);
+        await _session.PressPointerAsync(heldStart.ThumbCenter, ParseMouseButton(request), cancellationToken).ConfigureAwait(false);
+        await _session.WaitFramesAsync(dwellFrames, cancellationToken).ConfigureAwait(false);
+        await CaptureScrollbarProbeSampleAsync(request, artifactPrefix, "held-00", axis, fromPercent, cancellationToken).ConfigureAwait(false);
+
+        var sampleLines = new StringBuilder();
+        sampleLines.AppendLine($"artifact_root={_artifacts.DirectoryPath}");
+        sampleLines.AppendLine($"target={request.TargetName}");
+        sampleLines.AppendLine($"axis={axis}");
+        sampleLines.AppendLine($"from={fromPercent:0.###}");
+        sampleLines.AppendLine($"to={toPercent:0.###}");
+        sampleLines.AppendLine($"samples={sampleCount}");
+        sampleLines.AppendLine($"travel_frames={travelFrames}");
+
+        var previousPercent = fromPercent;
+        for (var sampleIndex = 1; sampleIndex <= sampleCount; sampleIndex++)
+        {
+            var percent = fromPercent + ((toPercent - fromPercent) * sampleIndex / sampleCount);
+            var geometry = await CaptureScrollbarProbeGeometryAsync(request, axis, cancellationToken).ConfigureAwait(false);
+            var targetPoint = geometry.GetPointAtPercent(percent);
+            await _session.MovePointerAsync(targetPoint, motion, cancellationToken).ConfigureAwait(false);
+            await _session.WaitFramesAsync(dwellFrames, cancellationToken).ConfigureAwait(false);
+
+            var sampleName = $"held-{sampleIndex:00}-p{percent * 100f:000}";
+            var sample = await CaptureScrollbarProbeSampleAsync(request, artifactPrefix, sampleName, axis, percent, cancellationToken).ConfigureAwait(false);
+            sampleLines.AppendLine($"sample[{sampleIndex:00}]=percent:{percent:0.###} previous:{previousPercent:0.###} frame:{sample.FrameArtifact}.png diagnostics:{sample.DiagnosticsArtifact} bright:{sample.BrightPixelCount} avgLuma:{sample.AverageLuma:0.###}");
+            previousPercent = percent;
+        }
+
+        var finalGeometry = await CaptureScrollbarProbeGeometryAsync(request, axis, cancellationToken).ConfigureAwait(false);
+        await _session.ReleasePointerAsync(finalGeometry.GetPointAtPercent(toPercent), ParseMouseButton(request), cancellationToken).ConfigureAwait(false);
+        await _session.WaitFramesAsync(dwellFrames, cancellationToken).ConfigureAwait(false);
+        await CaptureScrollbarProbeSampleAsync(request, artifactPrefix, "after-release", axis, toPercent, cancellationToken).ConfigureAwait(false);
+
+        var summaryPath = _artifacts.WriteTextArtifact($"{artifactPrefix}-summary.txt", sampleLines.ToString());
+        return Complete(request, value: $"summary={summaryPath}{Environment.NewLine}{sampleLines}");
+    }
+
+    private async Task SetScrollViewerOffsetForProbeAsync(InkkOopsPipeRequest request, ScrollbarProbeAxis axis, float percent, CancellationToken cancellationToken)
+    {
+        await _session.ExecuteOnUiThreadAsync(
+            () =>
+            {
+                var element = _session.ResolveRequiredTarget(CreateTarget(request));
+                var scrollViewer = ResolveScrollbarProbeScrollViewer(element);
+                if (axis == ScrollbarProbeAxis.Vertical)
+                {
+                    var max = Math.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+                    scrollViewer.ScrollToVerticalOffset(max * Math.Clamp(percent, 0f, 1f));
+                }
+                else
+                {
+                    var max = Math.Max(0f, scrollViewer.ExtentWidth - scrollViewer.ViewportWidth);
+                    scrollViewer.ScrollToHorizontalOffset(max * Math.Clamp(percent, 0f, 1f));
+                }
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ScrollbarProbeGeometry> CaptureScrollbarProbeGeometryAsync(InkkOopsPipeRequest request, ScrollbarProbeAxis axis, CancellationToken cancellationToken)
+    {
+        return await _session.QueryOnUiThreadAsync(
+            () =>
+            {
+                var element = _session.ResolveRequiredTarget(CreateTarget(request));
+                var scrollViewer = ResolveScrollbarProbeScrollViewer(element);
+                var scrollBar = axis == ScrollbarProbeAxis.Vertical
+                    ? scrollViewer.AutomationVerticalScrollBar
+                    : scrollViewer.AutomationHorizontalScrollBar;
+                var thumb = scrollBar.GetThumbRectForInput();
+                var track = scrollBar.GetTrackRectForInput();
+                if (thumb.Width <= 0f || thumb.Height <= 0f || track.Width <= 0f || track.Height <= 0f)
+                {
+                    throw new InkkOopsCommandException(
+                        InkkOopsFailureCategory.Unrealized,
+                        $"Could not resolve arranged {axis.ToString().ToLowerInvariant()} scrollbar thumb geometry for '{request.TargetName}'. thumb=({thumb.X:0.###},{thumb.Y:0.###},{thumb.Width:0.###},{thumb.Height:0.###}), track=({track.X:0.###},{track.Y:0.###},{track.Width:0.###},{track.Height:0.###}).");
+                }
+
+                return new ScrollbarProbeGeometry(axis, thumb, track);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ScrollbarProbeSample> CaptureScrollbarProbeSampleAsync(
+        InkkOopsPipeRequest request,
+        string artifactPrefix,
+        string sampleName,
+        ScrollbarProbeAxis axis,
+        float percent,
+        CancellationToken cancellationToken)
+    {
+        var frameArtifact = $"{artifactPrefix}-{sampleName}";
+        await _session.CaptureFrameAsync(frameArtifact, cancellationToken).ConfigureAwait(false);
+
+        var state = _session.EvaluateTargetState(CreateTarget(request), CreateAnchor(request));
+        var counterNames = ParseCounterNames(request.CounterNames);
+        var runtimeDiagnostics = await _session.QueryOnUiThreadAsync(
+            () => CaptureRuntimeDiagnosticsText(state.Element, request.Compact, counterNames),
+            cancellationToken).ConfigureAwait(false);
+        var diagnostics = new StringBuilder();
+        diagnostics.AppendLine($"sample={sampleName}");
+        diagnostics.AppendLine($"axis={axis}");
+        diagnostics.AppendLine($"thumb_percent={percent:0.###}");
+        diagnostics.Append(FormatTargetDiagnostics(state, runtimeDiagnostics, request.Compact));
+        diagnostics.Append(CaptureScrollbarProbeRowDiagnostics(state.Element));
+        var diagnosticsArtifact = $"{frameArtifact}-diagnostics.txt";
+        _artifacts.WriteTextArtifact(diagnosticsArtifact, diagnostics.ToString());
+
+        var sampleRegion = state.HasBounds
+            ? new LayoutRect(
+                state.Bounds.X + Math.Max(0f, request.Padding),
+                state.Bounds.Y + Math.Max(0f, request.Padding),
+                Math.Max(0f, state.Bounds.Width - (Math.Max(0f, request.Padding) * 2f)),
+                Math.Max(0f, state.Bounds.Height - (Math.Max(0f, request.Padding) * 2f)))
+            : _session.Host.GetViewportBounds();
+        var frameSample = await _session.SampleCurrentFrameRegionAsync(sampleRegion, cancellationToken).ConfigureAwait(false);
+        var sampleArtifact = $"{frameArtifact}-sample.txt";
+        _artifacts.WriteTextArtifact(
+            sampleArtifact,
+            $"sample={sampleName}{Environment.NewLine}region=({frameSample.X},{frameSample.Y},{frameSample.Width},{frameSample.Height}){Environment.NewLine}bright_pixels={frameSample.BrightPixelCount}{Environment.NewLine}average_luma={frameSample.AverageLuma:0.###}{Environment.NewLine}max_luma={frameSample.MaxLuma}{Environment.NewLine}");
+
+        return new ScrollbarProbeSample(frameArtifact, diagnosticsArtifact, frameSample.BrightPixelCount, frameSample.AverageLuma);
+    }
+
+    private static string CaptureScrollbarProbeRowDiagnostics(UIElement? element)
+    {
+        if (element == null)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        var rows = new List<TreeViewItem>();
+        CollectVisualDescendants(element, rows);
+        var index = 0;
+        foreach (var row in rows.Take(40))
+        {
+            builder.Append("ProbeRow[");
+            builder.Append(index.ToString("00", CultureInfo.InvariantCulture));
+            builder.Append("]=");
+            builder.Append("rowIndex:");
+            builder.Append(row.VirtualizedTreeRowIndex.ToString(CultureInfo.InvariantCulture));
+            builder.Append(" depth:");
+            builder.Append(row.VirtualizedTreeDepth.ToString(CultureInfo.InvariantCulture));
+            builder.Append(" snapshot:");
+            builder.Append(row.HasVirtualizedDisplaySnapshotForDiagnostics ? "true" : "false");
+            builder.Append(" slot:(");
+            builder.Append(row.LayoutSlot.X.ToString("0.###", CultureInfo.InvariantCulture));
+            builder.Append(',');
+            builder.Append(row.LayoutSlot.Y.ToString("0.###", CultureInfo.InvariantCulture));
+            builder.Append(',');
+            builder.Append(row.LayoutSlot.Width.ToString("0.###", CultureInfo.InvariantCulture));
+            builder.Append(',');
+            builder.Append(row.LayoutSlot.Height.ToString("0.###", CultureInfo.InvariantCulture));
+            builder.Append(") headerOffset:");
+            builder.Append(row.HeaderTextOffsetForDiagnostics.ToString("0.###", CultureInfo.InvariantCulture));
+            builder.Append(" renderY:");
+            builder.Append(row.VirtualizedHeaderRenderYForDiagnostics.ToString("0.###", CultureInfo.InvariantCulture));
+            builder.Append(" snapshotRelativeY:");
+            builder.Append(row.SnapshotHeaderTextRelativeYForDiagnostics.ToString("0.###", CultureInfo.InvariantCulture));
+            builder.Append(" fontSize:");
+            builder.Append(row.VirtualizedHeaderRenderFontSizeForDiagnostics.ToString("0.###", CultureInfo.InvariantCulture));
+            builder.Append(" renderedHeader:");
+            builder.AppendLine(row.RenderedHeaderForDiagnostics);
+            index++;
+        }
+
+        return builder.ToString();
+    }
+
+    private static void CollectVisualDescendants<T>(UIElement element, List<T> result)
+        where T : UIElement
+    {
+        if (element is T match)
+        {
+            result.Add(match);
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            CollectVisualDescendants(child, result);
+        }
+    }
+
+    private static ScrollViewer ResolveScrollbarProbeScrollViewer(UIElement element)
+    {
+        if (element is ScrollViewer scrollViewer)
+        {
+            return scrollViewer;
+        }
+
+        if (element is TreeView treeView)
+        {
+            return treeView.AutomationScrollViewer;
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            try
+            {
+                return ResolveScrollbarProbeScrollViewer(child);
+            }
+            catch (InkkOopsCommandException)
+            {
+            }
+        }
+
+        throw new InkkOopsCommandException(
+            InkkOopsFailureCategory.Unresolved,
+            $"Target '{InkkOopsTargetResolver.DescribeElement(element)}' does not expose a ScrollViewer for scrollbar thumb probing.");
+    }
+
+    private static ScrollbarProbeAxis ParseScrollbarProbeAxis(string? axis)
+    {
+        if (string.IsNullOrWhiteSpace(axis) || string.Equals(axis, "vertical", StringComparison.OrdinalIgnoreCase) || string.Equals(axis, "y", StringComparison.OrdinalIgnoreCase))
+        {
+            return ScrollbarProbeAxis.Vertical;
+        }
+
+        if (string.Equals(axis, "horizontal", StringComparison.OrdinalIgnoreCase) || string.Equals(axis, "x", StringComparison.OrdinalIgnoreCase))
+        {
+            return ScrollbarProbeAxis.Horizontal;
+        }
+
+        throw new ArgumentException($"Unknown scrollbar probe axis '{axis}'. Expected vertical or horizontal.", nameof(axis));
+    }
+
+    private static float ResolveScrollbarProbePercent(string? text, ScrollbarProbeAxis axis, float defaultValue)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return defaultValue;
+        }
+
+        var normalized = text.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "top" => 0f,
+            "left" => 0f,
+            "bottom" => 1f,
+            "right" => 1f,
+            "start" => 0f,
+            "end" => 1f,
+            _ when float.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) => Math.Clamp(value, 0f, 1f),
+            _ => throw new ArgumentException($"Unknown scrollbar probe endpoint '{text}' for {axis.ToString().ToLowerInvariant()} axis.", nameof(text))
+        };
+    }
+
+    private enum ScrollbarProbeAxis
+    {
+        Vertical,
+        Horizontal
+    }
+
+    private readonly record struct ScrollbarProbeGeometry(ScrollbarProbeAxis Axis, LayoutRect ThumbRect, LayoutRect TrackRect)
+    {
+        public Vector2 ThumbCenter => new(
+            ThumbRect.X + (ThumbRect.Width / 2f),
+            ThumbRect.Y + (ThumbRect.Height / 2f));
+
+        public Vector2 GetPointAtPercent(float percent)
+        {
+            percent = Math.Clamp(percent, 0f, 1f);
+            if (Axis == ScrollbarProbeAxis.Vertical)
+            {
+                var travel = Math.Max(0f, TrackRect.Height - ThumbRect.Height);
+                return new Vector2(
+                    ThumbRect.X + (ThumbRect.Width / 2f),
+                    TrackRect.Y + (ThumbRect.Height / 2f) + (travel * percent));
+            }
+
+            var horizontalTravel = Math.Max(0f, TrackRect.Width - ThumbRect.Width);
+            return new Vector2(
+                TrackRect.X + (ThumbRect.Width / 2f) + (horizontalTravel * percent),
+                ThumbRect.Y + (ThumbRect.Height / 2f));
+        }
+    }
+
+    private readonly record struct ScrollbarProbeSample(string FrameArtifact, string DiagnosticsArtifact, int BrightPixelCount, float AverageLuma);
 
     private async Task<InkkOopsPipeResponse> GetTargetDiagnosticsAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)
     {

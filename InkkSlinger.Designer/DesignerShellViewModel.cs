@@ -420,6 +420,14 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
             return;
         }
 
+        if (!DesignerProjectSession.IsSupportedDocumentPath(node.FullPath))
+        {
+            SetDocumentStatusOverride(
+                "Designer can only open .xml, .cs, and .txt files.",
+                new Color(255, 164, 128));
+            return;
+        }
+
         ProjectSession.OpenDocument(node.FullPath, DocumentController);
         OnPropertyChanged(nameof(SourceText));
         SourceNavigationRequest = null;

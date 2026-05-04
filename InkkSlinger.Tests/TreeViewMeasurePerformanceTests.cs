@@ -408,6 +408,95 @@ public sealed class TreeViewMeasurePerformanceTests
     }
 
     [Fact]
+    public void DesignerProjectExplorerTree_ThumbDragBackUpWhileHeld_ShouldDeepSyncSnapshotRows()
+    {
+        var store = new FakeProjectFileStore();
+        const string projectRoot = "C:/projects/PerfTree";
+        PopulateProjectTree(store, projectRoot, sectionCount: 75, filesPerSection: 25, longFileNames: true);
+
+        var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl />", store);
+        var projectSession = InkkSlinger.Designer.DesignerProjectSession.Open(projectRoot, store);
+        var shell = new InkkSlinger.Designer.DesignerShellView(
+            documentController: documentController,
+            projectSession: projectSession);
+
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, width: 1280, height: 820);
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        var projectExplorerTree = Assert.IsType<TreeView>(shell.FindName("ProjectExplorerTree"));
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(projectExplorerTree.GetVisualChildren()));
+        var verticalBar = GetPrivateScrollBar(scrollViewer, "_verticalBar");
+        var track = Assert.IsType<Track>(FindNamedVisualChild<Track>(verticalBar, "PART_Track"));
+
+        var thumbRect = verticalBar.GetThumbRectForInput();
+        var start = GetCenter(thumbRect);
+        var bottom = new Vector2(
+            start.X,
+            track.LayoutSlot.Y + track.LayoutSlot.Height - (thumbRect.Height / 2f) - 1f);
+        var midpoint = new Vector2(start.X, bottom.Y + ((start.Y - bottom.Y) * 0.5f));
+
+        Assert.True(bottom.Y > start.Y + 100f, $"Expected enough scrollbar travel for a meaningful drag, start={start.Y:0.###}, bottom={bottom.Y:0.###}.");
+
+        const int dragFrames = 16;
+        var previous = start;
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, previous, leftPressed: true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        for (var frame = 1; frame <= dragFrames; frame++)
+        {
+            var current = new Vector2(start.X, start.Y + ((bottom.Y - start.Y) * frame / dragFrames));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, current, pointerMoved: true));
+            RunLayout(uiRoot, width: 1280, height: 820);
+            previous = current;
+        }
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, previous, leftReleased: true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+        Assert.True(scrollViewer.VerticalOffset > scrollViewer.ExtentHeight - scrollViewer.ViewportHeight - 2f);
+
+        uiRoot.ResetDirtyStateForTests();
+        uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(bottom, bottom, leftPressed: true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        previous = bottom;
+        for (var frame = 1; frame <= dragFrames; frame++)
+        {
+            var current = new Vector2(bottom.X, bottom.Y + ((midpoint.Y - bottom.Y) * frame / dragFrames));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, current, pointerMoved: true));
+            RunLayout(uiRoot, width: 1280, height: 820);
+            previous = current;
+        }
+
+        var rowsWhileHeld = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
+        var rowsIntersectingViewport = CountRowsIntersecting(rowsWhileHeld, projectExplorerTree.LayoutSlot);
+        var heldHierarchy = projectExplorerTree.GetTreeViewHierarchicalSnapshotForDiagnostics();
+        var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+
+        Assert.True(scrollViewer.VerticalOffset > scrollViewer.ViewportHeight, $"Expected the upward held drag to stop mid-scroll, but offset={scrollViewer.VerticalOffset:0.###}.");
+        Assert.Contains(rowsWhileHeld, static row => row.HasVirtualizedDisplaySnapshotForDiagnostics);
+        Assert.True(
+            heldHierarchy.FirstRealizedIndex < 19503,
+            $"The held upward thumb drag must retarget the virtualized host range away from the bottom rows before pointer-up. " +
+            $"offset={heldHierarchy.VerticalOffset:0.###}, first={heldHierarchy.FirstRealizedIndex}, last={heldHierarchy.LastRealizedIndex}.");
+        Assert.True(
+            rowsWhileHeld.Any(row => row.VirtualizedTreeRowIndex >= heldHierarchy.FirstRealizedIndex && row.VirtualizedTreeRowIndex <= heldHierarchy.LastRealizedIndex),
+            $"Expected held snapshot rows to report indices inside the host's current realized range. first={heldHierarchy.FirstRealizedIndex}, last={heldHierarchy.LastRealizedIndex}.");
+        Assert.True(
+            rowsIntersectingViewport > 0,
+            $"Expected snapshot rows to keep drawing in the Project Explorer viewport while the thumb is held after a bottom release. " +
+            $"offset={scrollViewer.VerticalOffset:0.###}, rows={rowsWhileHeld.Length}, intersecting={rowsIntersectingViewport}.");
+        Assert.True(
+            perfSnapshot.RetainedForceDeepSyncCount >= 1,
+            $"Retargeted snapshot rows mutate child render state under the stable virtualized host, so the held thumb-drag frame must force retained deep sync. " +
+            $"forceDeepSync={perfSnapshot.RetainedForceDeepSyncCount}, shallowSuccess={perfSnapshot.RetainedShallowSuccessCount}.");
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, previous, leftReleased: true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+    }
+
+    [Fact]
     public void DesignerProjectExplorerTree_ThumbDragHeldRows_ShouldMatchSettledRowPositions()
     {
         var store = new FakeProjectFileStore();

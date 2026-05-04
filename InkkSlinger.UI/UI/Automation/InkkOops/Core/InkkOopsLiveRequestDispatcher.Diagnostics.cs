@@ -331,6 +331,7 @@ public sealed partial class InkkOopsLiveRequestDispatcher
             "pointer-up-target" => InkkOopsPipeRequestKinds.PointerUpTarget,
             "move-pointer-path" => InkkOopsPipeRequestKinds.MovePointerPath,
             "drag-path-target" or "drag-path" => InkkOopsPipeRequestKinds.DragPathTarget,
+            "probe-scrollbar-thumb-drag" or "probe-scrollbar-drag" => InkkOopsPipeRequestKinds.ProbeScrollbarThumbDrag,
             "assert-nonblank" or "assert-frame-nonblank" => InkkOopsPipeRequestKinds.AssertNonBlank,
             "diff-telemetry" => InkkOopsPipeRequestKinds.DiffTelemetry,
             _ => throw new ArgumentException($"Unknown scenario command '{command}'.")

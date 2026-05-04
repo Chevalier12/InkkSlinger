@@ -908,7 +908,7 @@ public sealed partial class UiRoot
 
     private bool CanSafelyDowngradeForcedDeepSync(UIElement root)
     {
-        if (root is VirtualizingStackPanel)
+        if (root is IScrollTransformContent or VirtualizingStackPanel)
         {
             return false;
         }

@@ -75,7 +75,7 @@ public partial class TreeViewItem
         }
 
         var header = GetEffectiveHeader();
-        if (!string.IsNullOrEmpty(header) && _virtualizedHeaderElement == null)
+        if (!string.IsNullOrEmpty(header) && (_virtualizedHeaderElement == null || _virtualizedDisplaySnapshot.HasValue))
         {
             if (HasTemplateRoot && !_virtualizedDisplaySnapshot.HasValue)
             {

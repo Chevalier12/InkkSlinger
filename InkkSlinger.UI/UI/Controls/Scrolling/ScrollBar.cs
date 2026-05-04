@@ -301,6 +301,11 @@ public class ScrollBar : RangeBase
         return _track?.GetThumbRect() ?? LayoutSlot;
     }
 
+    internal LayoutRect GetTrackRectForInput()
+    {
+        return _track?.LayoutSlot ?? LayoutSlot;
+    }
+
     internal bool IsThumbDragInProgress => _isThumbDragInProgress;
 
     internal float GetActiveThumbDragValue()

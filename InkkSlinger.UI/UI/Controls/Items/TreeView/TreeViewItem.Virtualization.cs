@@ -132,7 +132,7 @@ public partial class TreeViewItem
         }
 
         relativeY = element.LayoutSlot.Y - LayoutSlot.Y;
-        return float.IsFinite(relativeY) && relativeY >= 0f;
+        return float.IsFinite(relativeY) && relativeY >= 0f && relativeY <= LayoutSlot.Height;
     }
 
     internal void ClearVirtualizedDisplaySnapshot(bool updateHasItems = true)

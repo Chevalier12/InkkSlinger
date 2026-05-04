@@ -613,6 +613,10 @@ public class ScrollViewer : ContentControl
         throw new ArgumentOutOfRangeException(nameof(index));
     }
 
+    internal ScrollBar AutomationVerticalScrollBar => _verticalBar;
+
+    internal ScrollBar AutomationHorizontalScrollBar => _horizontalBar;
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         foreach (var child in base.GetLogicalChildren())

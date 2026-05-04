@@ -158,7 +158,7 @@ public partial class TreeView
                 // The real containers are committed on pointer release to avoid rebuilding templates every drag frame.
                 RetargetRealizedRowsForThumbDrag(range.First, range.Last);
                 _pendingDeferredOffsetRefresh = true;
-                UiRoot.Current?.NotifyDirectRenderInvalidation(this);
+                UiRoot.Current?.NotifyDirectRenderInvalidation(this, requireDeepSync: true);
                 return;
             }
 
@@ -177,6 +177,9 @@ public partial class TreeView
             {
                 return;
             }
+
+            _firstRealizedIndex = first;
+            _lastRealizedIndex = last;
 
             var childConstraint = new Vector2(LayoutSlot.Width, float.PositiveInfinity);
             var rowIndex = first;

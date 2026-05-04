@@ -89,6 +89,11 @@ public partial class TreeViewItem
 
     private (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) ResolveVirtualizedHeaderRenderSource()
     {
+        if (_virtualizedDisplaySnapshot.HasValue)
+        {
+            return (this, FontSize, Foreground, TextTrimming.None, TextWrapping.NoWrap);
+        }
+
         if (GetTemplateChild("HeaderText") is TextBlock headerTextBlock)
         {
             return (headerTextBlock, headerTextBlock.FontSize, headerTextBlock.Foreground, headerTextBlock.TextTrimming, headerTextBlock.TextWrapping);
