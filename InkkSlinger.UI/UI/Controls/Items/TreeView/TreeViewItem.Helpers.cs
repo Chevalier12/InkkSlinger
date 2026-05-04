@@ -11,6 +11,8 @@ public partial class TreeViewItem
 
     internal bool RendersTemplateExpanderSnapshotForDiagnostics => ShouldRenderTemplateExpanderSnapshot();
 
+    internal bool RendersTemplateExpanderTextSnapshotForDiagnostics => ShouldRenderTemplateExpanderSnapshot() && CanRenderTemplateExpanderTextSnapshot();
+
     internal float HeaderTextOffsetForDiagnostics => GetHeaderTextOffset();
 
     internal float RenderRowHeightForDiagnostics => GetRenderRowHeight();
@@ -264,7 +266,13 @@ public partial class TreeViewItem
 
     private bool ShouldRenderTemplateExpanderSnapshot()
     {
-        return ShouldReserveTemplateExpanderSnapshotSlot() && HasChildItems();
+        return ShouldReserveTemplateExpanderSnapshotSlot() &&
+            HasChildItems();
+    }
+
+    private bool CanRenderTemplateExpanderTextSnapshot()
+    {
+        return GetTemplateChild("PART_Expander") is TextBlock;
     }
 
     private float GetSnapshotTemplateExpanderTextSpacing()
@@ -300,6 +308,34 @@ public partial class TreeViewItem
         }
 
         return TemplateExpanderSnapshotFallbackSlotWidth;
+    }
+
+    private float GetTemplateExpanderSnapshotSlotHeight(float rowHeight)
+    {
+        if (GetTemplateChild("PART_Expander") is FrameworkElement expander)
+        {
+            if (expander.LayoutSlot.Height > 0f)
+            {
+                return expander.LayoutSlot.Height;
+            }
+
+            if (expander.RenderSize.Y > 0f)
+            {
+                return expander.RenderSize.Y;
+            }
+
+            if (expander.DesiredSize.Y > 0f)
+            {
+                return expander.DesiredSize.Y;
+            }
+
+            if (float.IsFinite(expander.Height) && expander.Height > 0f)
+            {
+                return expander.Height;
+            }
+        }
+
+        return MathF.Min(rowHeight, TemplateExpanderSnapshotFallbackSlotWidth);
     }
 
     private float GetTemplateRootOffset()

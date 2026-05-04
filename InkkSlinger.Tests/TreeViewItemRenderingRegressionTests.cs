@@ -86,6 +86,38 @@ public sealed class TreeViewItemRenderingRegressionTests
     }
 
     [Fact]
+    public void VirtualizedDisplaySnapshot_WithNonTextTemplatedExpander_ReservesSlotAndUsesGraphicalSnapshotGlyph()
+    {
+        var item = new TreeViewItem
+        {
+            Header = "Old leaf",
+            ShowsBuiltInExpander = false,
+            Template = CreateNonTextTemplatedExpanderTemplate(),
+            CollapsedExpanderGlyph = "^",
+            ExpandedExpanderGlyph = "v"
+        };
+
+        item.ApplyTemplate();
+        item.Measure(new Vector2(240f, 24f));
+        item.Arrange(new LayoutRect(0f, 0f, 240f, item.DesiredSize.Y));
+
+        item.ApplyVirtualizedDisplaySnapshot(
+            "Runtime",
+            hasChildren: true,
+            isExpanded: true,
+            isSelected: false,
+            depth: 1,
+            rowIndex: 42);
+
+        Assert.True(item.HasVirtualizedDisplaySnapshotForDiagnostics);
+        Assert.True(item.RendersTemplateExpanderSnapshotForDiagnostics);
+        Assert.False(item.RendersTemplateExpanderTextSnapshotForDiagnostics);
+        Assert.True(
+            item.HeaderTextOffsetForDiagnostics >= item.Indent + 14f,
+            $"Snapshot header text should still reserve the templated expander slot. offset={item.HeaderTextOffsetForDiagnostics:0.###}");
+    }
+
+    [Fact]
     public void VirtualizedDisplaySnapshot_WithTemplatedHeader_UsesSettledTemplateRowHeightAndHeaderTextTypography()
     {
         var item = new TreeViewItem
@@ -202,6 +234,47 @@ public sealed class TreeViewItemRenderingRegressionTests
 
         template.BindTemplate("PART_Expander", TextBlock.TextProperty, TreeViewItem.CurrentExpanderGlyphProperty);
         template.BindTemplate("PART_Expander", TextBlock.VisibilityProperty, TreeViewItem.ExpanderGlyphVisibilityProperty);
+        template.BindTemplate("HeaderText", TextBlock.TextProperty, TreeViewItem.HeaderProperty);
+        return template;
+    }
+
+    private static ControlTemplate CreateNonTextTemplatedExpanderTemplate(float headerFontSize = 12f)
+    {
+        var template = new ControlTemplate(_ =>
+        {
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14f, GridUnitType.Pixel) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1f, GridUnitType.Star) });
+
+            var expander = new Grid
+            {
+                Name = "PART_Expander",
+                Width = 14f,
+                Height = 14f,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var headerText = new TextBlock
+            {
+                Name = "HeaderText",
+                FontSize = headerFontSize,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            Grid.SetColumn(expander, 0);
+            Grid.SetColumn(headerText, 1);
+            grid.AddChild(expander);
+            grid.AddChild(headerText);
+            return grid;
+        })
+        {
+            TargetType = typeof(TreeViewItem)
+        };
+
+        template.BindTemplate("PART_Expander", Grid.VisibilityProperty, TreeViewItem.ExpanderGlyphVisibilityProperty);
         template.BindTemplate("HeaderText", TextBlock.TextProperty, TreeViewItem.HeaderProperty);
         return template;
     }

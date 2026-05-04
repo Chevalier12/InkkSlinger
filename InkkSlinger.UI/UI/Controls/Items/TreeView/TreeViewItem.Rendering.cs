@@ -55,23 +55,30 @@ public partial class TreeViewItem
 
         if (ShouldRenderTemplateExpanderSnapshot())
         {
-            var glyph = GetEffectiveIsExpanded() ? ExpandedExpanderGlyph : CollapsedExpanderGlyph;
-            if (!string.IsNullOrEmpty(glyph))
+            if (CanRenderTemplateExpanderTextSnapshot())
             {
-                var slotWidth = GetTemplateExpanderSnapshotSlotWidth();
-                var renderSource = ResolveVirtualizedExpanderRenderSource();
-                var glyphWidth = UiTextRenderer.MeasureWidth(renderSource.Element, glyph, renderSource.FontSize);
-                var glyphHeight = UiTextRenderer.GetLineHeight(renderSource.Element, renderSource.FontSize);
-                var glyphX = GetVirtualizedExpanderRenderX(slotWidth, glyphWidth);
-                var glyphY = GetVirtualizedExpanderRenderY(rowHeight, glyphHeight);
-                UiTextRenderer.DrawString(
-                    spriteBatch,
-                    renderSource.Element,
-                    glyph,
-                    new Vector2(glyphX, glyphY),
-                    renderSource.Foreground * Opacity,
-                    renderSource.FontSize,
-                    opaqueBackground: true);
+                var glyph = GetEffectiveIsExpanded() ? ExpandedExpanderGlyph : CollapsedExpanderGlyph;
+                if (!string.IsNullOrEmpty(glyph))
+                {
+                    var slotWidth = GetTemplateExpanderSnapshotSlotWidth();
+                    var renderSource = ResolveVirtualizedExpanderRenderSource();
+                    var glyphWidth = UiTextRenderer.MeasureWidth(renderSource.Element, glyph, renderSource.FontSize);
+                    var glyphHeight = UiTextRenderer.GetLineHeight(renderSource.Element, renderSource.FontSize);
+                    var glyphX = GetVirtualizedExpanderRenderX(slotWidth, glyphWidth);
+                    var glyphY = GetVirtualizedExpanderRenderY(rowHeight, glyphHeight);
+                    UiTextRenderer.DrawString(
+                        spriteBatch,
+                        renderSource.Element,
+                        glyph,
+                        new Vector2(glyphX, glyphY),
+                        renderSource.Foreground * Opacity,
+                        renderSource.FontSize,
+                        opaqueBackground: true);
+                }
+            }
+            else
+            {
+                DrawTemplateExpanderSnapshotCaret(spriteBatch, rowHeight);
             }
         }
 
@@ -101,6 +108,42 @@ public partial class TreeViewItem
                 renderSource.Foreground * Opacity,
                 renderFontSize,
                 opaqueBackground: true);
+        }
+    }
+
+    private void DrawTemplateExpanderSnapshotCaret(SpriteBatch spriteBatch, float rowHeight)
+    {
+        var slotWidth = GetTemplateExpanderSnapshotSlotWidth();
+        var slotHeight = GetTemplateExpanderSnapshotSlotHeight(rowHeight);
+        var slotX = GetVirtualizedExpanderRenderX(slotWidth, slotWidth);
+        var slotY = _virtualizedDisplaySnapshot.HasValue && float.IsFinite(_snapshotExpanderRelativeY)
+            ? LayoutSlot.Y + _snapshotExpanderRelativeY
+            : LayoutSlot.Y + MathF.Max(0f, (rowHeight - slotHeight) / 2f);
+        var glyphCx = slotX + (slotWidth / 2f);
+        var glyphCy = slotY + (slotHeight / 2f);
+        var halfWidth = MathF.Min(4f, MathF.Max(2f, slotWidth * 0.36f));
+        var halfHeight = MathF.Min(3f, MathF.Max(2f, slotHeight * 0.28f));
+        var glyphColor = Foreground;
+
+        if (GetEffectiveIsExpanded())
+        {
+            ReadOnlySpan<Vector2> tri =
+            [
+                new Vector2(glyphCx - halfWidth, glyphCy - halfHeight),
+                new Vector2(glyphCx + halfWidth, glyphCy - halfHeight),
+                new Vector2(glyphCx, glyphCy + halfHeight),
+            ];
+            UiDrawing.DrawFilledPolygon(spriteBatch, tri, glyphColor, Opacity);
+        }
+        else
+        {
+            ReadOnlySpan<Vector2> tri =
+            [
+                new Vector2(glyphCx - halfWidth, glyphCy + halfHeight),
+                new Vector2(glyphCx + halfWidth, glyphCy + halfHeight),
+                new Vector2(glyphCx, glyphCy - halfHeight),
+            ];
+            UiDrawing.DrawFilledPolygon(spriteBatch, tri, glyphColor, Opacity);
         }
     }
 

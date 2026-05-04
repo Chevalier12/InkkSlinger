@@ -12,6 +12,14 @@ public enum StrokeLineJoin
     Bevel
 }
 
+public enum StrokeLineCap
+{
+    Flat,
+    Square,
+    Round,
+    Triangle
+}
+
 public abstract class Shape : FrameworkElement
 {
     private static int _renderCacheHitCount;
@@ -83,6 +91,51 @@ public abstract class Shape : FrameworkElement
             typeof(Shape),
             new FrameworkPropertyMetadata(StrokeLineJoin.Round, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty StrokeStartLineCapProperty =
+        DependencyProperty.Register(
+            nameof(StrokeStartLineCap),
+            typeof(StrokeLineCap),
+            typeof(Shape),
+            new FrameworkPropertyMetadata(StrokeLineCap.Flat, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty StrokeEndLineCapProperty =
+        DependencyProperty.Register(
+            nameof(StrokeEndLineCap),
+            typeof(StrokeLineCap),
+            typeof(Shape),
+            new FrameworkPropertyMetadata(StrokeLineCap.Flat, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty StrokeDashCapProperty =
+        DependencyProperty.Register(
+            nameof(StrokeDashCap),
+            typeof(StrokeLineCap),
+            typeof(Shape),
+            new FrameworkPropertyMetadata(StrokeLineCap.Flat, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty StrokeMiterLimitProperty =
+        DependencyProperty.Register(
+            nameof(StrokeMiterLimit),
+            typeof(float),
+            typeof(Shape),
+            new FrameworkPropertyMetadata(
+                10f,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                coerceValueCallback: static (_, value) => value is float f && f >= 1f ? f : 1f));
+
+    public static readonly DependencyProperty StrokeDashArrayProperty =
+        DependencyProperty.Register(
+            nameof(StrokeDashArray),
+            typeof(DoubleCollection),
+            typeof(Shape),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty StrokeDashOffsetProperty =
+        DependencyProperty.Register(
+            nameof(StrokeDashOffset),
+            typeof(float),
+            typeof(Shape),
+            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public Color Fill
     {
         get => GetValue<Color>(FillProperty);
@@ -119,6 +172,42 @@ public abstract class Shape : FrameworkElement
         set => SetValue(StrokeLineJoinProperty, value);
     }
 
+    public StrokeLineCap StrokeStartLineCap
+    {
+        get => GetValue<StrokeLineCap>(StrokeStartLineCapProperty);
+        set => SetValue(StrokeStartLineCapProperty, value);
+    }
+
+    public StrokeLineCap StrokeEndLineCap
+    {
+        get => GetValue<StrokeLineCap>(StrokeEndLineCapProperty);
+        set => SetValue(StrokeEndLineCapProperty, value);
+    }
+
+    public StrokeLineCap StrokeDashCap
+    {
+        get => GetValue<StrokeLineCap>(StrokeDashCapProperty);
+        set => SetValue(StrokeDashCapProperty, value);
+    }
+
+    public float StrokeMiterLimit
+    {
+        get => GetValue<float>(StrokeMiterLimitProperty);
+        set => SetValue(StrokeMiterLimitProperty, value);
+    }
+
+    public DoubleCollection? StrokeDashArray
+    {
+        get => GetValue<DoubleCollection>(StrokeDashArrayProperty);
+        set => SetValue(StrokeDashArrayProperty, value);
+    }
+
+    public float StrokeDashOffset
+    {
+        get => GetValue<float>(StrokeDashOffsetProperty);
+        set => SetValue(StrokeDashOffsetProperty, value);
+    }
+
     protected abstract Geometry? DefiningGeometry { get; }
 
     protected override LayoutRect GetLocalRenderBoundsCore(LayoutRect slot)
@@ -128,12 +217,13 @@ public abstract class Shape : FrameworkElement
             return slot;
         }
 
-        var strokeOverhang = StrokeThickness / 2f;
+        var strokeThickness = ResolveLayoutStrokeThickness(DefiningGeometry);
+        var strokeOverhang = strokeThickness / 2f;
         return new LayoutRect(
             slot.X - strokeOverhang,
             slot.Y - strokeOverhang,
-            slot.Width + StrokeThickness,
-            slot.Height + StrokeThickness);
+            slot.Width + strokeThickness,
+            slot.Height + strokeThickness);
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
@@ -174,8 +264,9 @@ public abstract class Shape : FrameworkElement
             return;
         }
 
-        // Even-odd fill: collect all closed figures and fill as combined polygons
-        if (Fill.A > 0 && FillRule == FillRule.EvenOdd && transformed.Count > 1)
+        var strokeThickness = ResolveLayoutStrokeThickness(geometry);
+
+        if (Fill.A > 0)
         {
             var closedPolygons = new List<IReadOnlyList<Vector2>>(transformed.Count);
             foreach (var figure in transformed)
@@ -188,31 +279,33 @@ public abstract class Shape : FrameworkElement
 
             if (closedPolygons.Count > 1)
             {
-                UiDrawing.DrawFilledPolygonCombined(spriteBatch, closedPolygons, Fill, Opacity);
+                UiDrawing.DrawFilledPolygonCombined(spriteBatch, closedPolygons, Fill, Opacity, FillRule);
             }
             else if (closedPolygons.Count == 1)
             {
                 UiDrawing.DrawFilledPolygon(spriteBatch, closedPolygons[0], Fill, Opacity);
             }
         }
-        else
-        {
-            // Nonzero fill: fill each figure independently
-            foreach (var figure in transformed)
-            {
-                if (figure.IsClosed && Fill.A > 0 && figure.Points.Count >= 3)
-                {
-                    UiDrawing.DrawFilledPolygon(spriteBatch, figure.Points, Fill, Opacity);
-                }
-            }
-        }
 
         // Stroke all figures with StrokeLineJoin
         foreach (var figure in transformed)
         {
-            if (Stroke.A > 0 && StrokeThickness > 0f && figure.Points.Count >= 2)
+            if (Stroke.A > 0 && strokeThickness > 0f && figure.Points.Count >= 2)
             {
-                UiDrawing.DrawPolyline(spriteBatch, figure.Points, figure.IsClosed, StrokeThickness, Stroke, Opacity, StrokeLineJoin);
+                UiDrawing.DrawPolyline(
+                    spriteBatch,
+                    figure.Points,
+                    figure.IsClosed,
+                    strokeThickness,
+                    Stroke,
+                    Opacity,
+                    StrokeLineJoin,
+                    StrokeStartLineCap,
+                    StrokeEndLineCap,
+                    StrokeDashCap,
+                    StrokeMiterLimit,
+                    StrokeDashArray,
+                    StrokeDashOffset);
             }
         }
     }
@@ -327,6 +420,48 @@ public abstract class Shape : FrameworkElement
         }
 
         return transformed;
+    }
+
+    private float ResolveLayoutStrokeThickness(Geometry? geometry)
+    {
+        if (geometry == null || StrokeThickness <= 0f)
+        {
+            return 0f;
+        }
+
+        var figures = geometry.GetFlattenedFigures();
+        var bounds = GetBounds(figures);
+        var scale = ComputeUniformStrokeScale(bounds, LayoutSlot, Stretch);
+        return StrokeThickness * scale;
+    }
+
+    private static float ComputeUniformStrokeScale(LayoutRect bounds, LayoutRect slot, Stretch stretch)
+    {
+        var hasWidth = bounds.Width > 0f;
+        var hasHeight = bounds.Height > 0f;
+        if (stretch == Stretch.None || !hasWidth && !hasHeight)
+        {
+            return 1f;
+        }
+
+        var scaleX = hasWidth ? slot.Width / bounds.Width : 1f;
+        var scaleY = hasHeight ? slot.Height / bounds.Height : 1f;
+        if (stretch == Stretch.Uniform && hasWidth && hasHeight)
+        {
+            return MathF.Min(scaleX, scaleY);
+        }
+
+        if (stretch == Stretch.UniformToFill && hasWidth && hasHeight)
+        {
+            return MathF.Max(scaleX, scaleY);
+        }
+
+        if (hasWidth && hasHeight)
+        {
+            return MathF.Sqrt(MathF.Abs(scaleX * scaleY));
+        }
+
+        return hasWidth ? scaleX : scaleY;
     }
 
     private static LayoutRect GetBounds(IReadOnlyList<GeometryFigure> figures)

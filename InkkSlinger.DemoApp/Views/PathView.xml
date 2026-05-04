@@ -1,0 +1,579 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.PathView"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../../InkkSlinger.UI/Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../../InkkSlinger.UI/Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="{StaticResource DarkBgBrush}"
+             BorderBrush="{StaticResource DarkBorderBrush}"
+             BorderThickness="1"
+             Padding="12">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0"
+            Background="{StaticResource DarkElevatedBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14"
+            Margin="0,0,0,10">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+          <TextBlock Text="Control Demo: Path"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontSize="18"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="SVG path data, fills, fill rules, joins, caps, dashes, and stretch behavior in one surface."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,4,0,0" />
+        </StackPanel>
+
+        <Border Grid.Column="1"
+                Background="{StaticResource DarkBgBrush}"
+                BorderBrush="#38BDF8"
+                BorderThickness="1"
+                CornerRadius="14"
+                Padding="12,6"
+                Margin="12,0,0,0"
+                VerticalAlignment="Center">
+          <TextBlock Text="M L H V C Q A Z"
+                     Foreground="#7DD3FC"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+        </Border>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="1"
+            Background="{StaticResource DarkBgBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="12">
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="2*" />
+              <ColumnDefinition Width="12" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                  Background="Transparent"
+                    BorderBrush="{StaticResource DarkBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="28"
+                    MinHeight="420">
+              <Grid>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0"
+                           Text="SVG skull"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,10" />
+
+                <Viewbox Grid.Row="1"
+                         Stretch="Uniform"
+                         StretchDirection="Both"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center">
+                      <Path x:Name="SkullPath"
+                        Width="360"
+                        Height="360"
+                        Data="M11 18h2a1 1 0 0 0 1-1v-2.07l1.065-.563A5.498 5.498 0 0 0 18 9.5v-2A5.5 5.5 0 0 0 12.5 2h-5A5.5 5.5 0 0 0 2 7.5v2a5.498 5.498 0 0 0 2.935 4.867L6 14.93V17a1 1 0 0 0 1 1h2v-2a1 1 0 0 1 2 0v2zm5-1a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-.865A7.499 7.499 0 0 1 0 9.5v-2A7.5 7.5 0 0 1 7.5 0h5A7.5 7.5 0 0 1 20 7.5v2a7.499 7.499 0 0 1-4 6.635V17zM6 11a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm8 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"
+                        Fill="#F7F8FA"
+                        Stroke="Transparent"
+                        StrokeThickness="0"
+                        FillRule="Nonzero"
+                        Stretch="Uniform" />
+                </Viewbox>
+              </Grid>
+            </Border>
+
+            <StackPanel Grid.Column="2">
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <StackPanel>
+                  <Label Content="Filled geometry" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="10" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Background="{StaticResource DarkBgBrush}"
+                            BorderBrush="{StaticResource DarkBorderBrush}"
+                            BorderThickness="1"
+                            Padding="10"
+                            MinHeight="128">
+                              <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path x:Name="FilledStarPath"
+                              Width="112"
+                              Height="96"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Data="M50 2 L61 34 L95 34 L67 54 L78 88 L50 68 L22 88 L33 54 L5 34 L39 34 Z"
+                              Fill="#F59E0B"
+                              Stroke="#FDE68A"
+                              StrokeThickness="1.4"
+                              StrokeLineJoin="Round"
+                              Stretch="Uniform" />
+                              </Grid>
+                    </Border>
+
+                    <Border Grid.Column="2"
+                            Background="{StaticResource DarkBgBrush}"
+                            BorderBrush="{StaticResource DarkBorderBrush}"
+                            BorderThickness="1"
+                            Padding="10"
+                            MinHeight="128">
+                              <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path x:Name="RibbonPath"
+                              Width="112"
+                              Height="96"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Data="M10 16 H90 V76 L70 62 L50 76 L30 62 L10 76 Z"
+                              Fill="#22C55E"
+                              Stroke="#BBF7D0"
+                              StrokeThickness="0.6"
+                              StrokeLineJoin="Bevel"
+                              Stretch="Uniform" />
+                              </Grid>
+                    </Border>
+                  </Grid>
+                </StackPanel>
+              </Border>
+
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14">
+                <StackPanel>
+                  <Label Content="FillRule" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="10" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                      <TextBlock Text="EvenOdd"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 HorizontalAlignment="Center"
+                                 Margin="0,0,0,6" />
+                      <Border Background="{StaticResource DarkBgBrush}"
+                              BorderBrush="{StaticResource DarkBorderBrush}"
+                              BorderThickness="1"
+                              Padding="12"
+                              MinHeight="116">
+                            <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                              <Path x:Name="EvenOddRingPath"
+                                Width="96"
+                                Height="96"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                Data="M5 5 H95 V95 H5 Z M30 30 H70 V70 H30 Z"
+                                Fill="#60A5FA"
+                                Stroke="#BFDBFE"
+                                StrokeThickness="1"
+                                FillRule="EvenOdd"
+                                Stretch="Uniform" />
+                            </Grid>
+                      </Border>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                      <TextBlock Text="Nonzero"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 HorizontalAlignment="Center"
+                                 Margin="0,0,0,6" />
+                      <Border Background="{StaticResource DarkBgBrush}"
+                              BorderBrush="{StaticResource DarkBorderBrush}"
+                              BorderThickness="1"
+                              Padding="12"
+                              MinHeight="116">
+                            <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                              <Path x:Name="NonzeroRingPath"
+                                Width="96"
+                                Height="96"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                Data="M5 5 H95 V95 H5 Z M30 30 H70 V70 H30 Z"
+                                Fill="#60A5FA"
+                                Stroke="#BFDBFE"
+                                StrokeThickness="1"
+                                FillRule="Nonzero"
+                                Stretch="Uniform" />
+                            </Grid>
+                      </Border>
+                    </StackPanel>
+                  </Grid>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Grid>
+
+          <Grid Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="12" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Background="{StaticResource DarkElevatedBrush}"
+                    BorderBrush="{StaticResource DarkBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="14">
+              <StackPanel>
+                <Label Content="Commands" Foreground="{StaticResource TextPrimaryBrush}" />
+                <Grid Margin="0,8,0,0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+
+                  <Border Grid.Column="0"
+                          Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          Padding="12"
+                          MinHeight="156">
+                    <StackPanel>
+                      <TextBlock Text="C/S/Q/T"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 Margin="0,0,0,8" />
+                      <Grid Height="96" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                        <Path x:Name="BezierWavePath"
+                              Width="150"
+                              Height="82"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Data="M0 55 C35 5 65 5 100 55 S165 105 200 55 Q230 18 260 55 T320 55"
+                              Fill="Transparent"
+                              Stroke="#A78BFA"
+                              StrokeThickness="2.2"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              Stretch="Uniform" />
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+
+                  <Border Grid.Column="2"
+                          Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          Padding="12"
+                          MinHeight="156">
+                    <StackPanel>
+                      <TextBlock Text="A"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 Margin="0,0,0,8" />
+                      <Grid Height="96" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                        <Path x:Name="ArcOrbitPath"
+                              Width="150"
+                              Height="82"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Data="M20 60 A60 38 0 0 1 140 60 M38 60 A42 24 0 0 1 122 60 M80 60 L80 28"
+                              Fill="Transparent"
+                              Stroke="#38BDF8"
+                              StrokeThickness="1.8"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              Stretch="Uniform" />
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2"
+                    Background="{StaticResource DarkElevatedBrush}"
+                    BorderBrush="{StaticResource DarkBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="14">
+              <StackPanel>
+                <Label Content="Stroke styling" Foreground="{StaticResource TextPrimaryBrush}" />
+                <Grid Margin="0,8,0,0">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="10" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+
+                  <Border Grid.Row="0"
+                          Grid.Column="0"
+                          Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          Padding="12"
+                          MinHeight="96">
+                    <StackPanel>
+                      <TextBlock Text="Round caps"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 Margin="0,0,0,8" />
+                      <Grid Height="48" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                        <Path x:Name="RoundCapPath"
+                              Width="132"
+                              Height="42"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Data="M8 28 H88 M112 28 H212"
+                              Fill="Transparent"
+                              Stroke="#F97316"
+                              StrokeThickness="5"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              Stretch="Uniform" />
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+
+                  <Border Grid.Row="0"
+                          Grid.Column="2"
+                          Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          Padding="12"
+                          MinHeight="96">
+                    <StackPanel>
+                      <TextBlock Text="Square caps"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 Margin="0,0,0,8" />
+                      <Grid Height="48" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                        <Path x:Name="SquareCapPath"
+                              Width="132"
+                              Height="42"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Data="M8 28 H88 M112 28 H212"
+                              Fill="Transparent"
+                              Stroke="#F97316"
+                              StrokeThickness="5"
+                              StrokeStartLineCap="Square"
+                              StrokeEndLineCap="Square"
+                              StrokeLineJoin="Bevel"
+                              Stretch="Uniform" />
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+
+                  <Border Grid.Row="2"
+                          Grid.Column="0"
+                          Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          Padding="12"
+                          MinHeight="112">
+                    <StackPanel>
+                      <TextBlock Text="Dash array"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 Margin="0,0,0,8" />
+                      <Grid Height="64" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                        <Path x:Name="DashedPath"
+                              Width="132"
+                              Height="58"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Data="M8 48 C45 4 82 4 118 48 S190 92 220 28"
+                              Fill="Transparent"
+                              Stroke="#34D399"
+                              StrokeThickness="3"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeDashCap="Round"
+                              StrokeDashArray="3,2"
+                              StrokeDashOffset="0"
+                              StrokeLineJoin="Round"
+                              Stretch="Uniform" />
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+
+                  <Border Grid.Row="2"
+                          Grid.Column="2"
+                          Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          Padding="12"
+                          MinHeight="112">
+                    <StackPanel>
+                      <TextBlock Text="Miter limit"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 Margin="0,0,0,8" />
+                      <Grid Height="64" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                        <Path x:Name="MiterLimitPath"
+                              Width="132"
+                              Height="58"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Data="M8 64 L64 8 L120 64 L176 8 L220 64"
+                              Fill="Transparent"
+                              Stroke="#FACC15"
+                              StrokeThickness="2.2"
+                              StrokeLineJoin="Miter"
+                              StrokeMiterLimit="3"
+                              StrokeStartLineCap="Flat"
+                              StrokeEndLineCap="Flat"
+                              Stretch="Uniform" />
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+                </Grid>
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <Border Background="{StaticResource DarkElevatedBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="4"
+                  Padding="14"
+                  Margin="0,12,0,0">
+            <StackPanel>
+              <Label Content="Stretch" Foreground="{StaticResource TextPrimaryBrush}" />
+              <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="10" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="10" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                  <TextBlock Text="None"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             HorizontalAlignment="Center"
+                             Margin="0,0,0,6" />
+                  <Border Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          Padding="10"
+                          Height="128">
+                          <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path x:Name="StretchNonePath"
+                                  Width="156"
+                                  Height="50"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Data="M0 50 L36 0 L76 50 L116 0 L156 50"
+                              Fill="Transparent"
+                              Stroke="#E879F9"
+                              StrokeThickness="2"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Stretch="None" />
+                          </Grid>
+                  </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                  <TextBlock Text="Uniform"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             HorizontalAlignment="Center"
+                             Margin="0,0,0,6" />
+                  <Border Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          Padding="10"
+                          Height="128">
+                          <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path x:Name="StretchUniformPath"
+                                  Width="156"
+                                  Height="50"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Data="M0 50 L36 0 L76 50 L116 0 L156 50"
+                              Fill="Transparent"
+                              Stroke="#E879F9"
+                              StrokeThickness="2"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Stretch="Uniform" />
+                          </Grid>
+                  </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Column="4">
+                  <TextBlock Text="Fill"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             HorizontalAlignment="Center"
+                             Margin="0,0,0,6" />
+                  <Border Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource DarkBorderBrush}"
+                          BorderThickness="1"
+                          Padding="10"
+                          Height="128">
+                          <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path x:Name="StretchFillPath"
+                                  Width="156"
+                                  Height="50"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Data="M0 50 L36 0 L76 50 L116 0 L156 50"
+                              Fill="Transparent"
+                              Stroke="#E879F9"
+                              StrokeThickness="2"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Stretch="Fill" />
+                          </Grid>
+                  </Border>
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+  </Grid>
+</UserControl>

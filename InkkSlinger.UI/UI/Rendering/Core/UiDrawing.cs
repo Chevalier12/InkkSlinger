@@ -613,21 +613,41 @@ internal static class UiDrawing
         float thickness,
         Color color,
         float opacity = 1f,
-        StrokeLineJoin lineJoin = StrokeLineJoin.Round)
+        StrokeLineJoin lineJoin = StrokeLineJoin.Round,
+        StrokeLineCap startLineCap = StrokeLineCap.Flat,
+        StrokeLineCap endLineCap = StrokeLineCap.Flat,
+        StrokeLineCap dashCap = StrokeLineCap.Flat,
+        float miterLimit = 10f,
+        DoubleCollection? dashArray = null,
+        float dashOffset = 0f)
     {
         if (points.Count < 2 || thickness <= 0f || color.A == 0)
         {
             return;
         }
 
+        if (HasVisibleDashPattern(dashArray))
+        {
+            DrawDashedPolyline(spriteBatch, points, closed, thickness, color, opacity, lineJoin, dashCap, miterLimit, dashArray!, dashOffset);
+            return;
+        }
+
         for (var i = 1; i < points.Count; i++)
         {
-            DrawLine(spriteBatch, points[i - 1], points[i], thickness, color, opacity);
+            DrawStrokeSegment(
+                spriteBatch,
+                points[i - 1],
+                points[i],
+                thickness,
+                color,
+                opacity,
+                !closed && i == 1 ? startLineCap : StrokeLineCap.Flat,
+                !closed && i == points.Count - 1 ? endLineCap : StrokeLineCap.Flat);
         }
 
         if (closed)
         {
-            DrawLine(spriteBatch, points[^1], points[0], thickness, color, opacity);
+            DrawStrokeSegment(spriteBatch, points[^1], points[0], thickness, color, opacity, StrokeLineCap.Flat, StrokeLineCap.Flat);
         }
 
         // Line joins at interior vertices
@@ -636,12 +656,226 @@ internal static class UiDrawing
             var offset = thickness / 2f;
             for (var i = 1; i < points.Count - 1; i++)
             {
-                DrawLineJoin(spriteBatch, points[i - 1], points[i], points[i + 1], offset, color, opacity, lineJoin);
+                DrawLineJoin(spriteBatch, points[i - 1], points[i], points[i + 1], offset, color, opacity, lineJoin, miterLimit);
             }
 
             if (closed && points.Count > 2)
             {
-                DrawLineJoin(spriteBatch, points[^1], points[0], points[1], offset, color, opacity, lineJoin);
+                DrawLineJoin(spriteBatch, points[^1], points[0], points[1], offset, color, opacity, lineJoin, miterLimit);
+            }
+        }
+    }
+
+    private static bool HasVisibleDashPattern(DoubleCollection? dashArray)
+    {
+        if (dashArray == null || dashArray.Count == 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < dashArray.Count; i++)
+        {
+            if (dashArray[i] > 0d)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void DrawDashedPolyline(
+        SpriteBatch spriteBatch,
+        IReadOnlyList<Vector2> points,
+        bool closed,
+        float thickness,
+        Color color,
+        float opacity,
+        StrokeLineJoin lineJoin,
+        StrokeLineCap dashCap,
+        float miterLimit,
+        DoubleCollection dashArray,
+        float dashOffset)
+    {
+        var pattern = BuildDashPattern(dashArray, thickness);
+        if (pattern.Length == 0)
+        {
+            DrawPolyline(spriteBatch, points, closed, thickness, color, opacity, lineJoin, StrokeLineCap.Flat, StrokeLineCap.Flat, dashCap, miterLimit);
+            return;
+        }
+
+        var patternIndex = 0;
+        var remainingPattern = pattern[0];
+        var draw = true;
+        var offset = NormalizeDashOffset(dashOffset, pattern);
+        while (offset > 0f)
+        {
+            if (offset < remainingPattern)
+            {
+                remainingPattern -= offset;
+                break;
+            }
+
+            offset -= remainingPattern;
+            patternIndex = (patternIndex + 1) % pattern.Length;
+            remainingPattern = pattern[patternIndex];
+            draw = !draw;
+        }
+
+        var segmentCount = closed ? points.Count : points.Count - 1;
+        for (var segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
+        {
+            var start = points[segmentIndex];
+            var end = points[(segmentIndex + 1) % points.Count];
+            var delta = end - start;
+            var length = delta.Length();
+            if (length <= 0.0001f)
+            {
+                continue;
+            }
+
+            var direction = delta / length;
+            var consumed = 0f;
+            while (consumed < length)
+            {
+                var take = MathF.Min(remainingPattern, length - consumed);
+                if (draw && take > 0.0001f)
+                {
+                    var dashStart = start + (direction * consumed);
+                    var dashEnd = start + (direction * (consumed + take));
+                    DrawStrokeSegment(spriteBatch, dashStart, dashEnd, thickness, color, opacity, dashCap, dashCap);
+                }
+
+                consumed += take;
+                remainingPattern -= take;
+                if (remainingPattern <= 0.0001f)
+                {
+                    patternIndex = (patternIndex + 1) % pattern.Length;
+                    remainingPattern = pattern[patternIndex];
+                    draw = !draw;
+                }
+            }
+        }
+    }
+
+    private static float[] BuildDashPattern(DoubleCollection dashArray, float thickness)
+    {
+        var values = new List<float>(dashArray.Count % 2 == 0 ? dashArray.Count : dashArray.Count * 2);
+        for (var i = 0; i < dashArray.Count; i++)
+        {
+            values.Add(MathF.Max(0f, (float)dashArray[i] * thickness));
+        }
+
+        if (values.Count % 2 == 1)
+        {
+            var count = values.Count;
+            for (var i = 0; i < count; i++)
+            {
+                values.Add(values[i]);
+            }
+        }
+
+        for (var i = 0; i < values.Count; i++)
+        {
+            if (values[i] > 0.0001f)
+            {
+                return values.ToArray();
+            }
+        }
+
+        return Array.Empty<float>();
+    }
+
+    private static float NormalizeDashOffset(float dashOffset, float[] pattern)
+    {
+        var total = 0f;
+        for (var i = 0; i < pattern.Length; i++)
+        {
+            total += pattern[i];
+        }
+
+        if (total <= 0.0001f)
+        {
+            return 0f;
+        }
+
+        var normalized = dashOffset % total;
+        return normalized < 0f ? normalized + total : normalized;
+    }
+
+    private static void DrawStrokeSegment(
+        SpriteBatch spriteBatch,
+        Vector2 start,
+        Vector2 end,
+        float thickness,
+        Color color,
+        float opacity,
+        StrokeLineCap startCap,
+        StrokeLineCap endCap)
+    {
+        var delta = end - start;
+        var length = delta.Length();
+        if (length <= 0.0001f)
+        {
+            return;
+        }
+
+        var direction = delta / length;
+        var normal = new Vector2(-direction.Y, direction.X);
+        var half = thickness / 2f;
+        var segmentStart = start;
+        var segmentEnd = end;
+
+        if (startCap == StrokeLineCap.Square)
+        {
+            segmentStart -= direction * half;
+        }
+
+        if (endCap == StrokeLineCap.Square)
+        {
+            segmentEnd += direction * half;
+        }
+
+        Span<Vector2> quad = stackalloc Vector2[4]
+        {
+            segmentStart + (normal * half),
+            segmentEnd + (normal * half),
+            segmentEnd - (normal * half),
+            segmentStart - (normal * half)
+        };
+        DrawFilledPolygon(spriteBatch, quad, color, opacity);
+
+        DrawLineCap(spriteBatch, start, direction, normal, half, color, opacity, startCap, isStart: true);
+        DrawLineCap(spriteBatch, end, direction, normal, half, color, opacity, endCap, isStart: false);
+    }
+
+    private static void DrawLineCap(
+        SpriteBatch spriteBatch,
+        Vector2 point,
+        Vector2 direction,
+        Vector2 normal,
+        float half,
+        Color color,
+        float opacity,
+        StrokeLineCap cap,
+        bool isStart)
+    {
+        switch (cap)
+        {
+            case StrokeLineCap.Round:
+                DrawFilledCircle(spriteBatch, point, half, color, opacity);
+                break;
+            case StrokeLineCap.Triangle:
+            {
+                var tip = isStart ? point - (direction * half) : point + (direction * half);
+                Span<Vector2> triangle = stackalloc Vector2[3]
+                {
+                    point + (normal * half),
+                    tip,
+                    point - (normal * half)
+                };
+                DrawFilledPolygon(spriteBatch, triangle, color, opacity);
+                break;
             }
         }
     }
@@ -650,7 +884,8 @@ internal static class UiDrawing
         SpriteBatch spriteBatch,
         Vector2 prev, Vector2 curr, Vector2 next,
         float offset, Color color, float opacity,
-        StrokeLineJoin lineJoin)
+        StrokeLineJoin lineJoin,
+        float miterLimit)
     {
         var dIn = curr - prev;
         var dOut = next - curr;
@@ -666,10 +901,11 @@ internal static class UiDrawing
         var nIn = new Vector2(-dIn.Y, dIn.X);
         var nOut = new Vector2(-dOut.Y, dOut.X);
 
+        DrawFilledCircle(spriteBatch, curr, offset, color, opacity);
+
         switch (lineJoin)
         {
             case StrokeLineJoin.Round:
-                DrawFilledCircle(spriteBatch, curr, offset, color, opacity);
                 return;
 
             case StrokeLineJoin.Bevel:
@@ -705,6 +941,13 @@ internal static class UiDrawing
                 var nDiffR = -nDiff;
                 var tR = ((nDiffR.X * dOut.Y) - (nDiffR.Y * dOut.X)) * offset / cross;
                 var rightMiter = curr - (nIn * offset) + (dIn * tR);
+
+                var miterLimitLength = MathF.Max(1f, miterLimit) * offset;
+                if (Vector2.Distance(curr, leftMiter) > miterLimitLength ||
+                    Vector2.Distance(curr, rightMiter) > miterLimitLength)
+                {
+                    goto case StrokeLineJoin.Bevel;
+                }
 
                 DrawFilledTriangle(spriteBatch, curr + (nIn * offset), curr + (nOut * offset), leftMiter, color, opacity);
                 DrawFilledTriangle(spriteBatch, curr - (nIn * offset), curr - (nOut * offset), rightMiter, color, opacity);
@@ -883,7 +1126,8 @@ internal static class UiDrawing
         SpriteBatch spriteBatch,
         IReadOnlyList<IReadOnlyList<Vector2>> polygons,
         Color color,
-        float opacity = 1f)
+        float opacity = 1f,
+        FillRule fillRule = FillRule.EvenOdd)
     {
         if (polygons.Count == 0 || color.A == 0)
         {
@@ -921,6 +1165,12 @@ internal static class UiDrawing
             }
 
             offsetAccum += poly.Count;
+        }
+
+        if (fillRule == FillRule.Nonzero)
+        {
+            FillPolygonsNonzero(spriteBatch, polygons, allTransformed, offsets, totalPoints, minY, maxY, color, opacity);
+            return;
         }
 
         // Even-odd fill across ALL polygons: collect all edges, sort intersections, fill between pairs
@@ -977,6 +1227,81 @@ internal static class UiDrawing
                 }
 
                 DrawAntiAliasedHorizontalSpan(spriteBatch, texture, y, start, end, color, opacity);
+            }
+        }
+    }
+
+    private static void FillPolygonsNonzero(
+        SpriteBatch spriteBatch,
+        IReadOnlyList<IReadOnlyList<Vector2>> polygons,
+        Vector2[] allTransformed,
+        int[] offsets,
+        int totalPoints,
+        float minY,
+        float maxY,
+        Color color,
+        float opacity)
+    {
+        var graphicsDevice = spriteBatch.GraphicsDevice;
+        var scanMin = (int)System.MathF.Floor(minY);
+        var scanMax = (int)System.MathF.Ceiling(maxY);
+        var intersections = GetPolygonIntersectionBuffer(graphicsDevice, totalPoints);
+        var windings = new int[Math.Max(1, totalPoints)];
+        var texture = GetSolidTexture(graphicsDevice);
+        for (var y = scanMin; y <= scanMax; y++)
+        {
+            var intersectionCount = 0;
+            for (var pi = 0; pi < polygons.Count; pi++)
+            {
+                var polyStart = offsets[pi];
+                var polyCount = polygons[pi].Count;
+                for (var i = 0; i < polyCount; i++)
+                {
+                    var a = allTransformed[polyStart + i];
+                    var b = allTransformed[polyStart + ((i + 1) % polyCount)];
+                    if (System.MathF.Abs(a.Y - b.Y) < 0.0001f)
+                    {
+                        continue;
+                    }
+
+                    var minEdgeY = System.MathF.Min(a.Y, b.Y);
+                    var maxEdgeY = System.MathF.Max(a.Y, b.Y);
+                    if (y < minEdgeY || y >= maxEdgeY)
+                    {
+                        continue;
+                    }
+
+                    var t = (y - a.Y) / (b.Y - a.Y);
+                    if (intersectionCount >= intersections.Length)
+                    {
+                        intersections = GrowPolygonIntersectionBuffer(graphicsDevice, intersections.Length * 2);
+                        Array.Resize(ref windings, intersections.Length);
+                    }
+
+                    intersections[intersectionCount] = a.X + (t * (b.X - a.X));
+                    windings[intersectionCount] = b.Y > a.Y ? 1 : -1;
+                    intersectionCount++;
+                }
+            }
+
+            if (intersectionCount < 2)
+            {
+                continue;
+            }
+
+            Array.Sort(intersections, windings, 0, intersectionCount);
+            var winding = 0;
+            var spanStart = intersections[0];
+            for (var i = 0; i < intersectionCount; i++)
+            {
+                var x = intersections[i];
+                if (winding != 0 && x > spanStart)
+                {
+                    DrawAntiAliasedHorizontalSpan(spriteBatch, texture, y, spanStart, x, color, opacity);
+                }
+
+                winding += windings[i];
+                spanStart = x;
             }
         }
     }
@@ -1196,7 +1521,7 @@ internal static class UiDrawing
 
     private static IReadOnlyList<Vector2> GetCirclePoints(float radius)
     {
-        var segmentCount = Math.Clamp((int)MathF.Ceiling(radius * 1.5f), 12, 48);
+        var segmentCount = Math.Clamp((int)MathF.Ceiling(radius * 2.5f), 16, 128);
         var radiusBucket = Math.Clamp((int)MathF.Round(radius * 100f), 1, 8192);
         var key = new CircleCacheKey(radiusBucket, segmentCount);
         if (CirclePointTemplates.TryGetValue(key, out var cached))

@@ -154,14 +154,14 @@ public class ScrollViewer : ContentControl
             nameof(Background),
             typeof(Color),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(new Color(20, 20, 20), FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(Color.Transparent, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public new static readonly DependencyProperty BorderBrushProperty =
         DependencyProperty.Register(
             nameof(BorderBrush),
             typeof(Color),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(new Color(78, 78, 78), FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(Color.Transparent, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public new static readonly DependencyProperty BorderThicknessProperty =
         DependencyProperty.Register(

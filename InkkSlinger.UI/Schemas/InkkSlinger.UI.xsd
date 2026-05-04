@@ -117,6 +117,14 @@
       <xs:enumeration value="Nonzero" />
     </xs:restriction>
   </xs:simpleType>
+  <xs:simpleType name="strokeLineCapEnumType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Flat" />
+      <xs:enumeration value="Square" />
+      <xs:enumeration value="Round" />
+      <xs:enumeration value="Triangle" />
+    </xs:restriction>
+  </xs:simpleType>
   <xs:simpleType name="geometryCombineModeEnumType">
     <xs:restriction base="xs:string">
       <xs:enumeration value="Union" />
@@ -8534,6 +8542,8 @@
         <xs:attribute name="ContextMenu.ContextMenu" type="xamlValueType" />
         <xs:attribute name="Data" type="xamlValueType" />
         <xs:attribute name="DockPanel.Dock" type="dockEnumType" />
+        <xs:attribute name="Fill" type="colorType" />
+        <xs:attribute name="FillRule" type="fillRuleEnumType" />
         <xs:attribute name="Grid.Column" type="xs:int" />
         <xs:attribute name="Grid.ColumnSpan" type="xs:int" />
         <xs:attribute name="Grid.IsSharedSizeScope" type="xs:boolean" />
@@ -8545,6 +8555,16 @@
         <xs:attribute name="SpellCheck.IsEnabled" type="xs:boolean" />
         <xs:attribute name="Storyboard.TargetName" type="xs:string" />
         <xs:attribute name="Storyboard.TargetProperty" type="xs:string" />
+        <xs:attribute name="Stretch" type="stretchEnumType" />
+        <xs:attribute name="Stroke" type="colorType" />
+        <xs:attribute name="StrokeDashArray" type="xamlValueType" />
+        <xs:attribute name="StrokeDashCap" type="strokeLineCapEnumType" />
+        <xs:attribute name="StrokeDashOffset" type="xs:float" />
+        <xs:attribute name="StrokeEndLineCap" type="strokeLineCapEnumType" />
+        <xs:attribute name="StrokeLineJoin" type="xamlValueType" />
+        <xs:attribute name="StrokeMiterLimit" type="xs:float" />
+        <xs:attribute name="StrokeStartLineCap" type="strokeLineCapEnumType" />
+        <xs:attribute name="StrokeThickness" type="xs:float" />
         <xs:attribute name="ToolTipService.BetweenShowDelay" type="xs:int" />
         <xs:attribute name="ToolTipService.InitialShowDelay" type="xs:int" />
         <xs:attribute name="ToolTipService.IsEnabled" type="xs:boolean" />
