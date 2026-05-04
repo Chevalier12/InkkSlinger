@@ -12,7 +12,7 @@ public partial class TreeView
 {
     private bool HandleHierarchicalKeyDown(Keys key)
     {
-        if (_hierarchicalDataRows.Count == 0)
+        if (HierarchicalRowCount == 0)
         {
             return false;
         }
@@ -28,15 +28,15 @@ public partial class TreeView
             case Keys.Up:
                 return SelectHierarchicalRow(Math.Max(0, selectedIndex - 1));
             case Keys.Down:
-                return SelectHierarchicalRow(Math.Min(_hierarchicalDataRows.Count - 1, selectedIndex + 1));
+                return SelectHierarchicalRow(Math.Min(HierarchicalRowCount - 1, selectedIndex + 1));
             case Keys.Home:
                 return SelectHierarchicalRow(0);
             case Keys.End:
-                return SelectHierarchicalRow(_hierarchicalDataRows.Count - 1);
+                return SelectHierarchicalRow(HierarchicalRowCount - 1);
             case Keys.PageUp:
                 return SelectHierarchicalRow(Math.Max(0, selectedIndex - EstimateHierarchicalPageStep()));
             case Keys.PageDown:
-                return SelectHierarchicalRow(Math.Min(_hierarchicalDataRows.Count - 1, selectedIndex + EstimateHierarchicalPageStep()));
+                return SelectHierarchicalRow(Math.Min(HierarchicalRowCount - 1, selectedIndex + EstimateHierarchicalPageStep()));
             case Keys.Right:
                 return ExpandOrEnterHierarchicalRow(selectedIndex);
             case Keys.Left:
@@ -149,15 +149,9 @@ public partial class TreeView
         FocusManager.SetFocus(this);
         if (clickedItem.HitExpander(GetExpanderHitTestPoint(clickedItem, args.Position)))
         {
-            if (IsHierarchicalDataMode && clickedItem.Tag != null)
+            if (IsHierarchicalDataMode && clickedItem.VirtualizedTreeDataItem != null)
             {
-                if (!clickedItem.IsExpanded)
-                {
-                    EnsureLazyHierarchicalChildrenLoaded(clickedItem.Tag);
-                }
-
-                _hierarchicalExpansionOverrides[clickedItem.Tag] = !clickedItem.IsExpanded;
-                RefreshHierarchicalDataRows();
+                _hierarchicalData.ToggleExpanded(clickedItem);
             }
             else
             {
@@ -182,12 +176,12 @@ public partial class TreeView
 
     private bool SelectHierarchicalRow(int rowIndex)
     {
-        if (rowIndex < 0 || rowIndex >= _hierarchicalDataRows.Count)
+        if (rowIndex < 0 || rowIndex >= HierarchicalRowCount)
         {
             return false;
         }
 
-        var row = _hierarchicalDataRows[rowIndex];
+        var row = GetHierarchicalRow(rowIndex);
         ScrollHierarchicalRowIntoView(rowIndex);
         ApplySelectedItem(RealizeHierarchicalDataContainer(row, rowIndex));
         return true;
@@ -195,12 +189,12 @@ public partial class TreeView
 
     private bool ExpandOrEnterHierarchicalRow(int rowIndex)
     {
-        if (rowIndex < 0 || rowIndex >= _hierarchicalDataRows.Count)
+        if (rowIndex < 0 || rowIndex >= HierarchicalRowCount)
         {
             return false;
         }
 
-        var row = _hierarchicalDataRows[rowIndex];
+        var row = GetHierarchicalRow(rowIndex);
         if (!row.HasChildren)
         {
             return false;
@@ -214,7 +208,7 @@ public partial class TreeView
         }
 
         var next = rowIndex + 1;
-        if (next < _hierarchicalDataRows.Count && _hierarchicalDataRows[next].Depth > row.Depth)
+        if (next < HierarchicalRowCount && GetHierarchicalRow(next).Depth > row.Depth)
         {
             return SelectHierarchicalRow(next);
         }
@@ -224,12 +218,12 @@ public partial class TreeView
 
     private bool CollapseOrSelectHierarchicalParent(int rowIndex)
     {
-        if (rowIndex < 0 || rowIndex >= _hierarchicalDataRows.Count)
+        if (rowIndex < 0 || rowIndex >= HierarchicalRowCount)
         {
             return false;
         }
 
-        var row = _hierarchicalDataRows[rowIndex];
+        var row = GetHierarchicalRow(rowIndex);
         if (row.HasChildren && row.IsExpanded)
         {
             SetHierarchicalItemExpanded(row.Item, false);
@@ -239,7 +233,7 @@ public partial class TreeView
 
         for (var i = rowIndex - 1; i >= 0; i--)
         {
-            if (_hierarchicalDataRows[i].Depth < row.Depth)
+            if (GetHierarchicalRow(i).Depth < row.Depth)
             {
                 return SelectHierarchicalRow(i);
             }
@@ -329,39 +323,13 @@ public partial class TreeView
         }
 
         SelectedItem = item;
-        _selectedDataItem = IsHierarchicalDataMode ? item?.Tag : item;
+        _selectedDataItem = IsHierarchicalDataMode ? item?.VirtualizedTreeDataItem : item;
         if (SelectedItem != null)
         {
             SelectedItem.IsSelected = true;
         }
 
         RaiseRoutedEvent(SelectedItemChangedEvent, new RoutedSimpleEventArgs(SelectedItemChangedEvent));
-    }
-
-    private void SyncSelectedHierarchicalContainer()
-    {
-        if (_selectedDataItem == null)
-        {
-            return;
-        }
-
-        var rowIndex = FindHierarchicalRowIndex(_selectedDataItem);
-        if (rowIndex < 0)
-        {
-            if (SelectedItem != null)
-            {
-                SelectedItem.IsSelected = false;
-            }
-
-            SelectedItem = null;
-            return;
-        }
-
-        if (_hierarchicalDataContainers.TryGetValue(_selectedDataItem, out var container))
-        {
-            container.IsSelected = true;
-            SelectedItem = container;
-        }
     }
 
 }

@@ -7,7 +7,7 @@ namespace InkkSlinger;
 
 public partial class TreeViewItem
 {
-    internal bool HasVirtualizedDisplaySnapshot => _hasVirtualizedDisplaySnapshot;
+    internal bool HasVirtualizedDisplaySnapshot => _virtualizedDisplaySnapshot.HasValue;
 
     internal bool HasVirtualizedDisplaySnapshotForDiagnostics => HasVirtualizedDisplaySnapshot;
 
@@ -57,8 +57,8 @@ public partial class TreeViewItem
 
     public bool HasChildItems()
     {
-        return _hasVirtualizedDisplaySnapshot
-            ? _virtualizedDisplayHasChildren
+        return _virtualizedDisplaySnapshot.HasValue
+            ? _virtualizedDisplaySnapshot.Value.HasChildren
             : HasVirtualizedChildItems || ItemContainers.Count > 0;
     }
 
@@ -70,11 +70,11 @@ public partial class TreeViewItem
         int depth,
         int rowIndex)
     {
-        _hasVirtualizedDisplaySnapshot = true;
-        _virtualizedDisplayHeader = header;
-        _virtualizedDisplayHasChildren = hasChildren;
-        _virtualizedDisplayIsExpanded = isExpanded;
-        _virtualizedDisplayIsSelected = isSelected;
+        _virtualizedDisplaySnapshot = new VirtualizedDisplaySnapshot(
+            header,
+            hasChildren,
+            isExpanded,
+            isSelected);
         UseVirtualizedTreeLayout = true;
         VirtualizedTreeDepth = depth;
         VirtualizedTreeRowIndex = rowIndex;
@@ -83,16 +83,12 @@ public partial class TreeViewItem
 
     internal void ClearVirtualizedDisplaySnapshot()
     {
-        if (!_hasVirtualizedDisplaySnapshot)
+        if (!_virtualizedDisplaySnapshot.HasValue)
         {
             return;
         }
 
-        _hasVirtualizedDisplaySnapshot = false;
-        _virtualizedDisplayHeader = string.Empty;
-        _virtualizedDisplayHasChildren = false;
-        _virtualizedDisplayIsExpanded = false;
-        _virtualizedDisplayIsSelected = false;
+        _virtualizedDisplaySnapshot = null;
         InvalidateVisual();
     }
 

@@ -9,13 +9,15 @@ public partial class TreeViewItem : ItemsControl
 {
     internal event EventHandler? ExpandedStateChanged;
     private bool _isApplyingPropagatedForeground;
-    private bool _hasVirtualizedDisplaySnapshot;
-    private string _virtualizedDisplayHeader = string.Empty;
-    private bool _virtualizedDisplayHasChildren;
-    private bool _virtualizedDisplayIsExpanded;
-    private bool _virtualizedDisplayIsSelected;
+    private VirtualizedDisplaySnapshot? _virtualizedDisplaySnapshot;
     private UIElement? _virtualizedHeaderElement;
     private float _virtualizedHeaderMinRowHeight;
+
+    private readonly record struct VirtualizedDisplaySnapshot(
+        string Header,
+        bool HasChildren,
+        bool IsExpanded,
+        bool IsSelected);
 
     public static readonly DependencyProperty HeaderProperty =
         DependencyProperty.Register(
@@ -79,6 +81,8 @@ public partial class TreeViewItem : ItemsControl
 
     internal bool HasVirtualizedChildItems { get; set; }
 
+    internal object? VirtualizedTreeDataItem { get; set; }
+
     internal float RowHitHeightForInput => GetRowHeight();
 
     internal int VirtualizedTreeDepth { get; set; }
@@ -95,7 +99,7 @@ public partial class TreeViewItem : ItemsControl
 
     public override IEnumerable<UIElement> GetVisualChildren()
     {
-        if (_hasVirtualizedDisplaySnapshot)
+        if (_virtualizedDisplaySnapshot.HasValue)
         {
             yield break;
         }
@@ -113,14 +117,14 @@ public partial class TreeViewItem : ItemsControl
 
     internal override int GetVisualChildCountForTraversal()
     {
-        return _hasVirtualizedDisplaySnapshot
+        return _virtualizedDisplaySnapshot.HasValue
             ? 0
             : base.GetVisualChildCountForTraversal() + (_virtualizedHeaderElement != null ? 1 : 0);
     }
 
     internal override UIElement GetVisualChildAtForTraversal(int index)
     {
-        if (_hasVirtualizedDisplaySnapshot)
+        if (_virtualizedDisplaySnapshot.HasValue)
         {
             throw new ArgumentOutOfRangeException(nameof(index));
         }

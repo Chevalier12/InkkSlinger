@@ -88,28 +88,18 @@ public partial class TreeView : ItemsControl
 
     private readonly ScrollViewer _fallbackScrollViewer;
     private readonly HashSet<TreeViewItem> _trackedTreeItems = new();
-    private readonly List<VisibleTreeDataEntry> _hierarchicalDataRows = new();
-    private readonly Dictionary<object, TreeViewItem> _hierarchicalDataContainers = new();
-    private readonly Queue<TreeViewItem> _recycledHierarchicalDataContainers = new();
-    private readonly Dictionary<object, bool> _hierarchicalExpansionOverrides = new();
-    private readonly Dictionary<object, IReadOnlyList<object>> _lazyLoadedHierarchicalChildren = new();
-    private readonly HashSet<INotifyCollectionChanged> _subscribedHierarchicalCollections = new();
+    private readonly HierarchicalDataController _hierarchicalData;
     private ScrollViewer? _templatedScrollViewer;
     private ScrollViewer? _viewportSubscribedScrollViewer;
     private float _lastDataHostViewportWidth = float.NaN;
     private float _lastDataHostViewportHeight = float.NaN;
     private int _activeScrollViewerLayoutDepth;
     private Panel _itemsHost;
-    private object? _hierarchicalItemsSource;
-    private Func<object, IEnumerable<object>>? _hierarchicalChildrenSelector;
-    private Func<object, bool>? _hierarchicalHasChildrenSelector;
-    private Func<object, string>? _hierarchicalHeaderSelector;
-    private Func<object, bool>? _hierarchicalExpandedSelector;
-    private Func<object, IEnumerable<object>?>? _hierarchicalLazyChildrenLoader;
     private object? _selectedDataItem;
 
     public TreeView()
     {
+        _hierarchicalData = new HierarchicalDataController(this);
         _itemsHost = CreateItemsHost();
         AttachItemsHost(_itemsHost);
 
@@ -133,69 +123,41 @@ public partial class TreeView : ItemsControl
 
     public object? HierarchicalItemsSource
     {
-        get => _hierarchicalItemsSource;
-        set
-        {
-            if (ReferenceEquals(_hierarchicalItemsSource, value))
-            {
-                return;
-            }
-
-            _hierarchicalItemsSource = value;
-            _hierarchicalExpansionOverrides.Clear();
-            _hierarchicalDataContainers.Clear();
-            _recycledHierarchicalDataContainers.Clear();
-            RefreshHierarchicalDataMode();
-        }
+        get => _hierarchicalData.ItemsSource;
+        set => _hierarchicalData.ItemsSource = value;
     }
 
     public Func<object, IEnumerable<object>>? HierarchicalChildrenSelector
     {
-        get => _hierarchicalChildrenSelector;
-        set
-        {
-            _hierarchicalChildrenSelector = value;
-            RefreshHierarchicalDataMode();
-        }
+        get => _hierarchicalData.ChildrenSelector;
+        set => _hierarchicalData.ChildrenSelector = value;
     }
 
     public Func<object, bool>? HierarchicalHasChildrenSelector
     {
-        get => _hierarchicalHasChildrenSelector;
-        set
-        {
-            _hierarchicalHasChildrenSelector = value;
-            RefreshHierarchicalDataMode();
-        }
+        get => _hierarchicalData.HasChildrenSelector;
+        set => _hierarchicalData.HasChildrenSelector = value;
     }
 
     public Func<object, string>? HierarchicalHeaderSelector
     {
-        get => _hierarchicalHeaderSelector;
-        set
-        {
-            _hierarchicalHeaderSelector = value;
-            RefreshHierarchicalDataMode();
-        }
+        get => _hierarchicalData.HeaderSelector;
+        set => _hierarchicalData.HeaderSelector = value;
     }
 
     public Func<object, bool>? HierarchicalExpandedSelector
     {
-        get => _hierarchicalExpandedSelector;
-        set
-        {
-            _hierarchicalExpandedSelector = value;
-            RefreshHierarchicalDataMode();
-        }
+        get => _hierarchicalData.ExpandedSelector;
+        set => _hierarchicalData.ExpandedSelector = value;
     }
 
     public Func<object, IEnumerable<object>?>? HierarchicalLazyChildrenLoader
     {
-        get => _hierarchicalLazyChildrenLoader;
-        set => _hierarchicalLazyChildrenLoader = value;
+        get => _hierarchicalData.LazyChildrenLoader;
+        set => _hierarchicalData.LazyChildrenLoader = value;
     }
 
-    public int RealizedHierarchicalContainerCount => _hierarchicalDataContainers.Count;
+    public int RealizedHierarchicalContainerCount => _hierarchicalData.RealizedContainerCount;
 
     public object? SelectedDataItem
     {
@@ -308,11 +270,11 @@ public partial class TreeView : ItemsControl
             return false;
         }
 
-        var rowIndex = _hierarchicalDataRows.FindIndex(row => ReferenceEquals(row.Item, item) || Equals(row.Item, item));
+        var rowIndex = FindHierarchicalRowIndex(item);
         if (rowIndex < 0)
         {
             RefreshHierarchicalDataRows();
-            rowIndex = _hierarchicalDataRows.FindIndex(row => ReferenceEquals(row.Item, item) || Equals(row.Item, item));
+            rowIndex = FindHierarchicalRowIndex(item);
             if (rowIndex < 0)
             {
                 return false;
@@ -320,7 +282,7 @@ public partial class TreeView : ItemsControl
         }
 
         ScrollHierarchicalRowIntoView(rowIndex);
-        ApplySelectedItem(RealizeHierarchicalDataContainer(_hierarchicalDataRows[rowIndex], rowIndex));
+        ApplySelectedItem(RealizeHierarchicalDataContainer(GetHierarchicalRow(rowIndex), rowIndex));
         return true;
     }
 
@@ -331,19 +293,12 @@ public partial class TreeView : ItemsControl
             return false;
         }
 
-        if (isExpanded)
-        {
-            EnsureLazyHierarchicalChildrenLoaded(item);
-        }
-
-        _hierarchicalExpansionOverrides[item] = isExpanded;
-        RefreshHierarchicalDataRows();
-        return true;
+        return _hierarchicalData.SetExpanded(item, isExpanded);
     }
 
     public bool IsHierarchicalItemExpanded(object item)
     {
-        return IsHierarchicalDataMode && IsHierarchicalItemExpandedCore(item);
+        return _hierarchicalData.IsExpanded(item);
     }
 
     public bool ScrollHierarchicalItemIntoView(object item)
@@ -371,14 +326,7 @@ public partial class TreeView : ItemsControl
 
     public TreeViewItem? ContainerFromHierarchicalItem(object item)
     {
-        if (!_hierarchicalDataContainers.TryGetValue(item, out var container))
-        {
-            return null;
-        }
-
-        return container.VirtualizedTreeRowIndex >= 0 && ReferenceEquals(container.VisualParent, _itemsHost)
-            ? container
-            : null;
+        return _hierarchicalData.ContainerFromItem(item, _itemsHost);
     }
 
     internal bool HandleKeyDownFromInput(Keys key, ModifierKeys modifiers)
@@ -580,6 +528,8 @@ public partial class TreeView : ItemsControl
     {
         _ = source;
         _ = reason;
+        // Data-mode scrolling can move the realized row window without changing the viewport.
+        // Treat those invalidations as arrange/render work so wheel and thumb scroll stay inside a frame budget.
         if (ReferenceEquals(origin, this) &&
             _activeScrollViewerLayoutDepth > 0 &&
             IsStableHierarchicalDataViewport())
@@ -605,7 +555,7 @@ public partial class TreeView : ItemsControl
 
     private ScrollViewer ActiveScrollViewer => _templatedScrollViewer ?? _fallbackScrollViewer;
 
-    private bool IsHierarchicalDataMode => _hierarchicalItemsSource != null && _hierarchicalChildrenSelector != null;
+    private bool IsHierarchicalDataMode => _hierarchicalData.IsActive;
 
     private bool ShouldTreatActiveScrollViewerMeasureAsArrangeOnly(FrameworkElement descendant)
     {

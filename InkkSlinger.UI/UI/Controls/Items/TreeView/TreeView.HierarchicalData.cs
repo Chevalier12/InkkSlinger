@@ -2,14 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
 public partial class TreeView
 {
+    private readonly record struct VisibleTreeDataEntry(object Item, int Depth, bool HasChildren, bool IsExpanded);
+
     private void RefreshHierarchicalDataMode()
     {
         var needsDataHost = IsHierarchicalDataMode;
@@ -25,108 +24,25 @@ public partial class TreeView
         }
     }
 
-    private IEnumerable<object> GetHierarchicalRootItems()
-    {
-        if (_hierarchicalItemsSource is IEnumerable<object> enumerable)
-        {
-            return enumerable;
-        }
-
-        if (_hierarchicalItemsSource is System.Collections.IEnumerable nonGeneric && _hierarchicalItemsSource is not string)
-        {
-            return nonGeneric.Cast<object>();
-        }
-
-        return _hierarchicalItemsSource != null
-            ? new[] { _hierarchicalItemsSource }
-            : Array.Empty<object>();
-    }
-
     private void RefreshHierarchicalDataRows()
     {
-        if (_itemsHost is not VirtualizingTreeDataHost dataHost || _hierarchicalChildrenSelector == null)
+        if (_itemsHost is VirtualizingTreeDataHost dataHost)
         {
-            return;
+            _hierarchicalData.RefreshRows(dataHost);
         }
-
-        UnsubscribeHierarchicalCollections();
-        _hierarchicalDataRows.Clear();
-        foreach (var item in GetHierarchicalRootItems())
-        {
-            AddHierarchicalDataRow(item, depth: 0);
-        }
-
-        dataHost.SetRows(_hierarchicalDataRows);
-        SyncSelectedHierarchicalContainer();
-    }
-
-    private void AddHierarchicalDataRow(object item, int depth)
-    {
-        var hasChildren = HasHierarchicalChildren(item);
-        var expanded = hasChildren && IsHierarchicalItemExpandedCore(item);
-        _hierarchicalDataRows.Add(new VisibleTreeDataEntry(item, depth, hasChildren, expanded));
-
-        if (!expanded)
-        {
-            return;
-        }
-
-        var children = GetHierarchicalChildren(item);
-        foreach (var child in children)
-        {
-            AddHierarchicalDataRow(child, depth + 1);
-        }
-    }
-
-    private bool HasHierarchicalChildren(object item)
-    {
-        if (_hierarchicalHasChildrenSelector != null)
-        {
-            return _hierarchicalHasChildrenSelector(item);
-        }
-
-        return GetHierarchicalChildren(item).Count > 0;
-    }
-
-    private IReadOnlyList<object> GetHierarchicalChildren(object item)
-    {
-        if (_lazyLoadedHierarchicalChildren.TryGetValue(item, out var lazyChildren))
-        {
-            return lazyChildren;
-        }
-
-        if (_hierarchicalChildrenSelector?.Invoke(item) is not { } children)
-        {
-            return Array.Empty<object>();
-        }
-
-        if (children is INotifyCollectionChanged notifying)
-        {
-            SubscribeHierarchicalCollection(notifying);
-        }
-
-        return children as IReadOnlyList<object> ?? children.ToArray();
-    }
-
-    private bool IsHierarchicalItemExpandedCore(object item)
-    {
-        if (_hierarchicalExpansionOverrides.TryGetValue(item, out var expanded))
-        {
-            return expanded;
-        }
-
-        return _hierarchicalExpandedSelector?.Invoke(item) ?? false;
-    }
-
-    private string GetHierarchicalHeader(object item)
-    {
-        return _hierarchicalHeaderSelector?.Invoke(item) ?? item.ToString() ?? string.Empty;
     }
 
     private int FindHierarchicalRowIndex(object item)
     {
-        return _hierarchicalDataRows.FindIndex(row => ReferenceEquals(row.Item, item) || Equals(row.Item, item));
+        return _hierarchicalData.FindRowIndex(item);
     }
+
+    private VisibleTreeDataEntry GetHierarchicalRow(int rowIndex)
+    {
+        return _hierarchicalData.Rows[rowIndex];
+    }
+
+    private int HierarchicalRowCount => _hierarchicalData.Rows.Count;
 
     private void ScrollHierarchicalRowIntoView(int rowIndex)
     {
@@ -152,49 +68,6 @@ public partial class TreeView
         }
     }
 
-    private void EnsureLazyHierarchicalChildrenLoaded(object item)
-    {
-        if (_hierarchicalLazyChildrenLoader == null ||
-            _lazyLoadedHierarchicalChildren.ContainsKey(item) ||
-            GetHierarchicalChildren(item).Count > 0)
-        {
-            return;
-        }
-
-        var loaded = _hierarchicalLazyChildrenLoader(item);
-        if (loaded == null)
-        {
-            return;
-        }
-
-        var children = loaded as IReadOnlyList<object> ?? loaded.ToArray();
-        if (!TryAppendLazyChildrenToMutableSource(item, children))
-        {
-            _lazyLoadedHierarchicalChildren[item] = children;
-        }
-    }
-
-    private bool TryAppendLazyChildrenToMutableSource(object item, IReadOnlyList<object> children)
-    {
-        if (children.Count == 0 ||
-            _hierarchicalChildrenSelector?.Invoke(item) is not { } existing)
-        {
-            return false;
-        }
-
-        if (existing is not System.Collections.IList mutableChildren)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < children.Count; i++)
-        {
-            mutableChildren.Add(children[i]);
-        }
-
-        return true;
-    }
-
     private void ApplyHierarchicalItemTemplate(TreeViewItem container, object item)
     {
         var selectedTemplate = DataTemplateResolver.ResolveTemplateForContent(
@@ -212,85 +85,431 @@ public partial class TreeView
         container.SetVirtualizedHeaderElement(selectedTemplate.Build(item, this));
     }
 
-    private void SubscribeHierarchicalCollection(INotifyCollectionChanged collection)
-    {
-        if (_subscribedHierarchicalCollections.Add(collection))
-        {
-            collection.CollectionChanged += OnHierarchicalCollectionChanged;
-        }
-    }
-
-    private void UnsubscribeHierarchicalCollections()
-    {
-        foreach (var collection in _subscribedHierarchicalCollections)
-        {
-            collection.CollectionChanged -= OnHierarchicalCollectionChanged;
-        }
-
-        _subscribedHierarchicalCollections.Clear();
-    }
-
-    private void OnHierarchicalCollectionChanged(object? sender, NotifyCollectionChangedEventArgs args)
-    {
-        _ = sender;
-        _ = args;
-        RefreshHierarchicalDataRows();
-    }
-
     private TreeViewItem RealizeHierarchicalDataContainer(VisibleTreeDataEntry row, int rowIndex)
     {
-        if (!_hierarchicalDataContainers.TryGetValue(row.Item, out var container))
-        {
-            container = _recycledHierarchicalDataContainers.Count > 0
-                ? _recycledHierarchicalDataContainers.Dequeue()
-                : new TreeViewItem();
-            _hierarchicalDataContainers[row.Item] = container;
-            ApplyTypographyToItem(container, null, Foreground);
-        }
-
-        ApplyHierarchicalDataContainer(container, row, rowIndex);
-        return container;
+        return _hierarchicalData.RealizeContainer(row, rowIndex);
     }
 
     private void ApplyHierarchicalDataContainer(TreeViewItem container, VisibleTreeDataEntry row, int rowIndex)
     {
-        container.ClearVirtualizedDisplaySnapshot();
-        container.Header = GetHierarchicalHeader(row.Item);
-        container.Tag = row.Item;
-        container.DataContext = row.Item;
-        container.IsExpanded = row.IsExpanded;
-        container.UseVirtualizedTreeLayout = true;
-        container.VirtualizedTreeDepth = row.Depth;
-        container.VirtualizedTreeRowIndex = rowIndex;
-        container.HasVirtualizedChildItems = row.HasChildren;
-        container.IsSelected = IsHierarchicalDataItemSelected(row.Item);
-        PrepareContainerForItemOverride(container, row.Item, rowIndex);
-        ApplyHierarchicalItemTemplate(container, row.Item);
-        if (container.IsSelected)
-        {
-            SelectedItem = container;
-        }
+        _hierarchicalData.ApplyContainer(container, row, rowIndex);
     }
 
     private void RecycleHierarchicalDataContainer(TreeViewItem container)
     {
-        if (ReferenceEquals(container, SelectedItem))
-        {
-            return;
-        }
-
-        if (container.Tag is { } item)
-        {
-            _hierarchicalDataContainers.Remove(item);
-        }
-
-        container.IsSelected = false;
-        container.ClearVirtualizedDisplaySnapshot();
-        container.SetVirtualizedHeaderElement(null);
-        container.Tag = null;
-        container.DataContext = null;
-        container.VirtualizedTreeRowIndex = -1;
-        _recycledHierarchicalDataContainers.Enqueue(container);
+        _hierarchicalData.RecycleContainer(container);
     }
 
+    private string GetHierarchicalHeader(object item)
+    {
+        return _hierarchicalData.GetHeader(item);
+    }
+
+    private bool IsHierarchicalDataItemSelected(object item)
+    {
+        return _hierarchicalData.IsSelected(item);
+    }
+
+    private sealed class HierarchicalDataController
+    {
+        private readonly TreeView _owner;
+        private readonly List<VisibleTreeDataEntry> _rows = new();
+        private readonly Dictionary<object, TreeViewItem> _containers = new();
+        private readonly Queue<TreeViewItem> _recycledContainers = new();
+        private readonly Dictionary<object, bool> _expansionOverrides = new();
+        private readonly Dictionary<object, IReadOnlyList<object>> _lazyLoadedChildren = new();
+        private readonly HashSet<INotifyCollectionChanged> _subscribedCollections = new();
+        private object? _itemsSource;
+        private Func<object, IEnumerable<object>>? _childrenSelector;
+        private Func<object, bool>? _hasChildrenSelector;
+        private Func<object, string>? _headerSelector;
+        private Func<object, bool>? _expandedSelector;
+        private Func<object, IEnumerable<object>?>? _lazyChildrenLoader;
+
+        public HierarchicalDataController(TreeView owner)
+        {
+            _owner = owner;
+        }
+
+        public IReadOnlyList<VisibleTreeDataEntry> Rows => _rows;
+
+        public int RealizedContainerCount => _containers.Count;
+
+        public bool IsActive => _itemsSource != null && _childrenSelector != null;
+
+        public object? ItemsSource
+        {
+            get => _itemsSource;
+            set
+            {
+                if (ReferenceEquals(_itemsSource, value))
+                {
+                    return;
+                }
+
+                _itemsSource = value;
+                _expansionOverrides.Clear();
+                _containers.Clear();
+                _recycledContainers.Clear();
+                _owner.RefreshHierarchicalDataMode();
+            }
+        }
+
+        public Func<object, IEnumerable<object>>? ChildrenSelector
+        {
+            get => _childrenSelector;
+            set
+            {
+                _childrenSelector = value;
+                _owner.RefreshHierarchicalDataMode();
+            }
+        }
+
+        public Func<object, bool>? HasChildrenSelector
+        {
+            get => _hasChildrenSelector;
+            set
+            {
+                _hasChildrenSelector = value;
+                _owner.RefreshHierarchicalDataMode();
+            }
+        }
+
+        public Func<object, string>? HeaderSelector
+        {
+            get => _headerSelector;
+            set
+            {
+                _headerSelector = value;
+                _owner.RefreshHierarchicalDataMode();
+            }
+        }
+
+        public Func<object, bool>? ExpandedSelector
+        {
+            get => _expandedSelector;
+            set
+            {
+                _expandedSelector = value;
+                _owner.RefreshHierarchicalDataMode();
+            }
+        }
+
+        public Func<object, IEnumerable<object>?>? LazyChildrenLoader
+        {
+            get => _lazyChildrenLoader;
+            set => _lazyChildrenLoader = value;
+        }
+
+        public void RefreshRows(VirtualizingTreeDataHost dataHost)
+        {
+            if (_childrenSelector == null)
+            {
+                return;
+            }
+
+            UnsubscribeCollections();
+            _rows.Clear();
+            foreach (var item in GetRootItems())
+            {
+                AddRow(item, depth: 0);
+            }
+
+            dataHost.SetRows(_rows);
+            SyncSelectedContainer();
+        }
+
+        public int FindRowIndex(object item)
+        {
+            return _rows.FindIndex(row => ReferenceEquals(row.Item, item) || Equals(row.Item, item));
+        }
+
+        public bool SetExpanded(object item, bool isExpanded)
+        {
+            if (!IsActive)
+            {
+                return false;
+            }
+
+            if (isExpanded)
+            {
+                EnsureLazyChildrenLoaded(item);
+            }
+
+            _expansionOverrides[item] = isExpanded;
+            _owner.RefreshHierarchicalDataRows();
+            return true;
+        }
+
+        public bool IsExpanded(object item)
+        {
+            return IsActive && IsExpandedCore(item);
+        }
+
+        public void ToggleExpanded(TreeViewItem clickedItem)
+        {
+            var item = clickedItem.VirtualizedTreeDataItem;
+            if (item == null)
+            {
+                return;
+            }
+
+            if (!clickedItem.IsExpanded)
+            {
+                EnsureLazyChildrenLoaded(item);
+            }
+
+            _expansionOverrides[item] = !clickedItem.IsExpanded;
+            _owner.RefreshHierarchicalDataRows();
+        }
+
+        public string GetHeader(object item)
+        {
+            return _headerSelector?.Invoke(item) ?? item.ToString() ?? string.Empty;
+        }
+
+        public bool IsSelected(object item)
+        {
+            return _owner.SelectedDataItem is { } selectedItem &&
+                   (ReferenceEquals(selectedItem, item) || Equals(selectedItem, item));
+        }
+
+        public TreeViewItem? ContainerFromItem(object item, Panel itemsHost)
+        {
+            if (!_containers.TryGetValue(item, out var container))
+            {
+                return null;
+            }
+
+            return container.VirtualizedTreeRowIndex >= 0 && ReferenceEquals(container.VisualParent, itemsHost)
+                ? container
+                : null;
+        }
+
+        public TreeViewItem RealizeContainer(VisibleTreeDataEntry row, int rowIndex)
+        {
+            if (!_containers.TryGetValue(row.Item, out var container))
+            {
+                container = _recycledContainers.Count > 0
+                    ? _recycledContainers.Dequeue()
+                    : new TreeViewItem();
+                _containers[row.Item] = container;
+                ApplyTypographyToItem(container, null, _owner.Foreground);
+            }
+
+            ApplyContainer(container, row, rowIndex);
+            return container;
+        }
+
+        public void ApplyContainer(TreeViewItem container, VisibleTreeDataEntry row, int rowIndex)
+        {
+            container.ClearVirtualizedDisplaySnapshot();
+            container.Header = GetHeader(row.Item);
+            container.VirtualizedTreeDataItem = row.Item;
+            container.Tag = row.Item;
+            container.DataContext = row.Item;
+            container.IsExpanded = row.IsExpanded;
+            container.UseVirtualizedTreeLayout = true;
+            container.VirtualizedTreeDepth = row.Depth;
+            container.VirtualizedTreeRowIndex = rowIndex;
+            container.HasVirtualizedChildItems = row.HasChildren;
+            container.IsSelected = IsSelected(row.Item);
+            _owner.PrepareContainerForItemOverride(container, row.Item, rowIndex);
+            _owner.ApplyHierarchicalItemTemplate(container, row.Item);
+            if (container.IsSelected)
+            {
+                _owner.SelectedItem = container;
+            }
+        }
+
+        public void RecycleContainer(TreeViewItem container)
+        {
+            if (ReferenceEquals(container, _owner.SelectedItem))
+            {
+                return;
+            }
+
+            if (container.VirtualizedTreeDataItem is { } item)
+            {
+                _containers.Remove(item);
+            }
+
+            container.IsSelected = false;
+            container.ClearVirtualizedDisplaySnapshot();
+            container.SetVirtualizedHeaderElement(null);
+            container.VirtualizedTreeDataItem = null;
+            container.Tag = null;
+            container.DataContext = null;
+            container.VirtualizedTreeRowIndex = -1;
+            _recycledContainers.Enqueue(container);
+        }
+
+        public void EnsureLazyChildrenLoaded(object item)
+        {
+            if (_lazyChildrenLoader == null ||
+                _lazyLoadedChildren.ContainsKey(item) ||
+                GetChildren(item).Count > 0)
+            {
+                return;
+            }
+
+            var loaded = _lazyChildrenLoader(item);
+            if (loaded == null)
+            {
+                return;
+            }
+
+            var children = loaded as IReadOnlyList<object> ?? loaded.ToArray();
+            if (!TryAppendLazyChildrenToMutableSource(item, children))
+            {
+                _lazyLoadedChildren[item] = children;
+            }
+        }
+
+        private IEnumerable<object> GetRootItems()
+        {
+            if (_itemsSource is IEnumerable<object> enumerable)
+            {
+                return enumerable;
+            }
+
+            if (_itemsSource is System.Collections.IEnumerable nonGeneric && _itemsSource is not string)
+            {
+                return nonGeneric.Cast<object>();
+            }
+
+            return _itemsSource != null
+                ? new[] { _itemsSource }
+                : Array.Empty<object>();
+        }
+
+        private void AddRow(object item, int depth)
+        {
+            var hasChildren = HasChildren(item);
+            var expanded = hasChildren && IsExpandedCore(item);
+            _rows.Add(new VisibleTreeDataEntry(item, depth, hasChildren, expanded));
+
+            if (!expanded)
+            {
+                return;
+            }
+
+            foreach (var child in GetChildren(item))
+            {
+                AddRow(child, depth + 1);
+            }
+        }
+
+        private bool HasChildren(object item)
+        {
+            if (_hasChildrenSelector != null)
+            {
+                return _hasChildrenSelector(item);
+            }
+
+            return GetChildren(item).Count > 0;
+        }
+
+        private IReadOnlyList<object> GetChildren(object item)
+        {
+            if (_lazyLoadedChildren.TryGetValue(item, out var lazyChildren))
+            {
+                return lazyChildren;
+            }
+
+            if (_childrenSelector?.Invoke(item) is not { } children)
+            {
+                return Array.Empty<object>();
+            }
+
+            if (children is INotifyCollectionChanged notifying)
+            {
+                SubscribeCollection(notifying);
+            }
+
+            return children as IReadOnlyList<object> ?? children.ToArray();
+        }
+
+        private bool IsExpandedCore(object item)
+        {
+            if (_expansionOverrides.TryGetValue(item, out var expanded))
+            {
+                return expanded;
+            }
+
+            return _expandedSelector?.Invoke(item) ?? false;
+        }
+
+        private bool TryAppendLazyChildrenToMutableSource(object item, IReadOnlyList<object> children)
+        {
+            if (children.Count == 0 ||
+                _childrenSelector?.Invoke(item) is not { } existing)
+            {
+                return false;
+            }
+
+            if (existing is not System.Collections.IList mutableChildren)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < children.Count; i++)
+            {
+                mutableChildren.Add(children[i]);
+            }
+
+            return true;
+        }
+
+        private void SubscribeCollection(INotifyCollectionChanged collection)
+        {
+            if (_subscribedCollections.Add(collection))
+            {
+                collection.CollectionChanged += OnCollectionChanged;
+            }
+        }
+
+        private void UnsubscribeCollections()
+        {
+            foreach (var collection in _subscribedCollections)
+            {
+                collection.CollectionChanged -= OnCollectionChanged;
+            }
+
+            _subscribedCollections.Clear();
+        }
+
+        private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs args)
+        {
+            _ = sender;
+            _ = args;
+            _owner.RefreshHierarchicalDataRows();
+        }
+
+        private void SyncSelectedContainer()
+        {
+            if (_owner.SelectedDataItem == null)
+            {
+                return;
+            }
+
+            var rowIndex = FindRowIndex(_owner.SelectedDataItem);
+            if (rowIndex < 0)
+            {
+                if (_owner.SelectedItem != null)
+                {
+                    _owner.SelectedItem.IsSelected = false;
+                }
+
+                _owner.SelectedItem = null;
+                return;
+            }
+
+            if (_containers.TryGetValue(_owner.SelectedDataItem, out var container))
+            {
+                container.IsSelected = true;
+                _owner.SelectedItem = container;
+            }
+        }
+    }
 }

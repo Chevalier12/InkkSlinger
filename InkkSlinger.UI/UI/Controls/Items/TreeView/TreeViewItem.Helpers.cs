@@ -39,12 +39,12 @@ public partial class TreeViewItem
 
     private string GetEffectiveHeader()
     {
-        return _hasVirtualizedDisplaySnapshot ? _virtualizedDisplayHeader : Header;
+        return _virtualizedDisplaySnapshot?.Header ?? Header;
     }
 
     private bool GetEffectiveIsSelected()
     {
-        return _hasVirtualizedDisplaySnapshot ? _virtualizedDisplayIsSelected : IsSelected;
+        return _virtualizedDisplaySnapshot?.IsSelected ?? IsSelected;
     }
 
     private (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) ResolveVirtualizedHeaderRenderSource()
@@ -137,7 +137,7 @@ public partial class TreeViewItem
 
     private bool GetEffectiveIsExpanded()
     {
-        return _hasVirtualizedDisplaySnapshot ? _virtualizedDisplayIsExpanded : IsExpanded;
+        return _virtualizedDisplaySnapshot?.IsExpanded ?? IsExpanded;
     }
 
     private float MeasureTemplatedHeaderWidth(Vector2 availableSize, float rowHeight)

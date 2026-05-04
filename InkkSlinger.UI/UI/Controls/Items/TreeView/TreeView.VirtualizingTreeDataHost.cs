@@ -10,8 +10,6 @@ namespace InkkSlinger;
 
 public partial class TreeView
 {
-    private readonly record struct VisibleTreeDataEntry(object Item, int Depth, bool HasChildren, bool IsExpanded);
-
     private sealed class VirtualizingTreeDataHost : Panel, IScrollTransformContent, IScrollViewerVirtualizedContent
     {
         private const float FallbackRowHeight = 22f;
@@ -136,6 +134,8 @@ public partial class TreeView
                 _owner.IsActiveScrollViewerThumbCaptured() &&
                 range.First > 0)
             {
+                // During thumb drags, retarget the existing rows as lightweight display snapshots.
+                // The real containers are committed on pointer release to avoid rebuilding templates every drag frame.
                 RetargetRealizedRowsForThumbDrag(range.First, range.Last);
                 _pendingDeferredOffsetRefresh = true;
                 UiRoot.Current?.NotifyDirectRenderInvalidation(this);
@@ -463,7 +463,7 @@ public partial class TreeView
             return rowIndex >= first &&
                    rowIndex <= last &&
                    rowIndex < _rows.Count &&
-                   ReferenceEquals(item.Tag, _rows[rowIndex].Item);
+                   ReferenceEquals(item.VirtualizedTreeDataItem, _rows[rowIndex].Item);
         }
 
         private int IndexOfChild(UIElement child)
@@ -478,12 +478,6 @@ public partial class TreeView
 
             return -1;
         }
-    }
-
-    private bool IsHierarchicalDataItemSelected(object item)
-    {
-        return _selectedDataItem is { } selectedItem &&
-               (ReferenceEquals(selectedItem, item) || Equals(selectedItem, item));
     }
 
 }

@@ -11,7 +11,7 @@ public partial class TreeViewItem
     {
         var baseRowHeight = GetRowHeight();
         var rowHeight = MathF.Max(baseRowHeight, _virtualizedHeaderMinRowHeight);
-        var rowWidth = HasTemplateRoot && !_hasVirtualizedDisplaySnapshot
+        var rowWidth = HasTemplateRoot && !_virtualizedDisplaySnapshot.HasValue
             ? MeasureTemplatedHeaderWidth(availableSize, rowHeight)
             : MeasureHeaderWidth();
 
@@ -70,7 +70,7 @@ public partial class TreeViewItem
                 headerElement.DesiredSize.Y));
         }
 
-        if (!_hasVirtualizedDisplaySnapshot && HasTemplateRoot && TryGetTemplateRoot(out var templateRoot))
+        if (!_virtualizedDisplaySnapshot.HasValue && HasTemplateRoot && TryGetTemplateRoot(out var templateRoot))
         {
             var padding = Padding;
             var textX = LayoutSlot.X + GetHeaderTextOffset();
