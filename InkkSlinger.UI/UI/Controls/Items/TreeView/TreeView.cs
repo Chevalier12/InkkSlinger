@@ -488,6 +488,7 @@ public partial class TreeView : ItemsControl
         try
         {
             ActiveScrollViewer.Arrange(new LayoutRect(innerX, innerY, innerWidth, innerHeight));
+            RememberActiveDataHostViewport();
         }
         finally
         {

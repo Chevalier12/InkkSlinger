@@ -45,6 +45,11 @@ public partial class TreeViewItem
             return false;
         }
 
+        if (!ShowsBuiltInExpander)
+        {
+            return HitTemplateExpander(point);
+        }
+
         var rowHeight = GetRowHeight();
         // Hit zone is centred on the glyph centre (glyphCx = X + padding.Left + 7, glyphCy = Y + rowHeight/2)
         // Use a 14×14 box so the small triangle remains easy to click.
@@ -53,6 +58,20 @@ public partial class TreeViewItem
         var glyphCy = LayoutSlot.Y + (rowHeight / 2f);
         var rect = new LayoutRect(glyphCx - 7f, glyphCy - 7f, 14f, 14f);
         return point.X >= rect.X && point.X <= rect.X + rect.Width && point.Y >= rect.Y && point.Y <= rect.Y + rect.Height;
+    }
+
+    private bool HitTemplateExpander(Vector2 point)
+    {
+        if (GetTemplateChild("PART_Expander") is not UIElement expander ||
+            !expander.IsVisible ||
+            !expander.IsHitTestVisible ||
+            !expander.TryGetRenderBoundsInRootSpace(out var bounds))
+        {
+            return false;
+        }
+
+        return point.X >= bounds.X && point.X <= bounds.X + bounds.Width &&
+               point.Y >= bounds.Y && point.Y <= bounds.Y + bounds.Height;
     }
 
     public bool HasChildItems()
@@ -75,13 +94,23 @@ public partial class TreeViewItem
             hasChildren,
             isExpanded,
             isSelected);
+        _suppressExpanderPresentationUpdates = true;
+        try
+        {
+            HasItems = hasChildren;
+        }
+        finally
+        {
+            _suppressExpanderPresentationUpdates = false;
+        }
+
         UseVirtualizedTreeLayout = true;
         VirtualizedTreeDepth = depth;
         VirtualizedTreeRowIndex = rowIndex;
         InvalidateVisual();
     }
 
-    internal void ClearVirtualizedDisplaySnapshot()
+    internal void ClearVirtualizedDisplaySnapshot(bool updateHasItems = true)
     {
         if (!_virtualizedDisplaySnapshot.HasValue)
         {
@@ -89,6 +118,10 @@ public partial class TreeViewItem
         }
 
         _virtualizedDisplaySnapshot = null;
+        if (updateHasItems)
+        {
+            UpdateHasItems();
+        }
         InvalidateVisual();
     }
 

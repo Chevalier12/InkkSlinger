@@ -218,6 +218,46 @@ public sealed class TreeViewInputTests
         Assert.True(root.IsExpanded);
     }
 
+    [Fact]
+    public void TemplateOwnedExpanderHitTarget_ShouldUseNamedTemplatePartBounds()
+    {
+        var host = new Canvas
+        {
+            Width = 460f,
+            Height = 280f
+        };
+
+        var treeView = new TreeView
+        {
+            Width = 320f,
+            Height = 220f
+        };
+        var root = new TestTreeViewItem
+        {
+            Header = "Root",
+            IsExpanded = true,
+            ShowsBuiltInExpander = false,
+            Template = BuildTemplateOwnedExpanderHitTargetTemplate()
+        };
+        root.Items.Add(new TreeViewItem { Header = "Child" });
+        treeView.Items.Add(root);
+
+        host.AddChild(treeView);
+        Canvas.SetLeft(treeView, 20f);
+        Canvas.SetTop(treeView, 20f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        var expander = Assert.IsType<Border>(root.GetTemplateChildForTests("PART_Expander"));
+        Assert.True(expander.TryGetRenderBoundsInRootSpace(out var expanderBounds));
+        var templateOwnedPoint = new Vector2(expanderBounds.X + expanderBounds.Width - 2f, expanderBounds.Y + expanderBounds.Height / 2f);
+        Assert.True(root.HitExpander(templateOwnedPoint));
+
+        Click(uiRoot, templateOwnedPoint);
+        Assert.False(root.IsExpanded);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task ClickingCollapsedNestedFolderExpander_ShouldExpandAndRealizeChildren()
     {
@@ -414,6 +454,62 @@ public sealed class TreeViewInputTests
 
         return false;
     }
+
+    private static ControlTemplate BuildTemplateOwnedExpanderHitTargetTemplate()
+    {
+        var template = new ControlTemplate(_ =>
+        {
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36f, GridUnitType.Pixel) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1f, GridUnitType.Star) });
+
+            var expander = new Border
+            {
+                Name = "PART_Expander",
+                Background = Color.Transparent,
+                Visibility = Visibility.Visible
+            };
+
+            var glyph = new TextBlock
+            {
+                Name = "ExpanderGlyph",
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var headerText = new TextBlock
+            {
+                Name = "HeaderText",
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            expander.Child = glyph;
+            Grid.SetColumn(expander, 0);
+            Grid.SetColumn(headerText, 1);
+            grid.AddChild(expander);
+            grid.AddChild(headerText);
+            return grid;
+        })
+        {
+            TargetType = typeof(TreeViewItem)
+        };
+
+        template.BindTemplate("ExpanderGlyph", TextBlock.TextProperty, TreeViewItem.CurrentExpanderGlyphProperty);
+        template.BindTemplate("PART_Expander", Border.VisibilityProperty, TreeViewItem.ExpanderGlyphVisibilityProperty);
+        template.BindTemplate("HeaderText", TextBlock.TextProperty, TreeViewItem.HeaderProperty);
+        return template;
+    }
+
+    private sealed class TestTreeViewItem : TreeViewItem
+    {
+        public UIElement? GetTemplateChildForTests(string name)
+        {
+            return GetTemplateChild(name);
+        }
+    }
+
 
     [Fact]
     public void ClickingChildAfterRootReselection_WithStationaryClicks_ShouldSelectChildImmediately()

@@ -1956,10 +1956,11 @@ public class ScrollViewer : ContentControl
 
         _diagSetOffsetsWorkCount++;
         _runtimeSetOffsetsWorkCount++;
+        var canApplyOffsetWithoutDeferredLayout = CanApplyOffsetWithoutDeferredLayout();
         WriteOffsetProperties(nextHorizontal, nextVertical);
         ViewportChanged?.Invoke(this, EventArgs.Empty);
 
-        if (CanApplyOffsetWithoutDeferredLayout())
+        if (canApplyOffsetWithoutDeferredLayout)
         {
             if (ContentElement is VirtualizingStackPanel virtualizingStackPanel)
             {

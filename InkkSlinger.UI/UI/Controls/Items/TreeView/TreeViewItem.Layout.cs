@@ -73,7 +73,7 @@ public partial class TreeViewItem
         if (!_virtualizedDisplaySnapshot.HasValue && HasTemplateRoot && TryGetTemplateRoot(out var templateRoot))
         {
             var padding = Padding;
-            var textX = LayoutSlot.X + GetHeaderTextOffset();
+            var textX = LayoutSlot.X + GetTemplateRootOffset();
             templateRoot.Arrange(new LayoutRect(
                 textX,
                 LayoutSlot.Y,

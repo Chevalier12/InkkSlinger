@@ -34,7 +34,7 @@ public partial class TreeViewItem
         var textWidth = !string.IsNullOrEmpty(header)
             ? UiTextRenderer.MeasureWidth(this, header, FontSize)
             : 0f;
-        return padding.Horizontal + GetVirtualizedDepthOffset() + (HasChildItems() ? 20f : 10f) + textWidth;
+        return padding.Horizontal + GetVirtualizedDepthOffset() + GetBuiltInHeaderSpacingWidth() + textWidth;
     }
 
     private string GetEffectiveHeader()
@@ -142,7 +142,7 @@ public partial class TreeViewItem
 
     private float MeasureTemplatedHeaderWidth(Vector2 availableSize, float rowHeight)
     {
-        var offset = GetHeaderTextOffset();
+        var offset = GetTemplateRootOffset();
         if (!TryGetTemplateRoot(out var templateRoot))
         {
             return offset;
@@ -175,12 +175,40 @@ public partial class TreeViewItem
     private float GetHeaderTextOffset()
     {
         var padding = Padding;
-        return GetVirtualizedDepthOffset() + padding.Left + (HasChildItems() ? 16f : 6f);
+        return GetVirtualizedDepthOffset() + padding.Left + GetBuiltInHeaderTextSpacing();
+    }
+
+    private float GetTemplateRootOffset()
+    {
+        var padding = Padding;
+        return ShowsBuiltInExpander
+            ? GetHeaderTextOffset()
+            : GetVirtualizedDepthOffset() + padding.Left;
     }
 
     private float GetVirtualizedDepthOffset()
     {
         return UseVirtualizedTreeLayout ? MathF.Max(0f, VirtualizedTreeDepth) * Indent : 0f;
+    }
+
+    private float GetBuiltInHeaderTextSpacing()
+    {
+        if (!ShowsBuiltInExpander)
+        {
+            return 0f;
+        }
+
+        return HasChildItems() ? 16f : 6f;
+    }
+
+    private float GetBuiltInHeaderSpacingWidth()
+    {
+        if (!ShowsBuiltInExpander)
+        {
+            return 0f;
+        }
+
+        return HasChildItems() ? 20f : 10f;
     }
 
     private void PropagateTypographyToChildren(

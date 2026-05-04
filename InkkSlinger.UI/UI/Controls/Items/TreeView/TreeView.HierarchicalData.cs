@@ -307,11 +307,10 @@ public partial class TreeView
             container.Header = GetHeader(row.Item);
             container.VirtualizedTreeDataItem = row.Item;
             container.DataContext = row.Item;
-            container.IsExpanded = row.IsExpanded;
             container.UseVirtualizedTreeLayout = true;
             container.VirtualizedTreeDepth = row.Depth;
             container.VirtualizedTreeRowIndex = rowIndex;
-            container.HasVirtualizedChildItems = row.HasChildren;
+            container.ApplyVirtualizedBranchState(row.HasChildren, row.IsExpanded);
             container.IsSelected = IsSelected(row.Item);
             _owner.PrepareContainerForItemOverride(container, row.Item, rowIndex);
             _owner.ApplyHierarchicalItemTemplate(container, row.Item);
@@ -334,9 +333,10 @@ public partial class TreeView
             }
 
             container.IsSelected = false;
-            container.ClearVirtualizedDisplaySnapshot();
+            container.ClearVirtualizedDisplaySnapshot(updateHasItems: false);
             container.SetVirtualizedHeaderElement(null);
             container.VirtualizedTreeDataItem = null;
+            container.ClearVirtualizedBranchStateForRecycle();
             container.DataContext = null;
             container.VirtualizedTreeRowIndex = -1;
             _recycledContainers.Enqueue(container);

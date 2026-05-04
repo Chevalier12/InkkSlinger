@@ -240,12 +240,6 @@ public sealed class TreeViewMeasurePerformanceTests
         }
 
         var headersWhileHeld = GetVisibleTreeRowHeaders(scrollViewer);
-        var renderedHeadersWhileHeld = EnumerateVisualDescendants<TreeViewItem>(scrollViewer)
-            .Where(static row => row.HasVirtualizedDisplaySnapshotForDiagnostics)
-            .Select(static row => (Full: row.DisplayHeaderForDiagnostics, Rendered: row.RenderedHeaderForDiagnostics))
-            .Where(static row => row.Full.Length > row.Rendered.Length)
-            .ToArray();
-
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, previous, leftReleased: true));
         RunLayout(uiRoot, width: 1280, height: 820);
 
@@ -271,6 +265,9 @@ public sealed class TreeViewMeasurePerformanceTests
             afterViewer.SetOffsetsVirtualizingMeasureInvalidationPathCount - beforeViewer.SetOffsetsVirtualizingMeasureInvalidationPathCount;
         var viewerArrangeOnlyPathDelta =
             afterViewer.SetOffsetsVirtualizingArrangeOnlyPathCount - beforeViewer.SetOffsetsVirtualizingArrangeOnlyPathCount;
+        var viewerTransformDelta = afterViewer.SetOffsetsTransformInvalidationPathCount - beforeViewer.SetOffsetsTransformInvalidationPathCount;
+        var viewerSetOffsetsMsDelta = afterViewer.SetOffsetsMilliseconds - beforeViewer.SetOffsetsMilliseconds;
+        var averageSetOffsetsMs = viewerSetOffsetsMsDelta / Math.Max(1, viewerVerticalScrollBarSetOffsetsDelta);
         var barDragDelta = afterBar.OnThumbDragDeltaCallCount - beforeBar.OnThumbDragDeltaCallCount;
         var averageUpdateMs = uiRootTelemetry.UpdateElapsedMs / dragFrames;
 
@@ -278,12 +275,19 @@ public sealed class TreeViewMeasurePerformanceTests
         Assert.NotEmpty(headersBeforeDrag);
         Assert.NotEmpty(headersWhileHeld);
         Assert.NotEqual(headersBeforeDrag[0], headersWhileHeld[0]);
-        Assert.Contains(
-            renderedHeadersWhileHeld,
-            static row => row.Rendered.EndsWith("...", StringComparison.Ordinal) &&
-                          !string.Equals(row.Full, row.Rendered, StringComparison.Ordinal));
         Assert.True(viewerVerticalScrollBarSetOffsetsDelta > 0, "Expected the repro to exercise ScrollViewer's VerticalScrollBar SetOffsets path.");
         Assert.True(barDragDelta > 0, "Expected the repro to exercise ScrollBar thumb drag deltas.");
+        Assert.Equal(0, viewerDeferredDelta);
+        Assert.True(
+            viewerTransformDelta >= viewerVerticalScrollBarSetOffsetsDelta,
+            $"Dragging the Project Explorer scrollbar thumb should keep virtualized TreeView scrolling on the transform invalidation path. " +
+            $"viewerTransformDelta={viewerTransformDelta}, viewerDeferredDelta={viewerDeferredDelta}, scrollbarSetOffsets={viewerVerticalScrollBarSetOffsetsDelta}, " +
+            $"scrollBarDragDeltas={barDragDelta}, viewerMeasurePath={viewerMeasurePathDelta}, viewerArrangeOnlyPath={viewerArrangeOnlyPathDelta}.");
+        Assert.True(
+            averageSetOffsetsMs <= 1d,
+            $"Dragging the Project Explorer scrollbar thumb should keep ScrollViewer.SetOffsets comfortably below frame budget. " +
+            $"averageSetOffsetsMs={averageSetOffsetsMs:0.###}, viewerSetOffsetsMsDelta={viewerSetOffsetsMsDelta:0.###}, " +
+            $"scrollbarSetOffsets={viewerVerticalScrollBarSetOffsetsDelta}, viewerDeferredDelta={viewerDeferredDelta}, viewerTransformDelta={viewerTransformDelta}.");
         Assert.True(
             treeMeasureDelta <= 12,
             $"Dragging the Project Explorer scrollbar thumb should not remeasure the TreeView every drag frame. " +
@@ -431,11 +435,10 @@ public sealed class TreeViewMeasurePerformanceTests
             var snapshot = row.GetControlSnapshotForDiagnostics();
             Assert.True(snapshot.HasTemplateAssigned, $"Expected realized project rows to have a TreeViewItem template. header={row.Header}");
             Assert.True(snapshot.HasTemplateRoot, $"Expected realized project rows to expose a template root. header={row.Header}");
-            Assert.Equal("TextBlock", snapshot.TemplateRootType);
+            Assert.Equal("Grid", snapshot.TemplateRootType);
 
             var textBlocks = EnumerateVisualDescendants<TextBlock>(row).ToArray();
-            Assert.Single(textBlocks);
-            Assert.Equal(TextTrimming.CharacterEllipsis, textBlocks[0].TextTrimming);
+            Assert.Contains(textBlocks, static textBlock => textBlock.TextTrimming == TextTrimming.CharacterEllipsis);
         }
 
         var pointer = GetCenter(projectExplorerTree.LayoutSlot);
@@ -455,18 +458,20 @@ public sealed class TreeViewMeasurePerformanceTests
         var uiRootTelemetry = uiRoot.GetUiRootTelemetrySnapshot();
         var averageUpdateMs = uiRootTelemetry.UpdateElapsedMs / wheelTicks;
         var realizedRowsAfterWheel = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
-        var realizedTextBlocksAfterWheel = EnumerateVisualDescendants<TextBlock>(scrollViewer).ToArray();
+        var realizedHeaderTextBlocksAfterWheel = EnumerateVisualDescendants<TextBlock>(scrollViewer)
+            .Where(static textBlock => textBlock.TextTrimming == TextTrimming.CharacterEllipsis)
+            .ToArray();
 
         Assert.True(scrollViewer.VerticalOffset > 0f, $"Expected project explorer to scroll, but offset stayed {scrollViewer.VerticalOffset:0.###}.");
         Assert.True(
             averageUpdateMs <= 16.6,
             $"Designer project explorer average wheel frame cost with templated trimmed rows {averageUpdateMs:0.###}ms exceeds 16.6ms. " +
-            $"wheelTicks={wheelTicks}, verticalOffset={scrollViewer.VerticalOffset:0.###}, realizedRows={realizedRowsAfterWheel.Length}, textBlocks={realizedTextBlocksAfterWheel.Length}.");
+            $"wheelTicks={wheelTicks}, verticalOffset={scrollViewer.VerticalOffset:0.###}, realizedRows={realizedRowsAfterWheel.Length}, headerTextBlocks={realizedHeaderTextBlocksAfterWheel.Length}.");
         Assert.True(
             realizedRowsAfterWheel.Length < 120,
             $"Templated trimmed project rows should stay bounded to the viewport cache during scroll. " +
             $"realizedRows={realizedRowsAfterWheel.Length}, verticalOffset={scrollViewer.VerticalOffset:0.###}.");
-        Assert.Equal(realizedRowsAfterWheel.Length, realizedTextBlocksAfterWheel.Length);
+        Assert.Equal(realizedRowsAfterWheel.Length, realizedHeaderTextBlocksAfterWheel.Length);
     }
 
     [Fact]

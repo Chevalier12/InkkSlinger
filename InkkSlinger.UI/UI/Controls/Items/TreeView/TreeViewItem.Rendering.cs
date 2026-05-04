@@ -17,7 +17,7 @@ public partial class TreeViewItem
             UiDrawing.DrawFilledRect(spriteBatch, rowRect, SelectedBackground, Opacity);
         }
 
-        if (HasChildItems())
+        if (ShowsBuiltInExpander && HasChildItems())
         {
             // Modern chevron glyph: solid filled triangle
             //   ▶  right-pointing  →  branch is collapsed

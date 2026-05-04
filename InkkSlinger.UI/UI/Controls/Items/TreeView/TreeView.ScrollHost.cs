@@ -63,6 +63,7 @@ public partial class TreeView
 
         _viewportSubscribedScrollViewer = viewer;
         _viewportSubscribedScrollViewer.ViewportChanged += OnActiveScrollViewerViewportChanged;
+        ResetDataHostViewportCache();
     }
 
     private void OnActiveScrollViewerViewportChanged(object? sender, EventArgs args)
@@ -95,6 +96,25 @@ public partial class TreeView
     private static bool AreClose(float left, float right)
     {
         return MathF.Abs(left - right) <= 0.01f;
+    }
+
+    private void ResetDataHostViewportCache()
+    {
+        _lastDataHostViewportWidth = float.NaN;
+        _lastDataHostViewportHeight = float.NaN;
+    }
+
+    private void RememberActiveDataHostViewport()
+    {
+        if (_itemsHost is not VirtualizingTreeDataHost)
+        {
+            ResetDataHostViewportCache();
+            return;
+        }
+
+        var activeScrollViewer = ActiveScrollViewer;
+        _lastDataHostViewportWidth = activeScrollViewer.ViewportWidth;
+        _lastDataHostViewportHeight = activeScrollViewer.ViewportHeight;
     }
 
     private void UpdateItemsHost()

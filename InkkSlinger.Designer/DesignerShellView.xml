@@ -92,15 +92,34 @@
            TargetType="{x:Type TreeViewItem}">
       <Setter Property="Foreground" Value="#E5E7EA" />
       <Setter Property="SelectedBackground" Value="#31518A" />
+      <Setter Property="ShowsBuiltInExpander" Value="False" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="{x:Type TreeViewItem}">
-            <TextBlock Text="{TemplateBinding Header}"
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+                <TextBlock x:Name="PART_Expander"
+                       Grid.Column="0"
+                       Width="14"
+                       Text="{TemplateBinding CurrentExpanderGlyph}"
                        Foreground="{TemplateBinding Foreground}"
-                       TextWrapping="NoWrap"
-                       TextTrimming="CharacterEllipsis"
-                       VerticalAlignment="Center" />
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{TemplateBinding ExpanderGlyphVisibility}"
+                       FontFamily="Consolas"
+                       FontSize="11" />
+              <TextBlock x:Name="HeaderText"
+                         Grid.Column="1"
+                         Text="{TemplateBinding Header}"
+                         Foreground="{TemplateBinding Foreground}"
+                         TextWrapping="NoWrap"
+                         TextTrimming="CharacterEllipsis"
+                         VerticalAlignment="Center" />
+            </Grid>
           </ControlTemplate>
         </Setter.Value>
       </Setter>

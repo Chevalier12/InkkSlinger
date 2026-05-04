@@ -24,6 +24,7 @@ public partial class TreeView
         private float _averageRowHeight = FallbackRowHeight;
         private float _rowHeightTotal;
         private float _estimatedExtentWidth;
+        private readonly Dictionary<object, EstimatedRowWidthCacheEntry> _estimatedRowWidthCache = new();
 
         public VirtualizingTreeDataHost(TreeView owner)
         {
@@ -55,7 +56,7 @@ public partial class TreeView
 
         protected override Vector2 MeasureOverride(Vector2 availableSize)
         {
-            RealizeRows(availableSize.Y, invalidateMeasureForChildMutations: true);
+            RealizeRows(availableSize.Y, invalidateMeasureForChildMutations: false, suppressLayoutInvalidations: true);
             var childConstraint = new Vector2(availableSize.X, float.PositiveInfinity);
             foreach (var child in Children)
             {
@@ -284,7 +285,7 @@ public partial class TreeView
             var viewport = float.IsFinite(viewportHeight) && viewportHeight > 0f
                 ? viewportHeight
                 : MathF.Max(viewer.ViewportHeight, FallbackRowHeight);
-            var cacheHeight = MathF.Max(viewport, _averageRowHeight * 4f);
+            var cacheHeight = _averageRowHeight * 4f;
             var first = Math.Max(0, FindRowIndexAtOffset(MathF.Max(0f, offset - cacheHeight)));
             var last = Math.Min(_rows.Count - 1, FindRowIndexAtOffset(offset + viewport + cacheHeight));
             return (first, last);
@@ -385,15 +386,31 @@ public partial class TreeView
         private float EstimateRowWidth(VisibleTreeDataEntry row)
         {
             var header = _owner.GetHierarchicalHeader(row.Item);
-            if (string.IsNullOrEmpty(header))
+            if (_estimatedRowWidthCache.TryGetValue(row.Item, out var cached) &&
+                cached.Depth == row.Depth &&
+                cached.HasChildren == row.HasChildren &&
+                string.Equals(cached.Header, header, StringComparison.Ordinal))
             {
-                return row.Depth * 16f + 26f;
+                return cached.Width;
             }
 
-            var depthOffset = MathF.Max(0f, row.Depth) * 16f;
-            var glyphAndPadding = row.HasChildren ? 20f : 10f;
-            return depthOffset + glyphAndPadding + UiTextRenderer.MeasureWidth(_owner, header, _owner.FontSize);
+            float width;
+            if (string.IsNullOrEmpty(header))
+            {
+                width = row.Depth * 16f + 26f;
+            }
+            else
+            {
+                var depthOffset = MathF.Max(0f, row.Depth) * 16f;
+                var glyphAndPadding = row.HasChildren ? 20f : 10f;
+                width = depthOffset + glyphAndPadding + UiTextRenderer.MeasureWidth(_owner, header, _owner.FontSize);
+            }
+
+            _estimatedRowWidthCache[row.Item] = new EstimatedRowWidthCacheEntry(header, row.Depth, row.HasChildren, width);
+            return width;
         }
+
+        private readonly record struct EstimatedRowWidthCacheEntry(string Header, int Depth, bool HasChildren, float Width);
 
         private void EnsureRowOffsetsCurrent()
         {

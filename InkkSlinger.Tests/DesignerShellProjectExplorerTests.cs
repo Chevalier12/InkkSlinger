@@ -72,6 +72,14 @@ public class DesignerShellProjectExplorerTests
         Assert.False(emptyFolderItem.HasChildItems());
         Assert.Equal("Main.xml", mainFileItem!.Header);
         Assert.False(mainFileItem.HasChildItems());
+
+        var viewsExpander = Assert.IsType<TextBlock>(FindNamedVisualChild<TextBlock>(viewsItem, "PART_Expander"));
+        var emptyFolderExpander = Assert.IsType<TextBlock>(FindNamedVisualChild<TextBlock>(emptyFolderItem, "PART_Expander"));
+        var fileExpander = Assert.IsType<TextBlock>(FindNamedVisualChild<TextBlock>(mainFileItem, "PART_Expander"));
+
+        Assert.Equal("v", viewsExpander.Text);
+        Assert.Equal(Visibility.Collapsed, emptyFolderExpander.Visibility);
+        Assert.Equal(Visibility.Collapsed, fileExpander.Visibility);
     }
 
     private static ShellHarness CreateHarness()
@@ -88,6 +96,26 @@ public class DesignerShellProjectExplorerTests
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
             new Viewport(0, 0, 1280, 820));
+    }
+
+    private static TElement? FindNamedVisualChild<TElement>(UIElement root, string name)
+        where TElement : FrameworkElement
+    {
+        if (root is TElement typed && typed.Name == name)
+        {
+            return typed;
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            var found = FindNamedVisualChild<TElement>(child, name);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private sealed record ShellHarness(
