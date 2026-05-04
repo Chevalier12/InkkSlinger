@@ -1,0 +1,236 @@
+using System;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+namespace InkkSlinger;
+
+public partial class TreeViewItem
+{
+    public IReadOnlyList<TreeViewItem> GetChildTreeItems()
+    {
+        var result = new List<TreeViewItem>();
+        foreach (var child in ItemContainers)
+        {
+            if (child is TreeViewItem treeViewItem)
+            {
+                result.Add(treeViewItem);
+            }
+        }
+
+        return result;
+    }
+
+    private float GetRowHeight()
+    {
+        var padding = Padding;
+        return MathF.Max(18f, UiTextRenderer.GetLineHeight(this, FontSize) + 4f + padding.Vertical);
+    }
+
+    private float MeasureHeaderWidth()
+    {
+        var padding = Padding;
+        var header = GetEffectiveHeader();
+        var textWidth = !string.IsNullOrEmpty(header)
+            ? UiTextRenderer.MeasureWidth(this, header, FontSize)
+            : 0f;
+        return padding.Horizontal + GetVirtualizedDepthOffset() + (HasChildItems() ? 20f : 10f) + textWidth;
+    }
+
+    private string GetEffectiveHeader()
+    {
+        return _hasVirtualizedDisplaySnapshot ? _virtualizedDisplayHeader : Header;
+    }
+
+    private bool GetEffectiveIsSelected()
+    {
+        return _hasVirtualizedDisplaySnapshot ? _virtualizedDisplayIsSelected : IsSelected;
+    }
+
+    private (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) ResolveVirtualizedHeaderRenderSource()
+    {
+        if (TemplateRoot is TextBlock textBlock)
+        {
+            return (textBlock, textBlock.FontSize, textBlock.Foreground, textBlock.TextTrimming, textBlock.TextWrapping);
+        }
+
+        return (this, FontSize, Foreground, TextTrimming.None, TextWrapping.NoWrap);
+    }
+
+    private string ResolveVirtualizedHeaderRenderText(
+        string header,
+        float textX,
+        (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) renderSource)
+    {
+        if (renderSource.TextWrapping != TextWrapping.NoWrap ||
+            !float.IsFinite(LayoutSlot.Width))
+        {
+            return header;
+        }
+
+        if (renderSource.TextTrimming == TextTrimming.None && !UseVirtualizedTreeLayout)
+        {
+            return header;
+        }
+
+        var availableWidth = MathF.Max(0f, LayoutSlot.Width - (textX - LayoutSlot.X) - Padding.Right + GetTransformScrollHorizontalOffset());
+        if (availableWidth <= 0f)
+        {
+            return string.Empty;
+        }
+
+        if (UiTextRenderer.MeasureWidth(renderSource.Element, header, renderSource.FontSize) <= availableWidth)
+        {
+            return header;
+        }
+
+        const string ellipsis = "...";
+        if (UiTextRenderer.MeasureWidth(renderSource.Element, ellipsis, renderSource.FontSize) > availableWidth)
+        {
+            return string.Empty;
+        }
+
+        var low = 0;
+        var high = header.Length;
+        while (low < high)
+        {
+            var mid = low + ((high - low + 1) / 2);
+            if (UiTextRenderer.MeasureWidth(renderSource.Element, header[..mid] + ellipsis, renderSource.FontSize) <= availableWidth)
+            {
+                low = mid;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return header[..low] + ellipsis;
+    }
+
+    private float GetTransformScrollHorizontalOffset()
+    {
+        for (UIElement? current = VisualParent; current != null; current = current.VisualParent)
+        {
+            if (current is not IScrollTransformContent || current is not UIElement transformContent)
+            {
+                continue;
+            }
+
+            if (transformContent.VisualParent is ScrollViewer visualViewer &&
+                ReferenceEquals(visualViewer.Content, transformContent) &&
+                ScrollViewer.GetUseTransformContentScrolling(transformContent))
+            {
+                return MathF.Max(0f, visualViewer.HorizontalOffset);
+            }
+
+            if (transformContent.LogicalParent is ScrollViewer logicalViewer &&
+                ReferenceEquals(logicalViewer.Content, transformContent) &&
+                ScrollViewer.GetUseTransformContentScrolling(transformContent))
+            {
+                return MathF.Max(0f, logicalViewer.HorizontalOffset);
+            }
+        }
+
+        return 0f;
+    }
+
+    private bool GetEffectiveIsExpanded()
+    {
+        return _hasVirtualizedDisplaySnapshot ? _virtualizedDisplayIsExpanded : IsExpanded;
+    }
+
+    private float MeasureTemplatedHeaderWidth(Vector2 availableSize, float rowHeight)
+    {
+        var offset = GetHeaderTextOffset();
+        if (!TryGetTemplateRoot(out var templateRoot))
+        {
+            return offset;
+        }
+
+        var templateAvailable = new Vector2(
+            MathF.Max(0f, availableSize.X - offset - Padding.Right),
+            rowHeight);
+        templateRoot.Measure(templateAvailable);
+        return offset + templateRoot.DesiredSize.X + Padding.Right;
+    }
+
+    private bool TryGetTemplateRoot(out FrameworkElement templateRoot)
+    {
+        if (!HasTemplateRoot && Template != null)
+        {
+            ApplyTemplate();
+        }
+
+        if (TemplateRoot is FrameworkElement element)
+        {
+            templateRoot = element;
+            return true;
+        }
+
+        templateRoot = null!;
+        return false;
+    }
+
+    private float GetHeaderTextOffset()
+    {
+        var padding = Padding;
+        return GetVirtualizedDepthOffset() + padding.Left + (HasChildItems() ? 16f : 6f);
+    }
+
+    private float GetVirtualizedDepthOffset()
+    {
+        return UseVirtualizedTreeLayout ? MathF.Max(0f, VirtualizedTreeDepth) * Indent : 0f;
+    }
+
+    private void PropagateTypographyToChildren(
+        Color? oldForeground,
+        Color? newForeground)
+    {
+        foreach (var child in GetChildTreeItems())
+        {
+            ApplyTypographyRecursive(child, oldForeground, newForeground);
+        }
+    }
+
+    private static void ApplyTypographyRecursive(
+        TreeViewItem item,
+        Color? oldForeground,
+        Color? newForeground)
+    {
+        ApplyTypographyToItem(item, oldForeground, newForeground);
+        foreach (var child in item.GetChildTreeItems())
+        {
+            ApplyTypographyRecursive(child, oldForeground, newForeground);
+        }
+    }
+
+    private static void ApplyTypographyToItem(
+        TreeViewItem item,
+        Color? oldForeground,
+        Color? newForeground)
+    {
+        item.ApplyPropagatedForeground(oldForeground, newForeground);
+    }
+
+    internal void ApplyPropagatedForeground(
+        Color? oldForeground,
+        Color? newForeground)
+    {
+        if (newForeground.HasValue && oldForeground.HasValue)
+        {
+            if (!HasLocalValue(ForegroundProperty) || Foreground == oldForeground.Value)
+            {
+                _isApplyingPropagatedForeground = true;
+                try
+                {
+                    Foreground = newForeground.Value;
+                }
+                finally
+                {
+                    _isApplyingPropagatedForeground = false;
+                }
+            }
+        }
+    }
+}
