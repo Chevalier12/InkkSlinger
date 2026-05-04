@@ -9,7 +9,7 @@ public partial class TreeViewItem
 {
     protected override void OnRender(SpriteBatch spriteBatch)
     {
-        var rowHeight = GetRowHeight();
+        var rowHeight = GetRenderRowHeight();
         var padding = Padding;
         var rowRect = new LayoutRect(LayoutSlot.X, LayoutSlot.Y, LayoutSlot.Width, rowHeight);
         if (GetEffectiveIsSelected())
@@ -53,6 +53,27 @@ public partial class TreeViewItem
             }
         }
 
+        if (ShouldRenderTemplateExpanderSnapshot())
+        {
+            var glyph = GetEffectiveIsExpanded() ? ExpandedExpanderGlyph : CollapsedExpanderGlyph;
+            if (!string.IsNullOrEmpty(glyph))
+            {
+                var slotWidth = GetTemplateExpanderSnapshotSlotWidth();
+                var glyphWidth = UiTextRenderer.MeasureWidth(this, glyph, FontSize);
+                var glyphHeight = UiTextRenderer.GetLineHeight(this, FontSize);
+                var glyphX = LayoutSlot.X + GetVirtualizedDepthOffset() + padding.Left + MathF.Max(0f, (slotWidth - glyphWidth) / 2f);
+                var glyphY = GetVirtualizedExpanderRenderY(rowHeight, glyphHeight);
+                UiTextRenderer.DrawString(
+                    spriteBatch,
+                    this,
+                    glyph,
+                    new Vector2(glyphX, glyphY),
+                    Foreground * Opacity,
+                    FontSize,
+                    opaqueBackground: true);
+            }
+        }
+
         var header = GetEffectiveHeader();
         if (!string.IsNullOrEmpty(header) && _virtualizedHeaderElement == null)
         {
@@ -70,7 +91,7 @@ public partial class TreeViewItem
                 return;
             }
 
-            var textY = LayoutSlot.Y + ((rowHeight - UiTextRenderer.GetLineHeight(renderSource.Element, renderFontSize)) / 2f);
+            var textY = GetVirtualizedHeaderRenderY(rowHeight, renderSource);
             UiTextRenderer.DrawString(
                 spriteBatch,
                 renderSource.Element,

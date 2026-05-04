@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -44,10 +45,28 @@ public partial class TreeView
 
     private int HierarchicalRowCount => _hierarchicalData.Rows.Count;
 
+    internal TreeViewHierarchicalRuntimeDiagnosticsSnapshot GetTreeViewHierarchicalSnapshotForDiagnostics()
+    {
+        var viewer = ActiveScrollViewer;
+        var host = _itemsHost as VirtualizingTreeDataHost;
+        return new TreeViewHierarchicalRuntimeDiagnosticsSnapshot(
+            viewer.VerticalOffset,
+            viewer.ExtentHeight,
+            viewer.ViewportHeight,
+            host?.AverageRowHeight ?? 0f,
+            host?.MeasuredRowHeightAverageForDiagnostics ?? 0f,
+            host?.MeasuredRowHeightCountForDiagnostics ?? 0,
+            host?.FirstRealizedIndexForDiagnostics ?? -1,
+            host?.LastRealizedIndexForDiagnostics ?? -1,
+            host?.TotalExtentHeightForDiagnostics ?? 0f);
+    }
+
     private void ScrollHierarchicalRowIntoView(int rowIndex)
     {
+        _diagScrollHierarchicalRowIntoViewCallCount++;
         if (_itemsHost is not VirtualizingTreeDataHost dataHost)
         {
+            _diagScrollHierarchicalRowIntoViewNoHostCount++;
             return;
         }
 
@@ -60,11 +79,17 @@ public partial class TreeView
 
         if (rowTop < viewportTop)
         {
+            _diagScrollHierarchicalRowIntoViewScrollUpCount++;
             viewer.ScrollToVerticalOffset(rowTop);
         }
         else if (rowBottom > viewportBottom)
         {
+            _diagScrollHierarchicalRowIntoViewScrollDownCount++;
             viewer.ScrollToVerticalOffset(rowBottom - MathF.Max(rowHeight, viewer.ViewportHeight));
+        }
+        else
+        {
+            _diagScrollHierarchicalRowIntoViewAlreadyVisibleCount++;
         }
     }
 
@@ -203,6 +228,8 @@ public partial class TreeView
 
         public void RefreshRows(VirtualizingTreeDataHost dataHost)
         {
+            _diagHierarchicalRefreshRowsCallCount++;
+            _owner._runtimeHierarchicalRefreshRowsCallCount++;
             if (_childrenSelector == null)
             {
                 return;
@@ -221,11 +248,13 @@ public partial class TreeView
 
         public int FindRowIndex(object item)
         {
+            _diagHierarchicalFindRowIndexCallCount++;
             return _rows.FindIndex(row => ReferenceEquals(row.Item, item) || Equals(row.Item, item));
         }
 
         public bool SetExpanded(object item, bool isExpanded)
         {
+            _diagHierarchicalSetExpandedCallCount++;
             if (!IsActive)
             {
                 return false;
@@ -241,13 +270,9 @@ public partial class TreeView
             return true;
         }
 
-        public bool IsExpanded(object item)
-        {
-            return IsActive && IsExpandedCore(item);
-        }
-
         public void ToggleExpanded(TreeViewItem clickedItem)
         {
+            _diagHierarchicalToggleExpandedCallCount++;
             var item = clickedItem.VirtualizedTreeDataItem;
             if (item == null)
             {
@@ -261,6 +286,11 @@ public partial class TreeView
 
             _expansionOverrides[item] = !clickedItem.IsExpanded;
             _owner.RefreshHierarchicalDataRows();
+        }
+
+        public bool IsExpanded(object item)
+        {
+            return IsActive && IsExpandedCore(item);
         }
 
         public string GetHeader(object item)
@@ -288,13 +318,20 @@ public partial class TreeView
 
         public TreeViewItem RealizeContainer(VisibleTreeDataEntry row, int rowIndex)
         {
+            _diagHierarchicalRealizeContainerCallCount++;
+            _owner._runtimeHierarchicalRealizeContainerCallCount++;
             if (!_containers.TryGetValue(row.Item, out var container))
             {
+                _diagHierarchicalRealizeContainerNewCount++;
                 container = _recycledContainers.Count > 0
                     ? _recycledContainers.Dequeue()
                     : new TreeViewItem();
                 _containers[row.Item] = container;
                 ApplyTypographyToItem(container, null, _owner.Foreground);
+            }
+            else
+            {
+                _diagHierarchicalRealizeContainerRecycledCount++;
             }
 
             ApplyContainer(container, row, rowIndex);
@@ -303,6 +340,7 @@ public partial class TreeView
 
         public void ApplyContainer(TreeViewItem container, VisibleTreeDataEntry row, int rowIndex)
         {
+            _diagHierarchicalApplyContainerCallCount++;
             container.ClearVirtualizedDisplaySnapshot();
             container.Header = GetHeader(row.Item);
             container.VirtualizedTreeDataItem = row.Item;
@@ -322,11 +360,15 @@ public partial class TreeView
 
         public void RecycleContainer(TreeViewItem container)
         {
+            _diagHierarchicalRecycleContainerCallCount++;
+            _owner._runtimeHierarchicalRecycleContainerCallCount++;
             if (ReferenceEquals(container, _owner.SelectedItem))
             {
+                _diagHierarchicalRecycleContainerKeptSelectedCount++;
                 return;
             }
 
+            _diagHierarchicalRecycleContainerRecycledCount++;
             if (container.VirtualizedTreeDataItem is { } item)
             {
                 _containers.Remove(item);

@@ -12,6 +12,8 @@ public partial class TreeView
 {
     private bool HandleHierarchicalKeyDown(Keys key)
     {
+        _diagHandleHierarchicalKeyDownCallCount++;
+        _runtimeHandleHierarchicalKeyDownCallCount++;
         if (HierarchicalRowCount == 0)
         {
             return false;
@@ -26,20 +28,28 @@ public partial class TreeView
         switch (key)
         {
             case Keys.Up:
+                _diagHandleHierarchicalKeyDownUpCount++;
                 return SelectHierarchicalRow(Math.Max(0, selectedIndex - 1));
             case Keys.Down:
+                _diagHandleHierarchicalKeyDownDownCount++;
                 return SelectHierarchicalRow(Math.Min(HierarchicalRowCount - 1, selectedIndex + 1));
             case Keys.Home:
+                _diagHandleHierarchicalKeyDownHomeCount++;
                 return SelectHierarchicalRow(0);
             case Keys.End:
+                _diagHandleHierarchicalKeyDownEndCount++;
                 return SelectHierarchicalRow(HierarchicalRowCount - 1);
             case Keys.PageUp:
+                _diagHandleHierarchicalKeyDownPageUpCount++;
                 return SelectHierarchicalRow(Math.Max(0, selectedIndex - EstimateHierarchicalPageStep()));
             case Keys.PageDown:
+                _diagHandleHierarchicalKeyDownPageDownCount++;
                 return SelectHierarchicalRow(Math.Min(HierarchicalRowCount - 1, selectedIndex + EstimateHierarchicalPageStep()));
             case Keys.Right:
+                _diagHandleHierarchicalKeyDownRightCount++;
                 return ExpandOrEnterHierarchicalRow(selectedIndex);
             case Keys.Left:
+                _diagHandleHierarchicalKeyDownLeftCount++;
                 return CollapseOrSelectHierarchicalParent(selectedIndex);
             default:
                 return false;
@@ -48,6 +58,8 @@ public partial class TreeView
 
     private bool HandleTreeItemKeyDown(Keys key)
     {
+        _diagHandleTreeItemKeyDownCallCount++;
+        _runtimeHandleTreeItemKeyDownCallCount++;
         var visibleItems = GetVisibleItems();
         if (visibleItems.Count == 0)
         {
@@ -63,18 +75,23 @@ public partial class TreeView
         switch (key)
         {
             case Keys.Up:
+                _diagHandleTreeItemKeyDownUpCount++;
                 ApplySelectedItem(visibleItems[Math.Max(0, selectedIndex - 1)]);
                 return true;
             case Keys.Down:
+                _diagHandleTreeItemKeyDownDownCount++;
                 ApplySelectedItem(visibleItems[Math.Min(visibleItems.Count - 1, selectedIndex + 1)]);
                 return true;
             case Keys.Home:
+                _diagHandleTreeItemKeyDownHomeCount++;
                 ApplySelectedItem(visibleItems[0]);
                 return true;
             case Keys.End:
+                _diagHandleTreeItemKeyDownEndCount++;
                 ApplySelectedItem(visibleItems[^1]);
                 return true;
             case Keys.Right:
+                _diagHandleTreeItemKeyDownRightCount++;
                 if (SelectedItem is { } selected && selected.HasChildItems())
                 {
                     if (!selected.IsExpanded)
@@ -92,6 +109,7 @@ public partial class TreeView
 
                 return false;
             case Keys.Left:
+                _diagHandleTreeItemKeyDownLeftCount++;
                 if (SelectedItem is { } current)
                 {
                     if (current.IsExpanded)
@@ -134,6 +152,8 @@ public partial class TreeView
 
     private void OnMouseLeftButtonDownSelectItem(object? sender, MouseRoutedEventArgs args)
     {
+        _diagOnMouseLeftButtonDownSelectItemCallCount++;
+        _runtimeOnMouseLeftButtonDownSelectItemCallCount++;
         _ = sender;
         if (!IsEnabled || args.Button != MouseButton.Left)
         {
@@ -149,6 +169,7 @@ public partial class TreeView
         FocusManager.SetFocus(this);
         if (clickedItem.HitExpander(GetExpanderHitTestPoint(clickedItem, args.Position)))
         {
+            _diagOnMouseLeftButtonDownExpanderHitCount++;
             if (IsHierarchicalDataMode && clickedItem.VirtualizedTreeDataItem != null)
             {
                 _hierarchicalData.ToggleExpanded(clickedItem);
@@ -158,6 +179,10 @@ public partial class TreeView
                 clickedItem.IsExpanded = !clickedItem.IsExpanded;
                 RefreshVirtualizedItemsHost();
             }
+        }
+        else
+        {
+            _diagOnMouseLeftButtonDownSelectOnlyCount++;
         }
 
         ApplySelectedItem(clickedItem);
@@ -176,6 +201,7 @@ public partial class TreeView
 
     private bool SelectHierarchicalRow(int rowIndex)
     {
+        _diagSelectHierarchicalRowCallCount++;
         if (rowIndex < 0 || rowIndex >= HierarchicalRowCount)
         {
             return false;
@@ -189,6 +215,7 @@ public partial class TreeView
 
     private bool ExpandOrEnterHierarchicalRow(int rowIndex)
     {
+        _diagExpandOrEnterHierarchicalRowCallCount++;
         if (rowIndex < 0 || rowIndex >= HierarchicalRowCount)
         {
             return false;
@@ -218,6 +245,7 @@ public partial class TreeView
 
     private bool CollapseOrSelectHierarchicalParent(int rowIndex)
     {
+        _diagCollapseOrSelectHierarchicalParentCallCount++;
         if (rowIndex < 0 || rowIndex >= HierarchicalRowCount)
         {
             return false;
@@ -244,6 +272,7 @@ public partial class TreeView
 
     private int EstimateHierarchicalPageStep()
     {
+        _diagEstimateHierarchicalPageStepCallCount++;
         if (_itemsHost is VirtualizingTreeDataHost dataHost)
         {
             return Math.Max(1, (int)MathF.Floor(ActiveScrollViewer.ViewportHeight / MathF.Max(1f, dataHost.AverageRowHeight)));
@@ -307,8 +336,11 @@ public partial class TreeView
 
     private void ApplySelectedItem(TreeViewItem? item)
     {
+        _diagApplySelectedItemCallCount++;
+        _runtimeApplySelectedItemCallCount++;
         if (ReferenceEquals(item, SelectedItem))
         {
+            _diagApplySelectedItemNoOpCount++;
             if (item == null)
             {
                 _selectedDataItem = null;
@@ -317,6 +349,7 @@ public partial class TreeView
             return;
         }
 
+        _diagApplySelectedItemChangedCount++;
         if (SelectedItem != null)
         {
             SelectedItem.IsSelected = false;

@@ -89,6 +89,7 @@ public partial class TreeViewItem
         int depth,
         int rowIndex)
     {
+        CaptureSnapshotTemplateRenderOffsets();
         _virtualizedDisplaySnapshot = new VirtualizedDisplaySnapshot(
             header,
             hasChildren,
@@ -110,6 +111,30 @@ public partial class TreeViewItem
         InvalidateVisual();
     }
 
+    private void CaptureSnapshotTemplateRenderOffsets()
+    {
+        _snapshotHeaderTextRelativeY = TryGetTemplateChildRelativeY("HeaderText", out var headerTextRelativeY)
+            ? headerTextRelativeY
+            : float.NaN;
+        _snapshotExpanderRelativeY = TryGetTemplateChildRelativeY("PART_Expander", out var expanderRelativeY)
+            ? expanderRelativeY
+            : float.NaN;
+    }
+
+    private bool TryGetTemplateChildRelativeY(string childName, out float relativeY)
+    {
+        relativeY = 0f;
+        if (GetTemplateChild(childName) is not FrameworkElement element ||
+            LayoutSlot.Height <= 0f ||
+            element.LayoutSlot.Height <= 0f)
+        {
+            return false;
+        }
+
+        relativeY = element.LayoutSlot.Y - LayoutSlot.Y;
+        return float.IsFinite(relativeY) && relativeY >= 0f;
+    }
+
     internal void ClearVirtualizedDisplaySnapshot(bool updateHasItems = true)
     {
         if (!_virtualizedDisplaySnapshot.HasValue)
@@ -118,6 +143,8 @@ public partial class TreeViewItem
         }
 
         _virtualizedDisplaySnapshot = null;
+        _snapshotHeaderTextRelativeY = float.NaN;
+        _snapshotExpanderRelativeY = float.NaN;
         if (updateHasItems)
         {
             UpdateHasItems();

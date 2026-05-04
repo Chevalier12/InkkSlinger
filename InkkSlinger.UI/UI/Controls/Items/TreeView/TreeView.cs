@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -179,15 +180,19 @@ public partial class TreeView : ItemsControl
 
     public override void OnApplyTemplate()
     {
+        _diagOnApplyTemplateCallCount++;
+        _runtimeOnApplyTemplateCallCount++;
         base.OnApplyTemplate();
 
         _templatedScrollViewer = GetTemplateChild("PART_ScrollViewer") as ScrollViewer;
         if (_templatedScrollViewer == null)
         {
+            _diagOnApplyTemplateFallbackPathCount++;
             RestoreFallbackScrollViewer();
             return;
         }
 
+        _diagOnApplyTemplateTemplatedPathCount++;
         DetachFallbackScrollViewer();
         ConfigureScrollViewer(_templatedScrollViewer);
         AttachItemsHostToActiveScrollViewer();
@@ -254,19 +259,26 @@ public partial class TreeView : ItemsControl
 
     public override void InvalidateMeasure()
     {
+        _diagInvalidateMeasureCallCount++;
+        _runtimeInvalidateMeasureCallCount++;
         if (ShouldConvertStableActiveScrollViewerMeasureInvalidation())
         {
+            _diagInvalidateMeasureConvertedToArrangeCount++;
             InvalidateArrange();
             return;
         }
 
+        _diagInvalidateMeasureBasePathCount++;
         base.InvalidateMeasure();
     }
 
     public bool SelectHierarchicalItem(object item)
     {
+        _diagSelectHierarchicalItemCallCount++;
+        _runtimeSelectHierarchicalItemCallCount++;
         if (!IsHierarchicalDataMode)
         {
+            _diagSelectHierarchicalItemNotHierarchicalCount++;
             return false;
         }
 
@@ -277,8 +289,15 @@ public partial class TreeView : ItemsControl
             rowIndex = FindHierarchicalRowIndex(item);
             if (rowIndex < 0)
             {
+                _diagSelectHierarchicalItemNotFoundCount++;
                 return false;
             }
+
+            _diagSelectHierarchicalItemRefreshThenFoundCount++;
+        }
+        else
+        {
+            _diagSelectHierarchicalItemFoundPathCount++;
         }
 
         ScrollHierarchicalRowIntoView(rowIndex);
@@ -288,6 +307,7 @@ public partial class TreeView : ItemsControl
 
     public bool SetHierarchicalItemExpanded(object item, bool isExpanded)
     {
+        _diagSetHierarchicalItemExpandedCallCount++;
         if (!IsHierarchicalDataMode)
         {
             return false;
@@ -303,8 +323,10 @@ public partial class TreeView : ItemsControl
 
     public bool ScrollHierarchicalItemIntoView(object item)
     {
+        _diagScrollHierarchicalItemIntoViewCallCount++;
         if (!IsHierarchicalDataMode)
         {
+            _diagScrollHierarchicalItemIntoViewNotHierarchicalCount++;
             return false;
         }
 
@@ -313,11 +335,17 @@ public partial class TreeView : ItemsControl
         {
             RefreshHierarchicalDataRows();
             rowIndex = FindHierarchicalRowIndex(item);
-        }
+            if (rowIndex < 0)
+            {
+                _diagScrollHierarchicalItemIntoViewNotFoundCount++;
+                return false;
+            }
 
-        if (rowIndex < 0)
+            _diagScrollHierarchicalItemIntoViewRefreshThenFoundCount++;
+        }
+        else
         {
-            return false;
+            _diagScrollHierarchicalItemIntoViewFoundCount++;
         }
 
         ScrollHierarchicalRowIntoView(rowIndex);
@@ -326,20 +354,29 @@ public partial class TreeView : ItemsControl
 
     public TreeViewItem? ContainerFromHierarchicalItem(object item)
     {
+        _diagContainerFromHierarchicalItemCallCount++;
         return _hierarchicalData.ContainerFromItem(item, _itemsHost);
     }
 
     internal bool HandleKeyDownFromInput(Keys key, ModifierKeys modifiers)
     {
+        _diagHandleKeyDownCallCount++;
+        _runtimeHandleKeyDownCallCount++;
         _ = modifiers;
         if (!IsEnabled)
         {
+            _diagHandleKeyDownDisabledSkippedCount++;
             return false;
         }
 
-        return IsHierarchicalDataMode
-            ? HandleHierarchicalKeyDown(key)
-            : HandleTreeItemKeyDown(key);
+        if (IsHierarchicalDataMode)
+        {
+            _diagHandleKeyDownHierarchicalPathCount++;
+            return HandleHierarchicalKeyDown(key);
+        }
+
+        _diagHandleKeyDownTreeItemPathCount++;
+        return HandleTreeItemKeyDown(key);
     }
 
     public override IEnumerable<UIElement> GetVisualChildren()
@@ -441,12 +478,18 @@ public partial class TreeView : ItemsControl
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        _diagMeasureOverrideCallCount++;
+        _runtimeMeasureOverrideCallCount++;
+        var startTicks = Stopwatch.GetTimestamp();
         var templateDesired = base.MeasureOverride(availableSize);
         if (HasTemplateRoot)
         {
+            _diagMeasureOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _diagMeasureOverrideTemplatePathCount++;
             return templateDesired;
         }
 
+        _diagMeasureOverrideFallbackPathCount++;
         var padding = Padding;
         var border = BorderThickness;
         var innerSize = new Vector2(
@@ -465,6 +508,7 @@ public partial class TreeView : ItemsControl
         }
 
         var desired = scrollViewer.DesiredSize;
+        _diagMeasureOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         return new Vector2(
             desired.X + (border * 2f) + padding.Horizontal,
             desired.Y + (border * 2f) + padding.Vertical);
@@ -472,11 +516,17 @@ public partial class TreeView : ItemsControl
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
+        _diagArrangeOverrideCallCount++;
+        _runtimeArrangeOverrideCallCount++;
+        var startTicks = Stopwatch.GetTimestamp();
         if (HasTemplateRoot)
         {
+            _diagArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _diagArrangeOverrideTemplatePathCount++;
             return base.ArrangeOverride(finalSize);
         }
 
+        _diagArrangeOverrideFallbackPathCount++;
         var border = BorderThickness;
         var padding = Padding;
         var innerX = LayoutSlot.X + border + padding.Left;
@@ -495,13 +545,17 @@ public partial class TreeView : ItemsControl
             _activeScrollViewerLayoutDepth--;
         }
 
+        _diagArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         return finalSize;
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        _diagOnRenderCallCount++;
+        _runtimeOnRenderCallCount++;
         if (HasTemplateRoot)
         {
+            _diagOnRenderTemplateSkippedCount++;
             return;
         }
 
@@ -527,6 +581,8 @@ public partial class TreeView : ItemsControl
 
     protected override bool TryHandleMeasureInvalidation(UIElement origin, UIElement? source, string reason)
     {
+        _diagTryHandleMeasureInvalidationCallCount++;
+        _runtimeTryHandleMeasureInvalidationCallCount++;
         _ = source;
         _ = reason;
         // Data-mode scrolling can move the realized row window without changing the viewport.
@@ -535,21 +591,31 @@ public partial class TreeView : ItemsControl
             _activeScrollViewerLayoutDepth > 0 &&
             IsStableHierarchicalDataViewport())
         {
+            _diagTryHandleMeasureInvalidationAntiLoopCount++;
             return true;
         }
 
         if (origin is FrameworkElement descendant && ShouldTreatActiveScrollViewerMeasureAsArrangeOnly(descendant))
         {
+            _diagTryHandleMeasureInvalidationArrangeOnlyCount++;
             return true;
         }
 
+        _diagTryHandleMeasureInvalidationBasePathCount++;
         return base.TryHandleMeasureInvalidation(origin, source, reason);
     }
 
     protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
     {
-        return ShouldTreatActiveScrollViewerMeasureAsArrangeOnly(descendant) ||
-               base.ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(descendant);
+        _diagShouldSuppressMeasureInvalidationCallCount++;
+        var result = ShouldTreatActiveScrollViewerMeasureAsArrangeOnly(descendant) ||
+                     base.ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(descendant);
+        if (result)
+        {
+            _diagShouldSuppressMeasureInvalidationTrueCount++;
+        }
+
+        return result;
     }
 
     internal ScrollViewer AutomationScrollViewer => ActiveScrollViewer;
@@ -560,6 +626,7 @@ public partial class TreeView : ItemsControl
 
     private bool ShouldTreatActiveScrollViewerMeasureAsArrangeOnly(FrameworkElement descendant)
     {
+        _diagShouldTreatActiveScrollViewerMeasureAsArrangeOnlyCallCount++;
         if (!IsStableHierarchicalDataViewport())
         {
             return false;
@@ -572,12 +639,19 @@ public partial class TreeView : ItemsControl
             return false;
         }
 
-        return AreClose(activeScrollViewer.ViewportWidth, _lastDataHostViewportWidth) &&
-               AreClose(activeScrollViewer.ViewportHeight, _lastDataHostViewportHeight);
+        var result = AreClose(activeScrollViewer.ViewportWidth, _lastDataHostViewportWidth) &&
+                     AreClose(activeScrollViewer.ViewportHeight, _lastDataHostViewportHeight);
+        if (result)
+        {
+            _diagShouldTreatActiveScrollViewerMeasureAsArrangeOnlyTrueCount++;
+        }
+
+        return result;
     }
 
     private bool IsStableHierarchicalDataViewport()
     {
+        _diagIsStableHierarchicalDataViewportCallCount++;
         if (!IsHierarchicalDataMode ||
             _itemsHost is not VirtualizingTreeDataHost ||
             float.IsNaN(_lastDataHostViewportWidth) ||
@@ -587,8 +661,14 @@ public partial class TreeView : ItemsControl
         }
 
         var activeScrollViewer = ActiveScrollViewer;
-        return AreClose(activeScrollViewer.ViewportWidth, _lastDataHostViewportWidth) &&
-               AreClose(activeScrollViewer.ViewportHeight, _lastDataHostViewportHeight);
+        var stable = AreClose(activeScrollViewer.ViewportWidth, _lastDataHostViewportWidth) &&
+                     AreClose(activeScrollViewer.ViewportHeight, _lastDataHostViewportHeight);
+        if (stable)
+        {
+            _diagIsStableHierarchicalDataViewportTrueCount++;
+        }
+
+        return stable;
     }
 
     private bool ShouldConvertStableActiveScrollViewerMeasureInvalidation()

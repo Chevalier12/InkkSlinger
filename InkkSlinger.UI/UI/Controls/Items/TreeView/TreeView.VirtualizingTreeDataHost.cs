@@ -16,6 +16,7 @@ public partial class TreeView
         private readonly TreeView _owner;
         private IReadOnlyList<VisibleTreeDataEntry> _rows = Array.Empty<VisibleTreeDataEntry>();
         private readonly List<float> _rowHeights = new();
+        private readonly List<bool> _rowHeightMeasured = new();
         private readonly List<float> _rowOffsets = new();
         private bool _rowOffsetsDirty = true;
         private int _firstRealizedIndex = -1;
@@ -23,6 +24,8 @@ public partial class TreeView
         private bool _pendingDeferredOffsetRefresh;
         private float _averageRowHeight = FallbackRowHeight;
         private float _rowHeightTotal;
+        private float _measuredRowHeightTotal;
+        private int _measuredRowHeightCount;
         private float _estimatedExtentWidth;
         private readonly Dictionary<object, EstimatedRowWidthCacheEntry> _estimatedRowWidthCache = new();
 
@@ -38,12 +41,28 @@ public partial class TreeView
 
         public float AverageRowHeight => _averageRowHeight;
 
+        public int FirstRealizedIndexForDiagnostics => _firstRealizedIndex;
+
+        public int LastRealizedIndexForDiagnostics => _lastRealizedIndex;
+
+        public float TotalExtentHeightForDiagnostics => GetTotalExtentHeight();
+
+        public float MeasuredRowHeightAverageForDiagnostics => _measuredRowHeightCount > 0
+            ? _measuredRowHeightTotal / _measuredRowHeightCount
+            : FallbackRowHeight;
+
+        public int MeasuredRowHeightCountForDiagnostics => _measuredRowHeightCount;
+
         public void SetRows(IReadOnlyList<VisibleTreeDataEntry> rows)
         {
             _rows = rows;
             _rowHeights.Clear();
+            _rowHeightMeasured.Clear();
             _rowOffsets.Clear();
             _rowHeightTotal = 0f;
+            _measuredRowHeightTotal = 0f;
+            _measuredRowHeightCount = 0;
+            _averageRowHeight = FallbackRowHeight;
             _rowOffsetsDirty = true;
             EnsureRowMetricStorage();
             _firstRealizedIndex = -1;
@@ -314,6 +333,7 @@ public partial class TreeView
             while (_rowHeights.Count < _rows.Count)
             {
                 _rowHeights.Add(_averageRowHeight);
+                _rowHeightMeasured.Add(false);
                 _rowOffsets.Add(0f);
                 _rowHeightTotal += _averageRowHeight;
                 changed = true;
@@ -324,9 +344,15 @@ public partial class TreeView
                 for (var i = _rows.Count; i < _rowHeights.Count; i++)
                 {
                     _rowHeightTotal -= _rowHeights[i];
+                    if (_rowHeightMeasured[i])
+                    {
+                        _measuredRowHeightTotal -= _rowHeights[i];
+                        _measuredRowHeightCount--;
+                    }
                 }
 
                 _rowHeights.RemoveRange(_rows.Count, _rowHeights.Count - _rows.Count);
+                _rowHeightMeasured.RemoveRange(_rows.Count, _rowHeightMeasured.Count - _rows.Count);
                 _rowOffsets.RemoveRange(_rows.Count, _rowOffsets.Count - _rows.Count);
                 changed = true;
             }
@@ -336,14 +362,8 @@ public partial class TreeView
                 return;
             }
 
-            if (_rowHeights.Count == 0)
-            {
-                _rowHeightTotal = 0f;
-            }
-            else
-            {
-                _averageRowHeight = _rowHeightTotal / _rowHeights.Count;
-            }
+            RecalculateAverageRowHeight();
+            NormalizeUnmeasuredRowHeights();
 
             _rowOffsetsDirty = true;
         }
@@ -357,19 +377,66 @@ public partial class TreeView
 
             var height = MathF.Max(1f, desiredSize.Y);
             var previousHeight = _rowHeights[rowIndex];
-            if (AreClose(previousHeight, height))
+            var wasMeasured = _rowHeightMeasured[rowIndex];
+            if (wasMeasured && AreClose(previousHeight, height))
             {
                 return;
             }
 
             _rowHeights[rowIndex] = height;
             _rowHeightTotal += height - previousHeight;
-            if (_rowHeights.Count > 0)
+            if (wasMeasured)
             {
-                _averageRowHeight = _rowHeightTotal / _rowHeights.Count;
+                _measuredRowHeightTotal += height - previousHeight;
+            }
+            else
+            {
+                _rowHeightMeasured[rowIndex] = true;
+                _measuredRowHeightTotal += height;
+                _measuredRowHeightCount++;
+            }
+
+            var previousAverage = _averageRowHeight;
+            RecalculateAverageRowHeight();
+            if (!AreClose(previousAverage, _averageRowHeight))
+            {
+                NormalizeUnmeasuredRowHeights();
             }
 
             _rowOffsetsDirty = true;
+        }
+
+        private void RecalculateAverageRowHeight()
+        {
+            _averageRowHeight = _measuredRowHeightCount > 0
+                ? MathF.Max(1f, _measuredRowHeightTotal / _measuredRowHeightCount)
+                : FallbackRowHeight;
+        }
+
+        private void NormalizeUnmeasuredRowHeights()
+        {
+            if (_rowHeightMeasured.Count == 0)
+            {
+                _rowHeightTotal = 0f;
+                return;
+            }
+
+            for (var i = 0; i < _rowHeights.Count; i++)
+            {
+                if (_rowHeightMeasured[i])
+                {
+                    continue;
+                }
+
+                var previousHeight = _rowHeights[i];
+                if (AreClose(previousHeight, _averageRowHeight))
+                {
+                    continue;
+                }
+
+                _rowHeights[i] = _averageRowHeight;
+                _rowHeightTotal += _averageRowHeight - previousHeight;
+            }
         }
 
         private float EstimateExtentWidth(IReadOnlyList<VisibleTreeDataEntry> rows)

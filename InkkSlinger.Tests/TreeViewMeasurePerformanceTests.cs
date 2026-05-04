@@ -375,6 +375,10 @@ public sealed class TreeViewMeasurePerformanceTests
         var farRowsWhileHeld = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
         Assert.True(scrollViewer.VerticalOffset > scrollViewer.ViewportHeight);
         Assert.Contains(farRowsWhileHeld, static row => row.HasVirtualizedDisplaySnapshotForDiagnostics);
+        var initialVisibleRowHeight = initialRows.First(static row => row.LayoutSlot.Height > 0f).LayoutSlot.Height;
+        Assert.All(
+            farRowsWhileHeld.Where(static row => row.HasVirtualizedDisplaySnapshotForDiagnostics),
+            row => Assert.Equal(initialVisibleRowHeight, row.LayoutSlot.Height, precision: 1));
 
         var backStart = previous;
         var previousBack = backStart;
@@ -401,6 +405,82 @@ public sealed class TreeViewMeasurePerformanceTests
         Assert.True(
             CountRowsIntersecting(rowsAfterRelease, projectExplorerTree.LayoutSlot) > 0,
             $"Expected committed top rows to intersect the Project Explorer viewport after thumb release. offset={scrollViewer.VerticalOffset:0.###}.");
+    }
+
+    [Fact]
+    public void DesignerProjectExplorerTree_ThumbDragHeldRows_ShouldMatchSettledRowPositions()
+    {
+        var store = new FakeProjectFileStore();
+        const string projectRoot = "C:/projects/PerfTree";
+        PopulateProjectTree(store, projectRoot, sectionCount: 75, filesPerSection: 25, longFileNames: true);
+
+        var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl />", store);
+        var projectSession = InkkSlinger.Designer.DesignerProjectSession.Open(projectRoot, store);
+        var shell = new InkkSlinger.Designer.DesignerShellView(
+            documentController: documentController,
+            projectSession: projectSession);
+
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, width: 1280, height: 820);
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        var projectExplorerTree = Assert.IsType<TreeView>(shell.FindName("ProjectExplorerTree"));
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(projectExplorerTree.GetVisualChildren()));
+        var verticalBar = GetPrivateScrollBar(scrollViewer, "_verticalBar");
+        var track = Assert.IsType<Track>(FindNamedVisualChild<Track>(verticalBar, "PART_Track"));
+
+        var thumbRect = verticalBar.GetThumbRectForInput();
+        var start = GetCenter(thumbRect);
+        var target = new Vector2(
+            start.X,
+            track.LayoutSlot.Y + track.LayoutSlot.Height - (thumbRect.Height / 2f) - 80f);
+        Assert.True(target.Y > start.Y + 100f, $"Expected enough scrollbar travel for a meaningful drag, start={start.Y:0.###}, target={target.Y:0.###}.");
+
+        const int dragFrames = 16;
+        var previous = start;
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, previous, leftPressed: true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        for (var frame = 1; frame <= dragFrames; frame++)
+        {
+            var current = new Vector2(start.X, start.Y + ((target.Y - start.Y) * frame / dragFrames));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, current, pointerMoved: true));
+            RunLayout(uiRoot, width: 1280, height: 820);
+            previous = current;
+        }
+
+        var heldOffset = scrollViewer.VerticalOffset;
+        var heldRows = EnumerateVisualDescendants<TreeViewItem>(scrollViewer)
+            .Where(static row => row.HasVirtualizedDisplaySnapshotForDiagnostics)
+            .ToDictionary(
+                static row => row.VirtualizedTreeRowIndex,
+                row => row.LayoutSlot.Y - heldOffset);
+
+        Assert.NotEmpty(heldRows);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, previous, leftReleased: true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        var settledOffset = scrollViewer.VerticalOffset;
+        Assert.Equal(heldOffset, settledOffset, precision: 3);
+
+        var settledRows = EnumerateVisualDescendants<TreeViewItem>(scrollViewer)
+            .Where(row => heldRows.ContainsKey(row.VirtualizedTreeRowIndex))
+            .ToDictionary(
+                static row => row.VirtualizedTreeRowIndex,
+                row => row.LayoutSlot.Y - settledOffset);
+
+        Assert.NotEmpty(settledRows);
+        foreach (var (rowIndex, heldY) in heldRows)
+        {
+            if (!settledRows.TryGetValue(rowIndex, out var settledY))
+            {
+                continue;
+            }
+
+            Assert.Equal(settledY, heldY, precision: 3);
+        }
     }
 
     [Fact]

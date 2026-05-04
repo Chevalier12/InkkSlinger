@@ -19,6 +19,8 @@ public partial class TreeView
 
     private void RefreshTreeItemTracking()
     {
+        _diagRefreshTreeItemTrackingCallCount++;
+        _runtimeRefreshTreeItemTrackingCallCount++;
         var current = EnumerateAllTreeItems().ToHashSet();
         foreach (var removed in _trackedTreeItems.Where(item => !current.Contains(item)).ToArray())
         {
@@ -26,6 +28,7 @@ public partial class TreeView
             removed.UseVirtualizedTreeLayout = false;
             removed.VirtualizedTreeDepth = 0;
             _trackedTreeItems.Remove(removed);
+            _diagRefreshTreeItemTrackingRemovedCount++;
         }
 
         foreach (var item in current)
@@ -33,6 +36,7 @@ public partial class TreeView
             if (_trackedTreeItems.Add(item))
             {
                 item.ExpandedStateChanged += OnTrackedTreeItemExpandedStateChanged;
+                _diagRefreshTreeItemTrackingAddedCount++;
             }
         }
     }
@@ -67,8 +71,11 @@ public partial class TreeView
 
     private void RefreshVirtualizedItemsHost()
     {
+        _diagRefreshVirtualizedItemsHostCallCount++;
+        _runtimeRefreshVirtualizedItemsHostCallCount++;
         if (_itemsHost is not VirtualizingTreeItemsHost virtualizingHost)
         {
+            _diagRefreshVirtualizedItemsHostNonVirtualizingPathCount++;
             foreach (var item in _trackedTreeItems)
             {
                 item.UseVirtualizedTreeLayout = false;
@@ -78,6 +85,7 @@ public partial class TreeView
             return;
         }
 
+        _diagRefreshVirtualizedItemsHostVirtualizingPathCount++;
         var visibleItems = GetVisibleItemEntries();
         var visibleSet = new HashSet<TreeViewItem>();
         foreach (var entry in visibleItems)
@@ -129,6 +137,8 @@ public partial class TreeView
 
     private List<VisibleTreeItemEntry> GetVisibleItemEntries()
     {
+        _diagGetVisibleItemEntriesCallCount++;
+        _runtimeGetVisibleItemEntriesCallCount++;
         var result = new List<VisibleTreeItemEntry>();
         foreach (var container in ItemContainers)
         {
@@ -185,6 +195,7 @@ public partial class TreeView
         Color? oldForeground,
         Color? newForeground)
     {
+        _diagPropagateTypographyFromTreeCallCount++;
         foreach (var container in ItemContainers)
         {
             if (container is not TreeViewItem item)

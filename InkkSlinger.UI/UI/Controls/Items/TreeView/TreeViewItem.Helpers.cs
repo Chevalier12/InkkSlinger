@@ -7,6 +7,20 @@ namespace InkkSlinger;
 
 public partial class TreeViewItem
 {
+    private const float TemplateExpanderSnapshotFallbackSlotWidth = 14f;
+
+    internal bool RendersTemplateExpanderSnapshotForDiagnostics => ShouldRenderTemplateExpanderSnapshot();
+
+    internal float HeaderTextOffsetForDiagnostics => GetHeaderTextOffset();
+
+    internal float RenderRowHeightForDiagnostics => GetRenderRowHeight();
+
+    internal float VirtualizedHeaderRenderYForDiagnostics => GetVirtualizedHeaderRenderY(GetRenderRowHeight(), ResolveVirtualizedHeaderRenderSource());
+
+    internal float SnapshotHeaderTextRelativeYForDiagnostics => _snapshotHeaderTextRelativeY;
+
+    internal float VirtualizedHeaderRenderFontSizeForDiagnostics => ResolveVirtualizedHeaderRenderSource().FontSize;
+
     public IReadOnlyList<TreeViewItem> GetChildTreeItems()
     {
         var result = new List<TreeViewItem>();
@@ -25,6 +39,32 @@ public partial class TreeViewItem
     {
         var padding = Padding;
         return MathF.Max(18f, UiTextRenderer.GetLineHeight(this, FontSize) + 4f + padding.Vertical);
+    }
+
+    private float GetRenderRowHeight()
+    {
+        return _virtualizedDisplaySnapshot.HasValue && UseVirtualizedTreeLayout && LayoutSlot.Height > 0f && !ShouldReserveTemplateExpanderSnapshotSlot()
+            ? LayoutSlot.Height
+            : GetRowHeight();
+    }
+
+    private float GetVirtualizedHeaderRenderY(
+        float rowHeight,
+        (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) renderSource)
+    {
+        if (_virtualizedDisplaySnapshot.HasValue && float.IsFinite(_snapshotHeaderTextRelativeY))
+        {
+            return LayoutSlot.Y + _snapshotHeaderTextRelativeY;
+        }
+
+        return LayoutSlot.Y + MathF.Max(0f, (rowHeight - UiTextRenderer.GetLineHeight(renderSource.Element, renderSource.FontSize)) / 2f);
+    }
+
+    private float GetVirtualizedExpanderRenderY(float rowHeight, float glyphHeight)
+    {
+        return _virtualizedDisplaySnapshot.HasValue && float.IsFinite(_snapshotExpanderRelativeY)
+            ? LayoutSlot.Y + _snapshotExpanderRelativeY
+            : LayoutSlot.Y + MathF.Max(0f, (rowHeight - glyphHeight) / 2f);
     }
 
     private float MeasureHeaderWidth()
@@ -49,6 +89,11 @@ public partial class TreeViewItem
 
     private (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) ResolveVirtualizedHeaderRenderSource()
     {
+        if (GetTemplateChild("HeaderText") is TextBlock headerTextBlock)
+        {
+            return (headerTextBlock, headerTextBlock.FontSize, headerTextBlock.Foreground, headerTextBlock.TextTrimming, headerTextBlock.TextWrapping);
+        }
+
         if (TemplateRoot is TextBlock textBlock)
         {
             return (textBlock, textBlock.FontSize, textBlock.Foreground, textBlock.TextTrimming, textBlock.TextWrapping);
@@ -175,7 +220,52 @@ public partial class TreeViewItem
     private float GetHeaderTextOffset()
     {
         var padding = Padding;
-        return GetVirtualizedDepthOffset() + padding.Left + GetBuiltInHeaderTextSpacing();
+        return GetVirtualizedDepthOffset() + padding.Left + GetSnapshotTemplateExpanderTextSpacing() + GetBuiltInHeaderTextSpacing();
+    }
+
+    private bool ShouldReserveTemplateExpanderSnapshotSlot()
+    {
+        return _virtualizedDisplaySnapshot.HasValue && !ShowsBuiltInExpander && Template != null;
+    }
+
+    private bool ShouldRenderTemplateExpanderSnapshot()
+    {
+        return ShouldReserveTemplateExpanderSnapshotSlot() && HasChildItems();
+    }
+
+    private float GetSnapshotTemplateExpanderTextSpacing()
+    {
+        return ShouldReserveTemplateExpanderSnapshotSlot()
+            ? GetTemplateExpanderSnapshotSlotWidth()
+            : 0f;
+    }
+
+    private float GetTemplateExpanderSnapshotSlotWidth()
+    {
+        if (GetTemplateChild("PART_Expander") is FrameworkElement expander)
+        {
+            if (expander.LayoutSlot.Width > 0f)
+            {
+                return expander.LayoutSlot.Width;
+            }
+
+            if (expander.RenderSize.X > 0f)
+            {
+                return expander.RenderSize.X;
+            }
+
+            if (expander.DesiredSize.X > 0f)
+            {
+                return expander.DesiredSize.X;
+            }
+
+            if (float.IsFinite(expander.Width) && expander.Width > 0f)
+            {
+                return expander.Width;
+            }
+        }
+
+        return TemplateExpanderSnapshotFallbackSlotWidth;
     }
 
     private float GetTemplateRootOffset()

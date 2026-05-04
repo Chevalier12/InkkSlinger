@@ -13,6 +13,8 @@ public partial class TreeViewItem : ItemsControl
     private VirtualizedDisplaySnapshot? _virtualizedDisplaySnapshot;
     private UIElement? _virtualizedHeaderElement;
     private float _virtualizedHeaderMinRowHeight;
+    private float _snapshotHeaderTextRelativeY = float.NaN;
+    private float _snapshotExpanderRelativeY = float.NaN;
 
     private readonly record struct VirtualizedDisplaySnapshot(
         string Header,
@@ -370,6 +372,8 @@ public partial class TreeViewItem : ItemsControl
     internal void ClearVirtualizedBranchStateForRecycle()
     {
         _hasVirtualizedChildItems = false;
+        HasItems = false;
+        UpdateExpanderPresentation();
     }
 
     private void UpdateExpanderPresentation()

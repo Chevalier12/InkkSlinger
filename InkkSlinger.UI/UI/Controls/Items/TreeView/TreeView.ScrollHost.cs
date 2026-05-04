@@ -12,16 +12,20 @@ public partial class TreeView
 {
     private Panel CreateItemsHost()
     {
+        _diagCreateItemsHostCallCount++;
         if (IsHierarchicalDataMode)
         {
+            _diagCreateItemsHostHierarchicalPathCount++;
             return new VirtualizingTreeDataHost(this);
         }
 
         if (ItemsPanel != null)
         {
+            _diagCreateItemsHostItemsPanelPathCount++;
             return ItemsPanel.Build(this);
         }
 
+        _diagCreateItemsHostVirtualizingPathCount++;
         return new VirtualizingTreeItemsHost
         {
             Orientation = Orientation.Vertical,
@@ -31,13 +35,17 @@ public partial class TreeView
 
     protected override void OnItemsChanged()
     {
+        _diagOnItemsChangedCallCount++;
+        _runtimeOnItemsChangedCallCount++;
         base.OnItemsChanged();
         if (IsHierarchicalDataMode)
         {
+            _diagOnItemsChangedHierarchicalPathCount++;
             RefreshHierarchicalDataRows();
             return;
         }
 
+        _diagOnItemsChangedTreeItemPathCount++;
         RefreshTreeItemTracking();
         RefreshVirtualizedItemsHost();
     }
@@ -68,6 +76,8 @@ public partial class TreeView
 
     private void OnActiveScrollViewerViewportChanged(object? sender, EventArgs args)
     {
+        _diagOnActiveScrollViewerViewportChangedCallCount++;
+        _runtimeOnActiveScrollViewerViewportChangedCallCount++;
         _ = sender;
         _ = args;
         if (_itemsHost is VirtualizingTreeDataHost dataHost)
@@ -83,11 +93,13 @@ public partial class TreeView
             _lastDataHostViewportHeight = viewportHeight;
             if (viewportSizeChanged)
             {
+                _diagOnActiveScrollViewerViewportChangedSizeChangedCount++;
                 dataHost.InvalidateMeasure();
                 dataHost.InvalidateArrange();
             }
             else
             {
+                _diagOnActiveScrollViewerViewportChangedOffsetChangedCount++;
                 dataHost.RefreshForStableViewportOffsetChange();
             }
         }
@@ -119,6 +131,7 @@ public partial class TreeView
 
     private void UpdateItemsHost()
     {
+        _diagUpdateItemsHostCallCount++;
         var nextHost = CreateItemsHost();
         if (ReferenceEquals(nextHost, _itemsHost))
         {
@@ -142,6 +155,7 @@ public partial class TreeView
 
     private void AttachItemsHostToActiveScrollViewer()
     {
+        _diagAttachItemsHostToActiveScrollViewerCallCount++;
         if (!ReferenceEquals(_fallbackScrollViewer, ActiveScrollViewer) && ReferenceEquals(_fallbackScrollViewer.Content, _itemsHost))
         {
             _fallbackScrollViewer.Content = null;
