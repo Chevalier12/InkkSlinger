@@ -284,6 +284,33 @@ public sealed partial class UiRoot
         return this;
     }
 
+    internal static void NotifyVisualStructureChangedForOwner(
+        UIElement element,
+        UIElement? oldParent,
+        UIElement? newParent)
+    {
+        var elementRoot = element.GetVisualRoot();
+        var oldParentRoot = oldParent?.GetVisualRoot();
+        var newParentRoot = newParent?.GetVisualRoot();
+        for (var i = RegisteredRoots.Count - 1; i >= 0; i--)
+        {
+            if (!RegisteredRoots[i].TryGetTarget(out var candidate))
+            {
+                RegisteredRoots.RemoveAt(i);
+                continue;
+            }
+
+            if (ReferenceEquals(element, candidate._visualRoot) ||
+                ReferenceEquals(elementRoot, candidate._visualRoot) ||
+                ReferenceEquals(oldParentRoot, candidate._visualRoot) ||
+                ReferenceEquals(newParentRoot, candidate._visualRoot))
+            {
+                candidate.NotifyVisualStructureChanged(element, oldParent, newParent);
+                return;
+            }
+        }
+    }
+
     private bool OwnsVisualStructureNotification(
         UIElement element,
         UIElement? oldParent,

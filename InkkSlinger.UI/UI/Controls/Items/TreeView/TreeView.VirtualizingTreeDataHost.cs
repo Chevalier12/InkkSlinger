@@ -22,6 +22,8 @@ public partial class TreeView
         private int _firstRealizedIndex = -1;
         private int _lastRealizedIndex = -1;
         private bool _pendingDeferredOffsetRefresh;
+        private bool _preserveRowMetricsForNextArrange;
+        private Dictionary<int, float>? _preservedThumbSnapshotRowYByIndex;
         private float _averageRowHeight = FallbackRowHeight;
         private float _rowHeightTotal;
         private float _measuredRowHeightTotal;
@@ -95,7 +97,15 @@ public partial class TreeView
 
         protected override Vector2 ArrangeOverride(Vector2 finalSize)
         {
+            _pendingDeferredOffsetRefresh = false;
             RealizeRows(finalSize.Y, invalidateMeasureForChildMutations: false);
+            ArrangeRealizedRows(finalSize);
+
+            return finalSize;
+        }
+
+        private void ArrangeRealizedRows(Vector2 finalSize)
+        {
             var childConstraint = new Vector2(finalSize.X, float.PositiveInfinity);
             foreach (var child in Children)
             {
@@ -107,19 +117,41 @@ public partial class TreeView
                 if (item.NeedsMeasure)
                 {
                     item.Measure(childConstraint);
-                    UpdateMeasuredRowMetric(item.VirtualizedTreeRowIndex, item.DesiredSize);
+                    if (!_preserveRowMetricsForNextArrange)
+                    {
+                        UpdateMeasuredRowMetric(item.VirtualizedTreeRowIndex, item.DesiredSize);
+                    }
                 }
 
                 var index = item.VirtualizedTreeRowIndex;
                 var rowHeight = GetRowHeight(index);
-                item.Arrange(new LayoutRect(
+                var y = _preservedThumbSnapshotRowYByIndex is not null &&
+                        _preservedThumbSnapshotRowYByIndex.TryGetValue(index, out var preservedY)
+                    ? _owner.ActiveScrollViewer.VerticalOffset + preservedY
+                    : LayoutSlot.Y + GetRowOffset(index);
+                var targetSlot = new LayoutRect(
                     LayoutSlot.X,
-                    LayoutSlot.Y + GetRowOffset(index),
+                    y,
                     finalSize.X,
-                    rowHeight));
+                    rowHeight);
+                if (!item.NeedsArrange && LayoutSlotsMatch(item.LayoutSlot, targetSlot))
+                {
+                    continue;
+                }
+
+                item.Arrange(targetSlot);
             }
 
-            return finalSize;
+                    _preserveRowMetricsForNextArrange = false;
+        }
+
+        private static bool LayoutSlotsMatch(LayoutRect actual, LayoutRect expected)
+        {
+            const float epsilon = 0.001f;
+            return MathF.Abs(actual.X - expected.X) <= epsilon &&
+                   MathF.Abs(actual.Y - expected.Y) <= epsilon &&
+                   MathF.Abs(actual.Width - expected.Width) <= epsilon &&
+                   MathF.Abs(actual.Height - expected.Height) <= epsilon;
         }
 
         public void RefreshForStableViewportOffsetChange()
@@ -135,6 +167,7 @@ public partial class TreeView
             }
 
             _pendingDeferredOffsetRefresh = false;
+            _preserveRowMetricsForNextArrange = true;
             RefreshForStableViewportOffsetChange(forceRealization: true);
         }
 
@@ -150,22 +183,25 @@ public partial class TreeView
             }
 
             var range = CalculateRealizedRange(LayoutSlot.Height);
-            if (!forceRealization &&
-                _owner.IsActiveScrollViewerThumbCaptured() &&
-                range.First > 0)
+            if (!forceRealization && !_owner.IsActiveScrollViewerThumbCaptured())
             {
-                // During thumb drags, retarget the existing rows as lightweight display snapshots.
+                _preservedThumbSnapshotRowYByIndex = null;
+            }
+
+            var isThumbCaptured = _owner.IsActiveScrollViewerThumbCaptured();
+            if (!forceRealization && isThumbCaptured && range.First > 0)
+            {
+                // During thumb drags, retarget existing rows as lightweight display snapshots.
                 // The real containers are committed on pointer release to avoid rebuilding templates every drag frame.
                 RetargetRealizedRowsForThumbDrag(range.First, range.Last);
                 _pendingDeferredOffsetRefresh = true;
-                UiRoot.Current?.NotifyDirectRenderInvalidation(this, requireDeepSync: true);
+                UiRoot.Current?.NotifyDirectRenderInvalidation(this);
                 return;
             }
 
             if (RealizeRows(LayoutSlot.Height, invalidateMeasureForChildMutations: false, suppressLayoutInvalidations: true))
             {
-                InvalidateArrangeForDirectLayoutOnly(invalidateRender: false);
-                Arrange(LayoutSlot);
+                ArrangeRealizedRows(new Vector2(LayoutSlot.Width, LayoutSlot.Height));
             }
 
             UiRoot.Current?.NotifyDirectRenderInvalidation(this);
@@ -180,6 +216,8 @@ public partial class TreeView
 
             _firstRealizedIndex = first;
             _lastRealizedIndex = last;
+            _preservedThumbSnapshotRowYByIndex ??= [];
+            _preservedThumbSnapshotRowYByIndex.Clear();
 
             var childConstraint = new Vector2(LayoutSlot.Width, float.PositiveInfinity);
             var rowIndex = first;
@@ -199,17 +237,14 @@ public partial class TreeView
                     row.Depth,
                     rowIndex);
 
-                if (item.NeedsMeasure)
-                {
-                    item.Measure(childConstraint);
-                }
-
                 var rowHeight = GetRowHeight(rowIndex);
-                item.Arrange(new LayoutRect(
+                var slot = new LayoutRect(
                     LayoutSlot.X,
                     LayoutSlot.Y + GetRowOffset(rowIndex),
                     LayoutSlot.Width,
-                    rowHeight));
+                    rowHeight);
+                item.Arrange(slot);
+                _preservedThumbSnapshotRowYByIndex[rowIndex] = slot.Y - _owner.ActiveScrollViewer.VerticalOffset;
                 rowIndex++;
             }
         }
@@ -238,6 +273,7 @@ public partial class TreeView
                            ? DeferChildMutationInvalidations()
                            : DeferChildMutationArrangeInvalidations())
             {
+                Dictionary<int, TreeViewItem>? realizedByRowIndex = null;
                 for (var childIndex = Children.Count - 1; childIndex >= 0; childIndex--)
                 {
                     var child = Children[childIndex];
@@ -248,6 +284,8 @@ public partial class TreeView
                         {
                             var keptRowIndex = treeItem.VirtualizedTreeRowIndex;
                             _owner.ApplyHierarchicalDataContainer(treeItem, _rows[keptRowIndex], keptRowIndex);
+                            realizedByRowIndex ??= [];
+                            realizedByRowIndex[keptRowIndex] = treeItem;
                         }
 
                         continue;
@@ -260,14 +298,37 @@ public partial class TreeView
                     }
                 }
 
+                var targetChildIndex = 0;
                 for (var rowIndex = first; rowIndex <= last; rowIndex++)
                 {
+                    if (realizedByRowIndex?.TryGetValue(rowIndex, out var realizedContainer) == true)
+                    {
+                        var currentIndex = IndexOfChild(realizedContainer);
+                        if (currentIndex >= 0 && currentIndex != targetChildIndex)
+                        {
+                            MoveChildRange(currentIndex, targetChildIndex, 1);
+                        }
+
+                        targetChildIndex++;
+                        continue;
+                    }
+
                     var row = _rows[rowIndex];
                     var container = _owner.RealizeHierarchicalDataContainer(row, rowIndex);
-                    if (IndexOfChild(container) < 0)
+                    var existingIndex = IndexOfChild(container);
+                    if (existingIndex >= 0)
                     {
-                        InsertChild(Children.Count, container);
+                        if (existingIndex != targetChildIndex)
+                        {
+                            MoveChildRange(existingIndex, targetChildIndex, 1);
+                        }
                     }
+                    else
+                    {
+                        InsertChild(targetChildIndex, container);
+                    }
+
+                    targetChildIndex++;
                 }
             }
 
@@ -330,6 +391,12 @@ public partial class TreeView
             return MathF.Max(1f, _rowHeights[rowIndex]);
         }
 
+        public bool IsRowHeightMeasured(int rowIndex)
+        {
+            EnsureRowMetricStorage();
+            return (uint)rowIndex < (uint)_rowHeightMeasured.Count && _rowHeightMeasured[rowIndex];
+        }
+
         private void EnsureRowMetricStorage()
         {
             var changed = false;
@@ -366,7 +433,6 @@ public partial class TreeView
             }
 
             RecalculateAverageRowHeight();
-            NormalizeUnmeasuredRowHeights();
 
             _rowOffsetsDirty = true;
         }
@@ -399,12 +465,7 @@ public partial class TreeView
                 _measuredRowHeightCount++;
             }
 
-            var previousAverage = _averageRowHeight;
             RecalculateAverageRowHeight();
-            if (!AreClose(previousAverage, _averageRowHeight))
-            {
-                NormalizeUnmeasuredRowHeights();
-            }
 
             _rowOffsetsDirty = true;
         }
@@ -414,32 +475,6 @@ public partial class TreeView
             _averageRowHeight = _measuredRowHeightCount > 0
                 ? MathF.Max(1f, _measuredRowHeightTotal / _measuredRowHeightCount)
                 : FallbackRowHeight;
-        }
-
-        private void NormalizeUnmeasuredRowHeights()
-        {
-            if (_rowHeightMeasured.Count == 0)
-            {
-                _rowHeightTotal = 0f;
-                return;
-            }
-
-            for (var i = 0; i < _rowHeights.Count; i++)
-            {
-                if (_rowHeightMeasured[i])
-                {
-                    continue;
-                }
-
-                var previousHeight = _rowHeights[i];
-                if (AreClose(previousHeight, _averageRowHeight))
-                {
-                    continue;
-                }
-
-                _rowHeights[i] = _averageRowHeight;
-                _rowHeightTotal += _averageRowHeight - previousHeight;
-            }
         }
 
         private float EstimateExtentWidth(IReadOnlyList<VisibleTreeDataEntry> rows)

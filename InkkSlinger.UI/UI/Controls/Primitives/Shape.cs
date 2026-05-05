@@ -424,9 +424,14 @@ public abstract class Shape : FrameworkElement
 
     private float ResolveLayoutStrokeThickness(Geometry? geometry)
     {
-        if (geometry == null || StrokeThickness <= 0f)
+        if (StrokeThickness <= 0f)
         {
             return 0f;
+        }
+
+        if (geometry == null)
+        {
+            return StrokeThickness;
         }
 
         var figures = geometry.GetFlattenedFigures();

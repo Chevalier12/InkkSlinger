@@ -82,6 +82,11 @@ public partial class TreeView
             _diagScrollHierarchicalRowIntoViewScrollUpCount++;
             viewer.ScrollToVerticalOffset(rowTop);
         }
+        else if (!dataHost.IsRowHeightMeasured(rowIndex))
+        {
+            _diagScrollHierarchicalRowIntoViewScrollDownCount++;
+            viewer.ScrollToVerticalOffset(MathF.Max(0f, rowTop - 8f));
+        }
         else if (rowBottom > viewportBottom)
         {
             _diagScrollHierarchicalRowIntoViewScrollDownCount++;

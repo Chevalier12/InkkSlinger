@@ -780,7 +780,10 @@ public class UIElement : DependencyObject
         var oldTreeParent = GetTreeParent(this);
         var oldParent = VisualParent;
         VisualParent = parent;
-        UiRoot.Current?.NotifyVisualStructureChanged(this, oldParent, parent);
+        if (!IsChildMutationStructureNotificationSuppressed(oldParent, parent))
+        {
+            UiRoot.NotifyVisualStructureChangedForOwner(this, oldParent, parent);
+        }
         OnVisualParentChanged(oldParent, parent);
 
         if (!ReferenceEquals(oldTreeParent, GetTreeParent(this)))
@@ -1816,15 +1819,19 @@ public class UIElement : DependencyObject
 
         _measureInvalidationCount++;
         _layoutVersionStamp++;
-        if (!IsConnectedToCurrentUiRoot())
+        var isConnectedToCurrentUiRoot = IsConnectedToCurrentUiRoot();
+        if (!isConnectedToCurrentUiRoot && IsNeverMeasuredFrameworkElement(this))
         {
             RunWithInvalidationContext(origin, this, $"measure<={reason}", InvalidateArrange);
             return;
         }
+        if (isConnectedToCurrentUiRoot)
+        {
+            RecordInvalidationDiagnostics(UiInvalidationType.Measure, origin, source, reason);
+            UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Measure, this);
+        }
 
-        RecordInvalidationDiagnostics(UiInvalidationType.Measure, origin, source, reason);
         MarkSubtreeDirty();
-        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Measure, this);
         RunWithInvalidationContext(origin, this, $"measure<={reason}", InvalidateArrange);
         var invalidationParent = GetInvalidationParent();
         if (invalidationParent != null)
@@ -1854,15 +1861,20 @@ public class UIElement : DependencyObject
 
         _arrangeInvalidationCount++;
         _layoutVersionStamp++;
-        if (!IsConnectedToCurrentUiRoot())
+        var isConnectedToCurrentUiRoot = IsConnectedToCurrentUiRoot();
+        if (!isConnectedToCurrentUiRoot && IsNeverMeasuredFrameworkElement(this))
         {
             RunWithInvalidationContext(origin, this, $"arrange<={reason}", InvalidateVisual);
             return;
         }
 
-        RecordInvalidationDiagnostics(UiInvalidationType.Arrange, origin, source, reason);
+        if (isConnectedToCurrentUiRoot)
+        {
+            RecordInvalidationDiagnostics(UiInvalidationType.Arrange, origin, source, reason);
+            UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Arrange, this);
+        }
+
         MarkSubtreeDirty();
-        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Arrange, this);
         RunWithInvalidationContext(origin, this, $"arrange<={reason}", InvalidateVisual);
         var invalidationParent = GetInvalidationParent();
         if (invalidationParent != null)
@@ -2068,6 +2080,20 @@ public class UIElement : DependencyObject
     private static bool IsFinite(float value)
     {
         return !float.IsNaN(value) && !float.IsInfinity(value);
+    }
+
+    private static bool IsNeverMeasuredFrameworkElement(UIElement element)
+    {
+        return element is FrameworkElement frameworkElement &&
+               !frameworkElement.IsMeasureValidForTests &&
+               float.IsNaN(frameworkElement.PreviousAvailableSizeForTests.X) &&
+               float.IsNaN(frameworkElement.PreviousAvailableSizeForTests.Y);
+    }
+
+    private static bool IsChildMutationStructureNotificationSuppressed(UIElement? oldParent, UIElement? newParent)
+    {
+        return oldParent is Panel { IsSuppressingChildMutationStructureNotifications: true } ||
+               newParent is Panel { IsSuppressingChildMutationStructureNotifications: true };
     }
 
     protected virtual LayoutRect GetLocalRenderBoundsCore(LayoutRect slot)

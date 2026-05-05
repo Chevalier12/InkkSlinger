@@ -41,6 +41,8 @@ public class Panel : FrameworkElement
     private bool _deferredChildMutationStructureChanged;
     private bool _zOrderCacheDirty = true;
 
+    internal bool IsSuppressingChildMutationStructureNotifications => _childMutationLayoutSuppressedDeferralDepth > 0;
+
     public IReadOnlyList<UIElement> Children => _children;
 
     public Color Background
@@ -91,7 +93,7 @@ public class Panel : FrameworkElement
         child.DependencyPropertyChanged -= OnChildDependencyPropertyChanged;
         child.SetVisualParent(null);
         child.SetLogicalParent(null);
-        NotifyVisualChildOrderChanged(invalidateMeasure: true);
+        NotifyVisualChildOrderChanged(invalidateMeasure: true, notifyStructureChanged: false);
         return true;
     }
 
@@ -107,7 +109,7 @@ public class Panel : FrameworkElement
         child.DependencyPropertyChanged -= OnChildDependencyPropertyChanged;
         child.SetVisualParent(null);
         child.SetLogicalParent(null);
-        NotifyVisualChildOrderChanged(invalidateMeasure: true);
+        NotifyVisualChildOrderChanged(invalidateMeasure: true, notifyStructureChanged: false);
         return true;
     }
 
@@ -468,10 +470,10 @@ public class Panel : FrameworkElement
         child.DependencyPropertyChanged += OnChildDependencyPropertyChanged;
         child.SetVisualParent(this);
         child.SetLogicalParent(this);
-        NotifyVisualChildOrderChanged(invalidateMeasure: true);
+        NotifyVisualChildOrderChanged(invalidateMeasure: true, notifyStructureChanged: false);
     }
 
-    private void NotifyVisualChildOrderChanged(bool invalidateMeasure)
+    private void NotifyVisualChildOrderChanged(bool invalidateMeasure, bool notifyStructureChanged = true)
     {
         _zOrderCacheDirty = true;
         if (_childMutationDeferralDepth > 0)
@@ -510,7 +512,10 @@ public class Panel : FrameworkElement
             InvalidateArrange();
         }
 
-        UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
+        if (notifyStructureChanged)
+        {
+            UiRoot.NotifyVisualStructureChangedForOwner(this, VisualParent, VisualParent);
+        }
     }
 
     private void EndChildMutationInvalidationDeferral(bool arrangeOnly, bool suppressLayout)
@@ -547,7 +552,7 @@ public class Panel : FrameworkElement
 
         if (_deferredChildMutationStructureChanged)
         {
-            UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
+            UiRoot.NotifyVisualStructureChangedForOwner(this, VisualParent, VisualParent);
         }
 
         _deferredChildMutationMeasureInvalidation = false;

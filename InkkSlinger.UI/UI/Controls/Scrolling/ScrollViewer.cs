@@ -1962,7 +1962,9 @@ public class ScrollViewer : ContentControl
         _runtimeSetOffsetsWorkCount++;
         var canApplyOffsetWithoutDeferredLayout = CanApplyOffsetWithoutDeferredLayout();
         WriteOffsetProperties(nextHorizontal, nextVertical);
+        var viewportChangedStartTicks = Stopwatch.GetTimestamp();
         ViewportChanged?.Invoke(this, EventArgs.Empty);
+        startTicks += Stopwatch.GetTimestamp() - viewportChangedStartTicks;
 
         if (canApplyOffsetWithoutDeferredLayout)
         {

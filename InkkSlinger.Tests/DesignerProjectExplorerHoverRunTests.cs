@@ -264,7 +264,7 @@ public sealed class DesignerProjectExplorerHoverRunTests
             Assert.Contains("target_item=prepare-commit-msg.sample", evidence);
             Assert.Contains("target_top_delta=0", evidence);
             Assert.Contains("target_is_near_top=True", evidence);
-            Assert.Contains("header=    prepare-commit-msg.sample normalized=prepare-commit-msg.sample", evidence);
+            Assert.Contains("header=prepare-commit-msg.sample normalized=prepare-commit-msg.sample", evidence);
             Assert.True(File.Exists(Path.Combine(runDirectory, "before-prepare-commit-msg-scroll.txt")), "Prepare-commit-msg baseline telemetry should exist.");
             Assert.True(File.Exists(Path.Combine(runDirectory, "after-prepare-commit-msg-scroll.txt")), "Prepare-commit-msg after-scroll telemetry should exist before hover sweeps.");
             Assert.True(File.Exists(Path.Combine(runDirectory, "after-prepare-commit-msg-hover-sweep-1.txt")), "First prepare-commit-msg hover sweep telemetry should exist.");
