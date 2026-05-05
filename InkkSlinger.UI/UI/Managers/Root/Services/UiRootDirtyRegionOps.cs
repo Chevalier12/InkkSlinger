@@ -7,10 +7,6 @@ namespace InkkSlinger;
 
 public sealed partial class UiRoot
 {
-    private const double DirtyRegionCoverageFallbackThreshold = 0.20d;
-    private const double DirtyRegionCoverageFallbackThresholdForMultipleRegions = 0.12d;
-    private const int DirtyRegionCountFallbackThreshold = 4;
-
     private void DrawRetainedRenderListWithDirtyRegions(SpriteBatch spriteBatch)
     {
         var dirtyCoverage = _dirtyRegions.GetDirtyAreaCoverage();
@@ -215,16 +211,16 @@ public sealed partial class UiRoot
         UiDrawing.PopLocalState(spriteBatch, node.HasLocalTransform, node.HasLocalClip);
     }
 
-    private static bool ShouldUsePartialDirtyRedraw(int regionCount, double coverage)
+    private bool ShouldUsePartialDirtyRedraw(int regionCount, double coverage)
     {
-        if (regionCount <= 0 || regionCount > DirtyRegionCountFallbackThreshold)
+        if (regionCount <= 0 || regionCount > _dirtyRegionCountFallbackThreshold)
         {
             return false;
         }
 
         var coverageThreshold = regionCount == 1
-            ? DirtyRegionCoverageFallbackThreshold
-            : DirtyRegionCoverageFallbackThresholdForMultipleRegions;
+            ? _dirtyRegionCoverageFallbackThreshold
+            : _dirtyRegionCoverageFallbackThresholdForMultipleRegions;
         return coverage <= coverageThreshold;
     }
 

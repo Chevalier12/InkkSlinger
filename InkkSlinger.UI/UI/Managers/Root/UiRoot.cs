@@ -352,6 +352,37 @@ public sealed partial class UiRoot
 
     public bool AlwaysDrawCompatibilityMode { get; set; }
 
+    private int _dirtyRegionCountFallbackThreshold = 4;
+    private double _dirtyRegionCoverageFallbackThreshold = 0.20d;
+    private double _dirtyRegionCoverageFallbackThresholdForMultipleRegions = 0.12d;
+
+    public int DirtyRegionCountFallbackThreshold
+    {
+        get => _dirtyRegionCountFallbackThreshold;
+        set => _dirtyRegionCountFallbackThreshold = Math.Max(1, value);
+    }
+
+    public double DirtyRegionCoverageFallbackThreshold
+    {
+        get => _dirtyRegionCoverageFallbackThreshold;
+        set => _dirtyRegionCoverageFallbackThreshold = ClampDirtyRegionCoverageFallbackThreshold(
+            value,
+            _dirtyRegionCoverageFallbackThreshold);
+    }
+
+    public double DirtyRegionCoverageFallbackThresholdForMultipleRegions
+    {
+        get => _dirtyRegionCoverageFallbackThresholdForMultipleRegions;
+        set => _dirtyRegionCoverageFallbackThresholdForMultipleRegions = ClampDirtyRegionCoverageFallbackThreshold(
+            value,
+            _dirtyRegionCoverageFallbackThresholdForMultipleRegions);
+    }
+
+    private static double ClampDirtyRegionCoverageFallbackThreshold(double value, double fallback)
+    {
+        return double.IsNaN(value) ? fallback : Math.Clamp(value, 0d, 1d);
+    }
+
     public bool UseSoftwareCursor { get; set; }
 
     public Color SoftwareCursorColor { get; set; } = new(238, 244, 255);
