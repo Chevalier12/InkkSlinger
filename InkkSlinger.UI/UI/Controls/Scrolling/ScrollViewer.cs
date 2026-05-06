@@ -2014,7 +2014,11 @@ public class ScrollViewer : ContentControl
                 _diagSetOffsetsTransformInvalidationPathCount++;
                 _runtimeSetOffsetsTransformInvalidationPathCount++;
                 RecordTransformScrollDirtyHintFrame();
-                if (ContentElement is UIElement contentElement)
+                if (TryGetContentViewportClipRect(out var contentViewport))
+                {
+                    UiRoot.Current?.NotifyScrollViewportChanged(this, contentViewport);
+                }
+                else if (ContentElement is UIElement contentElement)
                 {
                     UiRoot.Current?.NotifyDirectRenderInvalidation(contentElement);
                 }

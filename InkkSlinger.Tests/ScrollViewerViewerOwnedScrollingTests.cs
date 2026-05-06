@@ -338,7 +338,7 @@ public class ScrollViewerViewerOwnedScrollingTests
     public void TransformDefault_RetainedDrawOrderTracksScrolledContentBeforeResize()
     {
         var root = new Panel();
-        var content = CreateTallStackPanel(120);
+        var content = CreateTransformCapableTallStackPanel(120);
         var viewer = new ScrollViewer
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
@@ -370,6 +370,84 @@ public class ScrollViewerViewerOwnedScrollingTests
 
         Assert.DoesNotContain(firstChild, order);
         Assert.Contains(visibleChild, order);
+        RetainedRenderingAssert.AssertRetainedDrawOrderMatchesImmediateTraversal(uiRoot, clip);
+    }
+
+    [Fact]
+    public void TransformDefault_ExplicitScrollViewportDamage_KeepsRetainedAndImmediateTraversalInParity()
+    {
+        var root = new Panel();
+        var content = CreateTransformCapableTallStackPanel(120);
+        var viewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        for (var i = 0; i < 4; i++)
+        {
+            Assert.True(viewer.HandleMouseWheelFromInput(-120));
+        }
+
+        Assert.True(viewer.TryGetContentViewportClipRect(out var clip));
+        var dirtyTrace = uiRoot.GetDirtyBoundsEventTraceForTests();
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+
+        Assert.Contains(dirtyTrace, entry => entry.Contains(":scroll-viewport:", System.StringComparison.Ordinal));
+        Assert.Contains(dirtyRegions, region => Contains(region, clip));
+        Assert.True(uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests().ScrollViewportDirtyCount >= 1);
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+        RetainedRenderingAssert.AssertRetainedDrawOrderMatchesImmediateTraversal(uiRoot, clip);
+    }
+
+    [Fact]
+    public void TransformDefault_ScrolledVisibleDescendantInvalidation_DoesNotHideViewportContent()
+    {
+        var root = new Panel();
+        var content = CreateTallStackPanel(120);
+        var viewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        for (var i = 0; i < 4; i++)
+        {
+            Assert.True(viewer.HandleMouseWheelFromInput(-120));
+        }
+
+        Assert.True(viewer.TryGetContentViewportClipRect(out var clip));
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        var visibleChild = Assert.IsType<Border>(content.Children[6]);
+        visibleChild.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+        RetainedRenderingAssert.AssertRetainedDrawOrderMatchesImmediateTraversal(uiRoot, clip);
+        Assert.Contains(visibleChild, uiRoot.GetRetainedDrawOrderForClipForTests(clip));
     }
 
     [Fact]
@@ -522,6 +600,14 @@ public class ScrollViewerViewerOwnedScrollingTests
     private static bool AreClose(float left, float right)
     {
         return MathF.Abs(left - right) <= 0.05f;
+    }
+
+    private static bool Contains(LayoutRect outer, LayoutRect inner)
+    {
+        return outer.X <= inner.X + 0.01f &&
+               outer.Y <= inner.Y + 0.01f &&
+               outer.X + outer.Width >= inner.X + inner.Width - 0.01f &&
+               outer.Y + outer.Height >= inner.Y + inner.Height - 0.01f;
     }
 
     private static bool IsDescendantOrSelf(UIElement ancestor, UIElement candidate)

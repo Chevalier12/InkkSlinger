@@ -77,7 +77,7 @@ public sealed partial class UiRoot
             return;
         }
 
-        var viewportChanged = !_hasLastLayoutViewport || !AreViewportsEqual(_lastLayoutViewport, viewport);
+        var viewportChanged = !_hasLastLayoutViewport || !RetainedRenderController.AreViewportsEqual(_lastLayoutViewport, viewport);
         if (viewportChanged)
         {
             _lastLayoutViewport = viewport;
@@ -162,14 +162,13 @@ public sealed partial class UiRoot
 
     private void RunRenderSchedulingPhase(Viewport viewport)
     {
-        SyncDirtyRegionViewport(viewport);
         if (!UseRetainedRenderList)
         {
+            _retainedRender.SyncDirtyRegionViewport(viewport);
             return;
         }
 
-        EnsureVisualIndexCurrent();
-        SynchronizeRetainedRenderList();
+        _retainedRender.Sync(viewport);
     }
 
     private void CaptureLayoutSamples(FrameworkElement root, Dictionary<FrameworkElement, LayoutElementSample> samples)

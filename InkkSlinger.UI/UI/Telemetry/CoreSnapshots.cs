@@ -100,6 +100,29 @@ internal readonly record struct UiRenderTelemetrySnapshot(
     int FullRetainedDrawWithoutFullClearCount);
 
 /// <summary>
+/// Controller-owned retained rendering state and decisions.
+/// </summary>
+internal readonly record struct RetainedRenderControllerTelemetrySnapshot(
+    int NodeCount,
+    int HighCostVisualCount,
+    int DirtyRegionCount,
+    double DirtyCoverage,
+    bool IsFullFrameDirty,
+    int FullRedrawFallbackCount,
+    int FullRebuildCount,
+    int SubtreeSyncCount,
+    int LastDirtyVisualCount,
+    int DirtyRootCount,
+    int ScrollViewportDirtyCount,
+    int StructureInvalidationCount,
+    int RetainedTraversalCount,
+    int DirtyRegionTraversalCount,
+    int NodesVisited,
+    int NodesDrawn,
+    int ThresholdFallbackCount,
+    UiDirtyDrawDecisionReason LastDirtyDrawDecisionReason);
+
+/// <summary>
 /// Dirty draw decision snapshot.
 /// </summary>
 internal readonly record struct UiDirtyDrawDecisionSnapshot(

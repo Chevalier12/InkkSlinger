@@ -1,5 +1,7 @@
 using System;
 using System.Numerics;
+using XnaMatrix = Microsoft.Xna.Framework.Matrix;
+using XnaVector2 = Microsoft.Xna.Framework.Vector2;
 
 namespace InkkSlinger;
 
@@ -48,10 +50,17 @@ internal static class InkkOopsCommandUtilities
             return false;
         }
 
-        visibleBounds = GetRenderedLayoutRectForInput(element);
+        visibleBounds = bounds;
         for (var current = element.VisualParent; current != null; current = current.VisualParent)
         {
-            visibleBounds = IntersectRects(visibleBounds, GetRenderedLayoutRectForInput(current));
+            if (!current.TryGetLocalClipSnapshot(out var clipRect) ||
+                clipRect.Width <= 0f ||
+                clipRect.Height <= 0f)
+            {
+                continue;
+            }
+
+            visibleBounds = IntersectRects(visibleBounds, TransformRectToRoot(current, clipRect));
             if (visibleBounds.Width <= 0f || visibleBounds.Height <= 0f)
             {
                 return false;
@@ -87,21 +96,35 @@ internal static class InkkOopsCommandUtilities
         };
     }
 
-    private static LayoutRect GetRenderedLayoutRectForInput(UIElement element)
+    private static LayoutRect TransformRectToRoot(UIElement element, LayoutRect rect)
     {
-        var slot = element.LayoutSlot;
-        var x = slot.X;
-        var y = slot.Y;
-        for (var current = element.VisualParent; current != null; current = current.VisualParent)
+        var transform = XnaMatrix.Identity;
+        var hasTransform = false;
+        for (var current = element; current != null; current = current.VisualParent)
         {
-            if (current is ScrollViewer viewer)
+            if (!current.TryGetLocalRenderTransformSnapshot(out var localTransform))
             {
-                x -= viewer.HorizontalOffset;
-                y -= viewer.VerticalOffset;
+                continue;
             }
+
+            transform *= localTransform;
+            hasTransform = true;
         }
 
-        return new LayoutRect(x, y, slot.Width, slot.Height);
+        if (!hasTransform)
+        {
+            return rect;
+        }
+
+        var topLeft = XnaVector2.Transform(new XnaVector2(rect.X, rect.Y), transform);
+        var topRight = XnaVector2.Transform(new XnaVector2(rect.X + rect.Width, rect.Y), transform);
+        var bottomLeft = XnaVector2.Transform(new XnaVector2(rect.X, rect.Y + rect.Height), transform);
+        var bottomRight = XnaVector2.Transform(new XnaVector2(rect.X + rect.Width, rect.Y + rect.Height), transform);
+        var minX = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
+        var minY = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
+        var maxX = MathF.Max(MathF.Max(topLeft.X, topRight.X), MathF.Max(bottomLeft.X, bottomRight.X));
+        var maxY = MathF.Max(MathF.Max(topLeft.Y, topRight.Y), MathF.Max(bottomLeft.Y, bottomRight.Y));
+        return new LayoutRect(minX, minY, MathF.Max(0f, maxX - minX), MathF.Max(0f, maxY - minY));
     }
 
     private static LayoutRect IntersectRects(LayoutRect first, LayoutRect second)

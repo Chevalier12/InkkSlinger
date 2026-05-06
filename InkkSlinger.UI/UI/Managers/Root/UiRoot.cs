@@ -23,25 +23,9 @@ public sealed partial class UiRoot
 
     private readonly UIElement _visualRoot;
     private readonly FrameworkElement? _layoutRoot;
+    private readonly RetainedRenderController _retainedRender;
     private readonly UiRootVisualIndex _visualIndex = new();
-    private readonly List<RenderNode> _retainedRenderList = new();
-    private readonly Dictionary<UIElement, int> _renderNodeIndices = new();
-    private readonly Queue<UIElement> _dirtyRenderQueue = new();
-    private readonly HashSet<UIElement> _dirtyRenderSet = new();
-    private readonly HashSet<UIElement> _dirtyRenderRootsRequireDeepSync = new();
-    private readonly List<DirtyRenderWorkItem> _dirtyRenderWorkItems = new();
-    private readonly List<IndexedDirtyRenderCandidate> _dirtyRenderCandidates = new();
-    private readonly List<UIElement> _pendingAncestorMetadataRefreshRoots = new();
-    private readonly List<UIElement> _ancestorMetadataRefreshBuffer = new();
-    private readonly HashSet<UIElement> _ancestorMetadataRefreshSet = new();
-    private readonly List<UIElement> _lastSynchronizedDirtyRenderRoots = new();
-    private readonly List<UIElement> _lastCompletedSynchronizedDirtyRenderRoots = new();
-    private readonly List<DirtyRenderSpan> _lastSynchronizedDirtyRenderSpans = new();
-    private readonly List<UIElement> _lastCoalescedDirtyRenderRoots = new();
-    private readonly List<UIElement> _dirtyRenderCompactionBuffer = new();
-    private readonly List<RenderNode> _activeRetainedDrawPath = new();
     private readonly List<UiUpdatePhase> _lastUpdatePhaseOrder = new(5);
-    private readonly DirtyRegionTracker _dirtyRegions = new();
     private readonly InputManager _inputManager = new();
     private readonly InputDispatchState _inputState = new();
     private readonly Dictionary<UIElement, CachedInputConnectionState> _inputConnectionCache = new();
@@ -56,7 +40,6 @@ public sealed partial class UiRoot
     private readonly List<UIElement> _openOverlayVisuals = new();
     private readonly List<ContextMenu> _openContextMenus = new();
     private readonly List<UiIndexedUpdateParticipant> _activeUpdateParticipants = new();
-    private readonly Dictionary<UIElement, int> _pendingDirtyAncestorCounts = new(ReferenceEqualityComparer.Instance);
     private InputPhaseTelemetryState _inputTelemetry;
     private UIElement? _cachedClickTarget;
     private UIElement? _cachedPointerResolveTarget;
@@ -208,6 +191,7 @@ public sealed partial class UiRoot
     {
         _visualRoot = visualRoot ?? throw new ArgumentNullException(nameof(visualRoot));
         _layoutRoot = visualRoot as FrameworkElement;
+        _retainedRender = new RetainedRenderController(this);
         Automation = new AutomationManager(_visualRoot);
         _useRetainedRenderList = EnableRetainedRenderListByDefault;
         UseDirtyRegionRendering = EnableDirtyRegionRenderingByDefault;
@@ -435,7 +419,7 @@ public sealed partial class UiRoot
 
     public int RenderInvalidationCount { get; private set; }
 
-    public int RetainedRenderNodeCount => _retainedRenderList.Count;
+    public int RetainedRenderNodeCount => _retainedRender.NodeCount;
 
     public int VisualStructureChangeCount => _visualStructureChangeCount;
 
@@ -445,7 +429,7 @@ public sealed partial class UiRoot
 
     public int LastRetainedDirtyVisualCount => _lastRetainedDirtyVisualCount;
 
-    public int DirtyRenderQueueCount => _dirtyRenderQueue.Count;
+    public int DirtyRenderQueueCount => _retainedRender.DirtyQueueCount;
 
     public bool HasPendingMeasureInvalidation => _hasMeasureInvalidation;
 
@@ -473,7 +457,7 @@ public sealed partial class UiRoot
 
     public double LastDirtyAreaPercentage { get; private set; }
 
-    public int FullRedrawFallbackCount => _dirtyRegions.FullRedrawFallbackCount;
+    public int FullRedrawFallbackCount => _retainedRender.FullRedrawFallbackCount;
 
     public bool LastDrawUsedPartialRedraw { get; private set; }
 
@@ -517,7 +501,7 @@ public sealed partial class UiRoot
             UseDirtyRegionRendering,
             UseConditionalDrawScheduling,
             RetainedRenderNodeCount,
-            GetRetainedHighCostVisualCount(),
+            _retainedRender.HighCostVisualCount,
             _visualStructureChangeCount,
             _retainedFullRebuildCount,
             _retainedSubtreeSyncCount,
@@ -526,16 +510,17 @@ public sealed partial class UiRoot
 
     internal UiRenderTelemetrySnapshot GetRenderTelemetrySnapshotForTests()
     {
+        var retainedSnapshot = _retainedRender.GetTelemetrySnapshot();
         return new UiRenderTelemetrySnapshot(
             _lastSpriteBatchRestartCount,
             _lastSpriteBatchRestartMs,
             _lastRetainedClipPushCount,
-            _lastRetainedNodesVisited,
-            _lastRetainedNodesDrawn,
-            _lastRetainedTraversalCount,
-            _lastDirtyRegionTraversalCount,
-            _lastDirtyRootCountAfterCoalescing,
-            _dirtyRegionThresholdFallbackCount,
+            retainedSnapshot.NodesVisited,
+            retainedSnapshot.NodesDrawn,
+            retainedSnapshot.RetainedTraversalCount,
+            retainedSnapshot.DirtyRegionTraversalCount,
+            retainedSnapshot.DirtyRootCount,
+            retainedSnapshot.ThresholdFallbackCount,
             _lastDrawClearMs,
             _lastDrawInitialBatchBeginMs,
             _lastDrawVisualTreeMs,
@@ -552,9 +537,14 @@ public sealed partial class UiRoot
             Shape.GetRenderCacheMissCountForTests(),
             TextLayout.GetMetricsSnapshot().CacheHitCount,
             TextLayout.GetMetricsSnapshot().CacheMissCount,
-            _lastDirtyDrawDecisionReason,
+            retainedSnapshot.LastDirtyDrawDecisionReason,
             _retainedSyncChangedDirtyDecisionCount,
             _fullRetainedDrawWithoutFullClearCount);
+    }
+
+    internal RetainedRenderControllerTelemetrySnapshot GetRetainedRenderControllerTelemetrySnapshotForTests()
+    {
+        return _retainedRender.GetTelemetrySnapshot();
     }
 
     internal UiRenderInvalidationDebugSnapshot GetRenderInvalidationDebugSnapshotForTests()
@@ -700,6 +690,7 @@ public sealed partial class UiRoot
         _telemetryResetUpdatePhaseStateCallCount = 0;
         _retainedSyncChangedDirtyDecisionCount = 0;
         _fullRetainedDrawWithoutFullClearCount = 0;
+        _retainedRender.ResetTelemetry();
     }
 
     internal UIElement? GetHoveredElementForDiagnostics()
@@ -734,8 +725,7 @@ public sealed partial class UiRoot
 
     internal bool WouldUsePartialDirtyRedrawForTests()
     {
-        return _fullRedrawSettleFramesRemaining <= 0 &&
-               ShouldUsePartialDirtyRedraw(_dirtyRegions.RegionCount, _dirtyRegions.GetDirtyAreaCoverage());
+        return _retainedRender.WouldUsePartialDirtyRedraw(CreateRetainedDrawThresholds());
     }
 
     internal UiDirtyDrawDecisionSnapshot ResolveDirtyDrawDecisionAfterRetainedSyncForTests()
@@ -800,7 +790,18 @@ public sealed partial class UiRoot
         _hasRenderInvalidation = true;
         _mustDrawNextFrame = true;
         _diagnosticCaptureFullClearPending = true;
-        _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
+        _retainedRender.MarkFullFrameDirtyWithoutReason();
+    }
+
+    internal void NotifyScrollViewportChanged(ScrollViewer viewer, LayoutRect viewport)
+    {
+        RecordRenderInvalidationSources(viewer, viewer);
+        _hasRenderInvalidation = true;
+        _mustDrawNextFrame = true;
+        RenderInvalidationCount++;
+        _renderStateVersion++;
+        BumpPointerResolveStateVersion();
+        _retainedRender.NotifyScrollViewportChanged(viewer, viewport);
     }
 
     internal void RecordForcedDrawForSurfaceReset()
@@ -866,130 +867,65 @@ public sealed partial class UiRoot
     internal void RebuildRenderListForTests()
     {
         _telemetryRebuildRetainedRenderListCallCount++;
-        RebuildRetainedRenderList();
+        _retainedRender.RebuildRetainedRenderList();
     }
 
     internal IReadOnlyList<UIElement> GetRetainedVisualOrderForTests()
     {
-        var visuals = new List<UIElement>(_retainedRenderList.Count);
-        for (var i = 0; i < _retainedRenderList.Count; i++)
-        {
-            visuals.Add(_retainedRenderList[i].Visual);
-        }
-
-        return visuals;
+        return _retainedRender.GetRetainedVisualOrderSnapshot();
     }
 
     internal IReadOnlyList<UIElement> GetDirtyRenderQueueSnapshotForTests()
     {
-        return new List<UIElement>(_dirtyRenderQueue);
+        return _retainedRender.GetDirtyRenderQueueSnapshot();
     }
 
     internal string GetDirtyRenderQueueSummaryForTests(int limit = 6)
     {
-        if (_lastCoalescedDirtyRenderRoots.Count > 0)
-        {
-            var count = Math.Min(limit, _lastCoalescedDirtyRenderRoots.Count);
-            var coalescedItems = new string[count];
-            for (var i = 0; i < count; i++)
-            {
-                coalescedItems[i] = DescribeElementForDiagnostics(_lastCoalescedDirtyRenderRoots[i]);
-            }
-
-            return string.Join(" | ", coalescedItems);
-        }
-
-        if (_dirtyRenderQueue.Count == 0)
-        {
-            return "none";
-        }
-
-        var items = new List<string>(limit);
-        foreach (var element in _dirtyRenderQueue)
-        {
-            if (items.Count >= limit)
-            {
-                break;
-            }
-
-            items.Add(DescribeElementForDiagnostics(element));
-        }
-
-        return string.Join(" | ", items);
+        return _retainedRender.GetDirtyRenderQueueSummary(limit, DescribeElementForDiagnostics);
     }
 
     internal string GetLastSynchronizedDirtyRootSummaryForTests(int limit = 6)
     {
-        var source = _lastCompletedSynchronizedDirtyRenderRoots.Count > 0
-            ? _lastCompletedSynchronizedDirtyRenderRoots
-            : _lastSynchronizedDirtyRenderRoots;
-        if (source.Count == 0)
-        {
-            return "none";
-        }
-
-        var count = Math.Min(limit, source.Count);
-        var items = new string[count];
-        for (var i = 0; i < count; i++)
-        {
-            items[i] = DescribeElementForDiagnostics(source[i]);
-        }
-
-        return string.Join(" | ", items);
+        return _retainedRender.GetLastSynchronizedDirtyRootSummary(limit, DescribeElementForDiagnostics);
     }
 
     internal string GetDirtyRegionSummaryForTests(int limit = 6)
     {
-        if (_dirtyRegions.RegionCount == 0)
-        {
-            return "none";
-        }
-
-        var count = Math.Min(limit, _dirtyRegions.RegionCount);
-        var items = new string[count];
-        for (var i = 0; i < count; i++)
-        {
-            var region = _dirtyRegions.Regions[i];
-            items[i] = $"{region.X:0.#},{region.Y:0.#},{region.Width:0.#},{region.Height:0.#}";
-        }
-
-        return string.Join(" | ", items);
+        return _retainedRender.GetDirtyRegionSummary(limit);
     }
 
     internal IReadOnlyList<LayoutRect> GetDirtyRegionsSnapshotForTests()
     {
-        return new List<LayoutRect>(_dirtyRegions.Regions);
+        return _retainedRender.GetDirtyRegionsSnapshot();
     }
 
     internal bool IsFullDirtyForTests()
     {
-        return _dirtyRegions.IsFullFrameDirty;
+        return _retainedRender.IsFullFrameDirty;
     }
 
     internal double GetDirtyCoverageForTests()
     {
-        return _dirtyRegions.GetDirtyAreaCoverage();
+        return _retainedRender.DirtyCoverage;
     }
 
     internal void SetDirtyRegionViewportForTests(LayoutRect viewport)
     {
-        _dirtyRegions.SetViewport(viewport);
+        _retainedRender.SetDirtyRegionViewport(viewport);
     }
 
     internal void ResetDirtyStateForTests()
     {
         _telemetryClearDirtyRenderQueueCallCount++;
-        _dirtyRegions.Clear();
-        ClearDirtyRenderQueue();
-        ResetRetainedSyncTrackingState();
-        _lastCompletedSynchronizedDirtyRenderRoots.Clear();
+        _retainedRender.ResetDirtyState();
         _dirtyBoundsEventTrace.Clear();
     }
 
     internal void SynchronizeRetainedRenderListForTests()
     {
         _telemetrySynchronizeRetainedRenderListCallCount++;
-        SynchronizeRetainedRenderList();
+        _retainedRender.SynchronizeRetainedRenderList();
     }
 
     internal bool IsRenderListFullRebuildPendingForTests()
@@ -999,27 +935,17 @@ public sealed partial class UiRoot
 
     internal int GetRetainedNodeSubtreeEndIndexForTests(UIElement visual)
     {
-        if (!_renderNodeIndices.TryGetValue(visual, out var nodeIndex))
-        {
-            throw new ArgumentException("Visual is not tracked in retained render list.", nameof(visual));
-        }
-
-        return _retainedRenderList[nodeIndex].SubtreeEndIndexExclusive;
+        return _retainedRender.GetRetainedNodeSubtreeEndIndex(visual);
     }
 
     internal LayoutRect GetRetainedNodeBoundsForTests(UIElement visual)
     {
-        if (!_renderNodeIndices.TryGetValue(visual, out var nodeIndex))
-        {
-            throw new ArgumentException("Visual is not tracked in retained render list.", nameof(visual));
-        }
-
-        return _retainedRenderList[nodeIndex].BoundsSnapshot;
+        return _retainedRender.GetRetainedNodeBounds(visual);
     }
 
     internal string ValidateRetainedTreeAgainstCurrentVisualStateForTests(int maxMismatches = 8)
     {
-        return ValidateRetainedTreeAgainstCurrentVisualState(maxMismatches);
+        return _retainedRender.ValidateAgainstCurrentVisualState(maxMismatches);
     }
 
     internal UiRedrawReason GetScheduledDrawReasonsForTests()
@@ -1029,7 +955,7 @@ public sealed partial class UiRoot
 
     internal void RemoveRetainedNodeIndexForTests(UIElement visual)
     {
-        _ = _renderNodeIndices.Remove(visual);
+        _retainedRender.RemoveRetainedNodeIndex(visual);
     }
 
     internal void CompleteDrawStateForTests()
@@ -1046,7 +972,7 @@ public sealed partial class UiRoot
         _hasCaretBlinkInvalidation = false;
         _mustDrawNextFrame = false;
         _scheduledDrawReasons = UiRedrawReason.None;
-        ResetRetainedSyncTrackingState();
+        _retainedRender.ResetRetainedSyncTrackingState();
         _diagnosticCaptureFullClearPending = false;
     }
 
@@ -1066,6 +992,11 @@ public sealed partial class UiRoot
     }
 
     private void MarkFullFrameDirty(UiFullDirtyReason reason)
+    {
+        _retainedRender.MarkFullFrameDirty(reason);
+    }
+
+    private void RecordFullFrameDirtyReason(UiFullDirtyReason reason)
     {
         switch (reason)
         {
@@ -1090,11 +1021,9 @@ public sealed partial class UiRoot
             default:
                 throw new ArgumentOutOfRangeException(nameof(reason), reason, null);
         }
-
-        _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
     }
 
-    private enum UiFullDirtyReason
+    internal enum UiFullDirtyReason
     {
         InitialState,
         ViewportChanged,
@@ -1106,20 +1035,19 @@ public sealed partial class UiRoot
 
     internal void ApplyRenderInvalidationCleanupForTests()
     {
-        ApplyRenderInvalidationCleanupAfterDraw();
+        _retainedRender.ApplyRenderInvalidationCleanupAfterDraw();
     }
 
     internal IReadOnlyList<UIElement> GetRetainedDrawOrderForClipForTests(LayoutRect clipRect)
     {
         var visuals = new List<UIElement>();
-        AppendRetainedDrawOrderForClip(clipRect, visuals);
+        _retainedRender.AppendDrawOrderForClip(clipRect, visuals);
         return visuals;
     }
 
     internal (int NodesVisited, int NodesDrawn, int LocalClipPushCount) GetRetainedTraversalMetricsForClipForTests(LayoutRect clipRect)
     {
-        var metrics = TraverseRetainedNodesWithinClip(spriteBatch: null, clipRect);
-        return (metrics.NodesVisited, metrics.NodesDrawn, metrics.ClipPushCount);
+        return _retainedRender.GetTraversalMetricsForClip(clipRect);
     }
 
     internal void SetAnimationActiveForTests(bool isActive)
@@ -1148,16 +1076,6 @@ public sealed partial class UiRoot
 
         metrics = default;
         return false;
-    }
-
-    private int GetRetainedHighCostVisualCount()
-    {
-        if (_retainedRenderList.Count == 0)
-        {
-            return 0;
-        }
-
-        return _retainedRenderList[0].SubtreeHighCostVisualCount;
     }
 
     private void EnsureVisualIndexCurrent()
@@ -1266,7 +1184,7 @@ public sealed partial class UiRoot
 
         _openOverlayVisuals.Add(overlay);
 
-registerContextMenu:
+    registerContextMenu:
         if (overlay is ContextMenu contextMenu)
         {
             _lastKnownOpenContextMenu = contextMenu;
@@ -1330,7 +1248,7 @@ registerContextMenu:
         accumulator.MeasureInvalidationCount += visual.MeasureInvalidationCount;
         accumulator.ArrangeInvalidationCount += visual.ArrangeInvalidationCount;
         accumulator.RenderInvalidationCount += visual.RenderInvalidationCount;
-        if (IsHighCostVisual(visual))
+        if (RetainedRenderController.IsHighCostVisual(visual))
         {
             accumulator.HighCostVisualCount++;
         }

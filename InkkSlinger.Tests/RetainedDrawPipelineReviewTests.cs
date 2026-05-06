@@ -13,19 +13,14 @@ namespace InkkSlinger.Tests;
 public sealed class RetainedDrawPipelineReviewTests
 {
     /// <summary>
-    /// H1 — Prove that scroll translation fast-path updates N subtree nodes without deep-syncing
-    /// each child individually (i.e. struct copies are O(1) per subtree, not O(N) deep syncs).
+    /// H1 — Prove that transform scrolling keeps retained state valid without rebuilding
+    /// the whole retained tree.
     ///
-    /// If the scroll translation fast-path works correctly, scrolling a subtree root should:
-    ///   (a) NOT trigger the force-deep-sync path
-    ///   (b) translate every node's retained BoundsSnapshot correctly
-    ///   (c) leave the retained tree valid
-    ///
-    /// A failure suggests the scroll-fast-path is degrading to per-node deep sync,
-    /// confirming the concern about struct copy volume.
+    /// A scroll update should dirty/sync the scrolled content while the renderer reads
+    /// current transforms and clips instead of storing scroll translation in retained nodes.
     /// </summary>
     [Fact]
-    public void H1_ScrollTranslationFastPath_AvoidsPerNodeDeepSyncCopies()
+    public void H1_TransformScrollSync_KeepsRetainedTreeValidWithoutFullRebuild()
     {
         var root = new Panel();
         root.SetLayoutSlot(new LayoutRect(0f, 0f, 400f, 400f));
@@ -70,18 +65,17 @@ public sealed class RetainedDrawPipelineReviewTests
 
         Assert.Equal("ok", treeState);
         Assert.False(uiRoot.IsRenderListFullRebuildPendingForTests(),
-            "scroll translation fast path should not trigger a full retained rebuild");
+            "transform scrolling should not trigger a full retained rebuild");
         Assert.True(postScrollForceDeepCount <= 2,
             $"Force-deep-sync count ({postScrollForceDeepCount}) should be O(1), not O(childCount={childCount})");
     }
 
     /// <summary>
-    /// H1b — Prove that when scroll translation fast path is NOT taken (because child is
-    /// individually dirty), the retained tree performs a deep enough update to produce
-    /// valid bounds without triggering a full rebuild.
+    /// H1b — Prove that scrolling while a child is individually dirty still produces
+    /// valid retained bounds without triggering a full rebuild.
     /// </summary>
     [Fact]
-    public void H1b_ScrollTranslationBlockedByDirtyChild_FallsBackToDeepSyncWithoutFullRebuild()
+    public void H1b_TransformScrollWithDirtyChild_SyncsWithoutFullRebuild()
     {
         var root = new Panel();
         root.SetLayoutSlot(new LayoutRect(0f, 0f, 400f, 400f));
@@ -121,16 +115,14 @@ public sealed class RetainedDrawPipelineReviewTests
     }
 
     /// <summary>
-    /// H2 — Prove that the List-based scroll translation stack in
-    /// TraverseRetainedNodesWithinClip correctly accumulates and unwinds
+    /// H2 — Prove that retained traversal with current transforms correctly handles
     /// multi-level scroll offsets from nested ScrollViewers.
     ///
-    /// If the stack-based approach (using RemoveAt on a List) has correctness
-    /// issues, then clipped draw-order will include off-viewport children or
-    /// miss on-viewport children.
+    /// If traversal stops honoring current transforms and clips, clipped draw-order
+    /// will include off-viewport children or miss on-viewport children.
     /// </summary>
     [Fact]
-    public void H2_NestedScrollTranslationStack_AccumulatesAndUnwindsCorrectly()
+    public void H2_NestedTransformScrollTraversal_UsesCurrentTransformsCorrectly()
     {
         var root = new Panel();
         root.SetLayoutSlot(new LayoutRect(0f, 0f, 600f, 600f));
@@ -187,16 +179,10 @@ public sealed class RetainedDrawPipelineReviewTests
     }
 
     /// <summary>
-    /// H3 — Prove that TryGetScrollTranslationOffsetFromAncestors does an O(depth)
-    /// walk of the ancestor chain for each dirty-bounds computation.
-    ///
-    /// We build a deep chain of nested panels, set layout slots at each level,
-    /// scroll the innermost viewer, and verify the retained tree stays valid.
-    /// The walk exists because the retained system accumulates scroll translations
-    /// from ancestors rather than caching the net offset per node.
+    /// H3 — Prove that explicit scroll viewport damage keeps a deep retained tree valid.
     /// </summary>
     [Fact]
-    public void H3_ScrollTranslationOffsetFromAncestors_WalksDepthPerDirtyBounds()
+    public void H3_ExplicitScrollViewportDamage_KeepsDeepRetainedTreeValid()
     {
         const int depth = 8;
 
@@ -981,13 +967,11 @@ public sealed class RetainedDrawPipelineReviewTests
     }
 
     /// <summary>
-    /// H3 — Prove the O(depth) ancestor walk in TryGetScrollTranslationOffsetFromAncestors
-    /// produces correct results at depth 10 with nested scroll viewers.
-    /// The walk is correct by design — the only way to consistently read
-    /// pre-sync scroll state. The O(depth) cost is bounded by typical UI depth (3-8).
+    /// H3 — Prove nested scroll viewers stay retained-valid after sync without retained
+    /// scroll translation metadata.
     /// </summary>
     [Fact]
-    public void H3_DeepAncestorWalk_ProducesCorrectScrollOffsets()
+    public void H3_NestedScrollViewers_StayValidWithoutRetainedScrollTranslation()
     {
         var root = new Panel();
         root.SetLayoutSlot(new LayoutRect(0f, 0f, 1000f, 1000f));

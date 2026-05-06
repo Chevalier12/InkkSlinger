@@ -330,7 +330,7 @@ public sealed class RetainedRenderSyncRegressionTests
     }
 
     [Fact]
-    public void ScrollTranslationSync_OnVirtualizingPanelWithMissingChildIndex_RebuildsDescendantTracking()
+    public void TransformSync_OnVirtualizingPanelWithMissingChildIndex_RebuildsDescendantTracking()
     {
         var root = new Panel();
         var virtualizingPanel = new VirtualizingStackPanel

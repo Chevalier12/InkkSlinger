@@ -43,6 +43,24 @@ public enum UiDirtyDrawDecisionReason
     DiagnosticCapture
 }
 
+internal enum RetainedInvalidationKind
+{
+    RenderState,
+    LayoutState,
+    Structure,
+    ScrollViewport
+}
 
+internal readonly record struct RetainedInvalidation(
+    UIElement? RequestedSource,
+    UIElement? EffectiveSource,
+    UIElement? RetainedSyncRoot,
+    UIElement? DirtyBoundsSource,
+    RetainedInvalidationKind Kind,
+    bool RequireDeepSync);
 
+internal readonly record struct RetainedDrawThresholds(
+    int RegionCountFallbackThreshold,
+    double SingleRegionCoverageFallbackThreshold,
+    double MultipleRegionCoverageFallbackThreshold);
 

@@ -43,7 +43,7 @@ public sealed partial class UiRoot
             reasons |= UiRedrawReason.LayoutInvalidated;
         }
 
-        if (_hasRenderInvalidation || _dirtyRegions.IsFullFrameDirty || _dirtyRegions.RegionCount > 0)
+        if (_hasRenderInvalidation || _retainedRender.HasDirtyWork)
         {
             reasons |= UiRedrawReason.RenderInvalidated;
         }
@@ -91,7 +91,7 @@ public sealed partial class UiRoot
 
     internal void EnsureRenderInvalidationTracked(UIElement visual, bool requireDeepSync = false)
     {
-        if (_dirtyRenderSet.Contains(visual))
+        if (_retainedRender.IsDirtyRenderQueued(visual))
         {
             TrackQueuedRenderMutation(visual, requireDeepSync);
             return;
@@ -102,7 +102,7 @@ public sealed partial class UiRoot
 
     internal void NotifyDirectRenderInvalidation(UIElement visual, bool requireDeepSync = false)
     {
-        if (!TryResolveInvalidationSource(visual, allowRetainedAncestorFallback: true, out var effectiveSource) ||
+        if (!_retainedRender.TryResolveInvalidationSource(visual, allowRetainedAncestorFallback: true, out var effectiveSource) ||
             effectiveSource == null)
         {
             NotifyInvalidation(UiInvalidationType.Render, visual, requireDeepSync);
@@ -125,17 +125,7 @@ public sealed partial class UiRoot
             _hasCaretBlinkInvalidation = true;
         }
 
-        var retainedSyncSource = ResolveRetainedSyncSource(visual, effectiveSource, requireDeepSync);
-
-        if (UseDirtyRegionRendering)
-        {
-            TrackDirtyBoundsForVisual(ResolveDirtyBoundsSource(visual, effectiveSource));
-        }
-
-        if (retainedSyncSource != null)
-        {
-            EnqueueDirtyRenderNode(retainedSyncSource, requireDeepSync);
-        }
+        _retainedRender.NotifyInvalidation(_retainedRender.CreateRenderStateInvalidation(visual, effectiveSource, requireDeepSync));
 
         if (visual is IUiRootUpdateParticipant || effectiveSource is IUiRootUpdateParticipant)
         {
@@ -147,7 +137,7 @@ public sealed partial class UiRoot
     {
         var effectiveSource = source;
         if (source != null &&
-            !TryResolveInvalidationSource(source, invalidationType == UiInvalidationType.Render, out effectiveSource))
+            !_retainedRender.TryResolveInvalidationSource(source, invalidationType == UiInvalidationType.Render, out effectiveSource))
         {
             RecordRenderInvalidationSources(source, effectiveSource: null);
             return;
@@ -185,17 +175,7 @@ public sealed partial class UiRoot
                     _hasCaretBlinkInvalidation = true;
                 }
 
-                var retainedSyncSource = ResolveRetainedSyncSource(source, effectiveSource, requireDeepSync);
-
-                if (UseDirtyRegionRendering)
-                {
-                    TrackDirtyBoundsForVisual(ResolveDirtyBoundsSource(source, effectiveSource));
-                }
-
-                if (retainedSyncSource != null)
-                {
-                    EnqueueDirtyRenderNode(retainedSyncSource, requireDeepSync);
-                }
+                _retainedRender.NotifyInvalidation(_retainedRender.CreateRenderStateInvalidation(source, effectiveSource, requireDeepSync));
 
                 break;
             default:
@@ -210,7 +190,7 @@ public sealed partial class UiRoot
 
     private void TrackQueuedRenderMutation(UIElement source, bool requireDeepSync = false)
     {
-        if (!TryResolveInvalidationSource(source, allowRetainedAncestorFallback: true, out var effectiveSource) ||
+        if (!_retainedRender.TryResolveInvalidationSource(source, allowRetainedAncestorFallback: true, out var effectiveSource) ||
             effectiveSource == null)
         {
             return;
@@ -231,17 +211,7 @@ public sealed partial class UiRoot
             _hasCaretBlinkInvalidation = true;
         }
 
-        var retainedSyncSource = ResolveRetainedSyncSource(source, effectiveSource, requireDeepSync);
-
-        if (UseDirtyRegionRendering)
-        {
-            TrackDirtyBoundsForVisual(ResolveDirtyBoundsSource(source, effectiveSource));
-        }
-
-        if (retainedSyncSource != null)
-        {
-            EnqueueDirtyRenderNode(retainedSyncSource, requireDeepSync);
-        }
+        _retainedRender.NotifyInvalidation(_retainedRender.CreateRenderStateInvalidation(source, effectiveSource, requireDeepSync));
 
         if (source is IUiRootUpdateParticipant || effectiveSource is IUiRootUpdateParticipant)
         {
@@ -273,282 +243,6 @@ public sealed partial class UiRoot
         _lastRenderInvalidationRetainedSyncSourceName = string.Empty;
         _lastRenderInvalidationRetainedSyncSourceResolution = "none";
         _lastDirtyBoundsSourceResolution = "none";
-    }
-
-    private bool TryResolveInvalidationSource(UIElement source, bool allowRetainedAncestorFallback, out UIElement? effectiveSource)
-    {
-        effectiveSource = null;
-        UIElement? connectedFallback = null;
-        ResetRenderInvalidationResolutionDebugState();
-        var clipPromotionAncestor = allowRetainedAncestorFallback
-            ? FindEscapingRenderClipAncestor(source)
-            : null;
-        _lastRenderInvalidationClipPromotionAncestorType = clipPromotionAncestor?.GetType().Name ?? "none";
-        _lastRenderInvalidationClipPromotionAncestorName = clipPromotionAncestor is FrameworkElement clipPromotionFrameworkElement
-            ? clipPromotionFrameworkElement.Name
-            : string.Empty;
-        for (var current = source; current != null; current = current.GetInvalidationParent())
-        {
-            if (allowRetainedAncestorFallback)
-            {
-                if (TryGetIndexedVisualNodeCore(current, out _))
-                {
-                    if (clipPromotionAncestor != null && !ReferenceEquals(current, clipPromotionAncestor))
-                    {
-                        if (IsElementConnectedToVisualRootCore(current))
-                        {
-                            connectedFallback = current;
-                        }
-
-                        continue;
-                    }
-
-                    effectiveSource = current;
-                    _lastRenderInvalidationEffectiveSourceResolution = ReferenceEquals(current, source)
-                        ? "requested-indexed"
-                        : clipPromotionAncestor != null && ReferenceEquals(current, clipPromotionAncestor)
-                            ? "clip-promotion-ancestor"
-                            : "ancestor-indexed";
-                    return true;
-                }
-
-                if (IsElementConnectedToVisualRootCore(current))
-                {
-                    connectedFallback = current;
-                }
-
-                continue;
-            }
-
-            if (!TryGetIndexedVisualNodeCore(current, out _))
-            {
-                continue;
-            }
-
-            if (!allowRetainedAncestorFallback && !ReferenceEquals(current, source))
-            {
-                return false;
-            }
-
-            effectiveSource = current;
-            _lastRenderInvalidationEffectiveSourceResolution = ReferenceEquals(current, source)
-                ? "requested-indexed"
-                : "ancestor-indexed";
-            return true;
-        }
-
-        if (allowRetainedAncestorFallback && connectedFallback != null)
-        {
-            effectiveSource = connectedFallback;
-            _lastRenderInvalidationEffectiveSourceResolution = "connected-fallback";
-            return true;
-        }
-
-        _lastRenderInvalidationEffectiveSourceResolution = allowRetainedAncestorFallback
-            ? "unresolved-no-connected-source"
-            : "unresolved-no-indexed-source";
-
-        return false;
-    }
-
-    private UIElement? ResolveRetainedSyncSource(UIElement? requestedSource, UIElement? effectiveSource, bool requireDeepSync)
-    {
-        if (requireDeepSync)
-        {
-            var deepSyncSource = requestedSource ?? effectiveSource;
-            _lastRenderInvalidationRetainedSyncSourceElement = deepSyncSource;
-            _lastRenderInvalidationRetainedSyncSourceType = deepSyncSource?.GetType().Name ?? "none";
-            _lastRenderInvalidationRetainedSyncSourceName = deepSyncSource is FrameworkElement deepSyncFrameworkElement
-                ? deepSyncFrameworkElement.Name
-                : string.Empty;
-            _lastRenderInvalidationRetainedSyncSourceResolution = deepSyncSource == null
-                ? "none"
-                : requestedSource != null
-                    ? "explicit-deep-sync-requested"
-                    : "explicit-deep-sync-effective";
-            return deepSyncSource;
-        }
-
-        if (TryFindTransformScrollDirtyBoundsAnchor(requestedSource, out var transformScrollAnchor))
-        {
-            _lastRenderInvalidationRetainedSyncSourceElement = transformScrollAnchor;
-            _lastRenderInvalidationRetainedSyncSourceType = transformScrollAnchor?.GetType().Name ?? "none";
-            _lastRenderInvalidationRetainedSyncSourceName = transformScrollAnchor is FrameworkElement transformFrameworkElement
-                ? transformFrameworkElement.Name
-                : string.Empty;
-            _lastRenderInvalidationRetainedSyncSourceResolution = "transform-scroll-anchor";
-            return transformScrollAnchor;
-        }
-
-        if (ShouldAnchorEscapingRenderInvalidationToRequestedSource(requestedSource, effectiveSource))
-        {
-            _lastRenderInvalidationRetainedSyncSourceElement = requestedSource;
-            _lastRenderInvalidationRetainedSyncSourceType = requestedSource?.GetType().Name ?? "none";
-            _lastRenderInvalidationRetainedSyncSourceName = requestedSource is FrameworkElement requestedFrameworkElement
-                ? requestedFrameworkElement.Name
-                : string.Empty;
-            _lastRenderInvalidationRetainedSyncSourceResolution = "clip-promotion-requested";
-            return requestedSource;
-        }
-
-        _lastRenderInvalidationRetainedSyncSourceElement = effectiveSource;
-        _lastRenderInvalidationRetainedSyncSourceType = effectiveSource?.GetType().Name ?? "none";
-        _lastRenderInvalidationRetainedSyncSourceName = effectiveSource is FrameworkElement effectiveFrameworkElement
-            ? effectiveFrameworkElement.Name
-            : string.Empty;
-        _lastRenderInvalidationRetainedSyncSourceResolution = effectiveSource == null
-            ? "none"
-            : "effective-source";
-        return effectiveSource;
-    }
-
-    private UIElement? ResolveDirtyBoundsSource(UIElement? requestedSource, UIElement? effectiveSource)
-    {
-        if (TryFindTransformScrollDirtyBoundsAnchor(requestedSource, out var transformScrollAnchor))
-        {
-            _lastDirtyBoundsSourceResolution = "transform-scroll-anchor";
-            return transformScrollAnchor;
-        }
-
-        if (ShouldAnchorEscapingRenderInvalidationToRequestedSource(requestedSource, effectiveSource))
-        {
-            _lastDirtyBoundsSourceResolution = "clip-promotion-requested";
-            return requestedSource;
-        }
-
-        _lastDirtyBoundsSourceResolution = effectiveSource == null
-            ? "none"
-            : "effective-source";
-        return effectiveSource;
-    }
-
-    private bool TryFindTransformScrollDirtyBoundsAnchor(UIElement? source, out UIElement? anchor)
-    {
-        anchor = null;
-        if (source == null)
-        {
-            return false;
-        }
-
-        if (source is ScrollViewer viewer &&
-            viewer.TryGetContentViewportClipRect(out _) &&
-            TryGetIndexedVisualNodeCore(viewer, out _))
-        {
-            anchor = viewer;
-            return true;
-        }
-
-        if (!TryGetIndexedVisualNodeCore(source, out _))
-        {
-            return false;
-        }
-
-        if (!IsTransformScrollRetainedSyncCandidate(source) ||
-            !TryGetTransformScrollOwner(source, out var transformOwner) ||
-            !transformOwner.TryGetContentViewportClipRect(out _))
-        {
-            return false;
-        }
-
-        anchor = source;
-        return true;
-    }
-
-    private static bool TryGetTransformScrollOwner(UIElement element, out ScrollViewer owner)
-    {
-        owner = null!;
-
-        var visualOwner = element.VisualParent as ScrollViewer;
-        if (visualOwner != null && ReferenceEquals(visualOwner.Content, element))
-        {
-            owner = visualOwner;
-            return true;
-        }
-
-        var logicalOwner = element.LogicalParent as ScrollViewer;
-        if (logicalOwner != null && ReferenceEquals(logicalOwner.Content, element))
-        {
-            owner = logicalOwner;
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool ShouldAnchorEscapingRenderInvalidationToRequestedSource(UIElement? requestedSource, UIElement? effectiveSource)
-    {
-        if (requestedSource == null ||
-            effectiveSource == null ||
-            ReferenceEquals(requestedSource, effectiveSource) ||
-            !TryGetIndexedVisualNodeCore(requestedSource, out _))
-        {
-            return false;
-        }
-
-        // Keep retained sync and dirty-bounds tracking anchored to the actual mutated subtree
-        // when clip promotion only exists to widen coverage for transformed/effected descendants.
-        return ReferenceEquals(FindEscapingRenderClipAncestor(requestedSource), effectiveSource);
-    }
-
-    private static bool IsTransformScrollRetainedSyncCandidate(UIElement element)
-    {
-        return element is IScrollTransformContent or VirtualizingStackPanel;
-    }
-
-    private static UIElement? FindEscapingRenderClipAncestor(UIElement source)
-    {
-        var foundEscapingRender = false;
-
-        for (var current = source; current != null; current = current.GetInvalidationParent())
-        {
-            foundEscapingRender |= CanRenderOutsideOwnSlot(current);
-            if (foundEscapingRender && current.TryGetLocalClipSnapshot(out _))
-            {
-                return current;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool CanRenderOutsideOwnSlot(UIElement element)
-    {
-        if (element.TryGetLocalRenderTransformSnapshot(out var transform) && !AreTransformsEffectivelyEqual(transform, Matrix.Identity))
-        {
-            return true;
-        }
-
-        if (element.Effect == null)
-        {
-            return false;
-        }
-
-        var slot = element.LayoutSlot;
-        var renderBounds = element.Effect.GetRenderBounds(element);
-        return renderBounds.X < slot.X - 0.01f ||
-               renderBounds.Y < slot.Y - 0.01f ||
-               renderBounds.X + renderBounds.Width > slot.X + slot.Width + 0.01f ||
-               renderBounds.Y + renderBounds.Height > slot.Y + slot.Height + 0.01f;
-    }
-
-    private static bool AreTransformsEffectivelyEqual(Matrix left, Matrix right)
-    {
-        return MathF.Abs(left.M11 - right.M11) <= 0.0001f &&
-               MathF.Abs(left.M12 - right.M12) <= 0.0001f &&
-               MathF.Abs(left.M13 - right.M13) <= 0.0001f &&
-               MathF.Abs(left.M14 - right.M14) <= 0.0001f &&
-               MathF.Abs(left.M21 - right.M21) <= 0.0001f &&
-               MathF.Abs(left.M22 - right.M22) <= 0.0001f &&
-               MathF.Abs(left.M23 - right.M23) <= 0.0001f &&
-               MathF.Abs(left.M24 - right.M24) <= 0.0001f &&
-               MathF.Abs(left.M31 - right.M31) <= 0.0001f &&
-               MathF.Abs(left.M32 - right.M32) <= 0.0001f &&
-               MathF.Abs(left.M33 - right.M33) <= 0.0001f &&
-               MathF.Abs(left.M34 - right.M34) <= 0.0001f &&
-               MathF.Abs(left.M41 - right.M41) <= 0.0001f &&
-               MathF.Abs(left.M42 - right.M42) <= 0.0001f &&
-               MathF.Abs(left.M43 - right.M43) <= 0.0001f &&
-               MathF.Abs(left.M44 - right.M44) <= 0.0001f;
     }
 
     private static bool RenderInvalidationAffectsPointerTargets(UIElement? source, UIElement? effectiveSource)
@@ -602,7 +296,13 @@ public sealed partial class UiRoot
         _renderListNeedsFullRebuild = true;
         _mustDrawNextFrame = true;
         MarkFullFrameDirty(UiFullDirtyReason.VisualStructureChanged);
-        EnqueueDirtyRenderNode(element);
+        _retainedRender.NotifyInvalidation(new RetainedInvalidation(
+            element,
+            element,
+            element,
+            element,
+            RetainedInvalidationKind.Structure,
+            RequireDeepSync: true));
         Automation.NotifyVisualStructureChanged(element, oldParent, newParent);
     }
 

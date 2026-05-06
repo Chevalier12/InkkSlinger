@@ -42,9 +42,9 @@ public sealed partial class UiRoot
         UiDrawing.ResetFrameTelemetry();
 
         var graphicsDevice = spriteBatch.GraphicsDevice;
-        if (!_hasLastLayoutViewport || !AreViewportsEqual(_lastLayoutViewport, graphicsDevice.Viewport))
+        if (!_hasLastLayoutViewport || !RetainedRenderController.AreViewportsEqual(_lastLayoutViewport, graphicsDevice.Viewport))
         {
-            SyncDirtyRegionViewport(graphicsDevice.Viewport);
+            _retainedRender.SyncDirtyRegionViewport(graphicsDevice.Viewport);
         }
 
         var drawDecision = ResolveDirtyDrawDecisionAfterRetainedSync();
@@ -74,17 +74,10 @@ public sealed partial class UiRoot
             var treeDrawStart = Stopwatch.GetTimestamp();
             if (UseRetainedRenderList)
             {
-                if (UseDirtyRegionRendering && usePartialClear)
-                {
-                    DrawRetainedRenderListWithDirtyRegions(spriteBatch);
-                }
-                else
-                {
-                    LastDirtyRectCount = 1;
-                    LastDirtyAreaPercentage = 1d;
-                    RecordFullRetainedDrawWithoutFullClearIfNeeded();
-                    DrawRetainedRenderList(spriteBatch);
-                }
+                _retainedRender.Draw(
+                    spriteBatch,
+                    UseDirtyRegionRendering && usePartialClear,
+                    CreateRetainedDrawThresholds());
             }
             else
             {
@@ -116,15 +109,13 @@ public sealed partial class UiRoot
         _lastRetainedClipPushCount = drawingTelemetry.ClipPushCount;
 
         var cleanupStart = Stopwatch.GetTimestamp();
-        ApplyRenderInvalidationCleanupAfterDraw();
+        _retainedRender.ApplyRenderInvalidationCleanupAfterDraw();
         _hasMeasureInvalidation = false;
         _hasArrangeInvalidation = false;
         _hasRenderInvalidation = false;
         _hasCaretBlinkInvalidation = false;
         _mustDrawNextFrame = false;
-        ClearDirtyRenderQueue();
-        ResetRetainedSyncTrackingState();
-        _dirtyRegions.Clear();
+        _retainedRender.ClearAfterDraw();
         _diagnosticCaptureFullClearPending = false;
         ConsumeFullRedrawSettleFrame();
         _lastDrawCleanupMs = Stopwatch.GetElapsedTime(cleanupStart).TotalMilliseconds;
@@ -133,61 +124,15 @@ public sealed partial class UiRoot
 
     private UiDirtyDrawDecisionSnapshot ResolveDirtyDrawDecisionAfterRetainedSync()
     {
-        var beforeSyncReason = GetCurrentDirtyDrawDecisionReason();
-        if (UseRetainedRenderList)
-        {
-            SynchronizeRetainedRenderListForDrawIfNeeded();
-        }
-
-        var afterSyncReason = GetCurrentDirtyDrawDecisionReason();
-        if (beforeSyncReason != afterSyncReason)
-        {
-            _retainedSyncChangedDirtyDecisionCount++;
-        }
-
-        _lastDirtyDrawDecisionReason = afterSyncReason;
-        return new UiDirtyDrawDecisionSnapshot(
-            beforeSyncReason,
-            afterSyncReason,
-            afterSyncReason == UiDirtyDrawDecisionReason.Partial,
-            afterSyncReason != UiDirtyDrawDecisionReason.Partial);
+        return _retainedRender.ResolveDirtyDrawDecisionAfterSync(CreateRetainedDrawThresholds());
     }
 
-    private UiDirtyDrawDecisionReason GetCurrentDirtyDrawDecisionReason()
+    private RetainedDrawThresholds CreateRetainedDrawThresholds()
     {
-        if (!UseRetainedRenderList)
-        {
-            return UiDirtyDrawDecisionReason.RetainedDisabled;
-        }
-
-        if (!UseDirtyRegionRendering)
-        {
-            return UiDirtyDrawDecisionReason.DirtyRegionRenderingDisabled;
-        }
-
-        if (_diagnosticCaptureFullClearPending)
-        {
-            return UiDirtyDrawDecisionReason.DiagnosticCapture;
-        }
-
-        if (_fullRedrawSettleFramesRemaining > 0)
-        {
-            return UiDirtyDrawDecisionReason.FullRedrawSettle;
-        }
-
-        if (_dirtyRegions.IsFullFrameDirty)
-        {
-            return UiDirtyDrawDecisionReason.FullDirty;
-        }
-
-        if (_dirtyRegions.RegionCount == 0)
-        {
-            return UiDirtyDrawDecisionReason.NoRegions;
-        }
-
-        return ShouldUsePartialDirtyRedraw(_dirtyRegions.RegionCount, _dirtyRegions.GetDirtyAreaCoverage())
-            ? UiDirtyDrawDecisionReason.Partial
-            : UiDirtyDrawDecisionReason.ThresholdFallback;
+        return new RetainedDrawThresholds(
+            _dirtyRegionCountFallbackThreshold,
+            _dirtyRegionCoverageFallbackThreshold,
+            _dirtyRegionCoverageFallbackThresholdForMultipleRegions);
     }
 
     private void RecordFullRetainedDrawWithoutFullClearIfNeeded()
@@ -195,15 +140,6 @@ public sealed partial class UiRoot
         if (!_currentDrawPerformedFullClear)
         {
             _fullRetainedDrawWithoutFullClearCount++;
-        }
-    }
-
-    private void SynchronizeRetainedRenderListForDrawIfNeeded()
-    {
-        if (_renderListNeedsFullRebuild || _dirtyRenderQueue.Count > 0 || _dirtyRenderSet.Count > 0)
-        {
-            EnsureVisualIndexCurrent();
-            SynchronizeRetainedRenderList();
         }
     }
 
@@ -332,89 +268,4 @@ public sealed partial class UiRoot
         Mouse.SetCursor(cursor);
     }
 
-    private void ApplyRenderInvalidationCleanupAfterDraw()
-    {
-        if (!UseRetainedRenderList || _dirtyRegions.IsFullFrameDirty || _lastRetainedSyncUsedFullRebuild)
-        {
-            _visualRoot.ClearRenderInvalidationRecursive();
-            return;
-        }
-
-        if (_lastSynchronizedDirtyRenderRoots.Count == 0)
-        {
-            if (_dirtyRenderSet.Count == 0)
-            {
-                // When no roots were synchronized in this draw phase and nothing remains queued,
-                // any surviving render flags were already synchronized earlier in the frame and
-                // must not leak past cleanup.
-                _visualRoot.ClearRenderInvalidationRecursive();
-            }
-
-            return;
-        }
-
-        for (var i = 0; i < _lastSynchronizedDirtyRenderRoots.Count; i++)
-        {
-            _lastSynchronizedDirtyRenderRoots[i].ClearRenderInvalidationRecursive();
-        }
-
-        BuildPendingDirtyAncestorCounts();
-        for (var i = 0; i < _lastSynchronizedDirtyRenderRoots.Count; i++)
-        {
-            ClearRenderInvalidationAncestorChain(_lastSynchronizedDirtyRenderRoots[i].GetInvalidationParent());
-        }
-
-        _pendingDirtyAncestorCounts.Clear();
-    }
-
-    private void BuildPendingDirtyAncestorCounts()
-    {
-        _pendingDirtyAncestorCounts.Clear();
-
-        for (var i = 0; i < _lastSynchronizedDirtyRenderRoots.Count; i++)
-        {
-            AddPendingDirtyAncestorChain(_lastSynchronizedDirtyRenderRoots[i]);
-        }
-
-        if (_dirtyRenderSet.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var dirtyVisual in _dirtyRenderSet)
-        {
-            AddPendingDirtyAncestorChain(dirtyVisual);
-        }
-    }
-
-    private void AddPendingDirtyAncestorChain(UIElement dirtyVisual)
-    {
-        for (var current = dirtyVisual.GetInvalidationParent(); current != null; current = current.GetInvalidationParent())
-        {
-            _pendingDirtyAncestorCounts.TryGetValue(current, out var count);
-            _pendingDirtyAncestorCounts[current] = count + 1;
-        }
-    }
-
-    private void ClearRenderInvalidationAncestorChain(UIElement? visual)
-    {
-        for (var current = visual; current != null; current = current.GetInvalidationParent())
-        {
-            if (!_pendingDirtyAncestorCounts.TryGetValue(current, out var remainingCount))
-            {
-                current.ClearRenderInvalidationShallow();
-                continue;
-            }
-
-            remainingCount--;
-            if (remainingCount > 0)
-            {
-                _pendingDirtyAncestorCounts[current] = remainingCount;
-                continue;
-            }
-
-            _pendingDirtyAncestorCounts.Remove(current);
-            current.ClearRenderInvalidationShallow();
-        }
-    }
 }
