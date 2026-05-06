@@ -173,6 +173,20 @@ public class VirtualizingStackPanel : Panel
     private bool _hasArrangedRange;
     private int _pendingUnrealizedClearFirst = -1;
     private int _pendingUnrealizedClearLast = -1;
+    private int _runtimeLastArrangeRangeFirst = -1;
+    private int _runtimeLastArrangeRangeLast = -1;
+    private int _runtimeLastArrangeRangeArrangedCount;
+    private float _runtimeLastArrangeRangeViewportOffset;
+    private int _runtimeLastArrangeOrTranslateFirst = -1;
+    private int _runtimeLastArrangeOrTranslateLast = -1;
+    private int _runtimeLastArrangeOrTranslateHandledCount;
+    private float _runtimeLastArrangeOrTranslateViewportOffset;
+    private bool _runtimeLastTryArrangeForViewerOwnedOffsetResult;
+    private string _runtimeLastTryArrangeForViewerOwnedOffsetReason = "none";
+    private int _runtimeLastClearPendingFirst = -1;
+    private int _runtimeLastClearPendingLast = -1;
+    private int _runtimeLastClearPendingClearedCount;
+    private int _runtimeLastClearPendingSkippedRealizedCount;
 
     public Orientation Orientation
     {
@@ -521,7 +535,7 @@ public class VirtualizingStackPanel : Panel
                                            AreClose(_lastArrangeOrigin.X, currentOrigin.X) &&
                                            AreClose(_lastArrangeOrigin.Y, currentOrigin.Y) &&
                                            AreClose(_lastArrangeViewportOffset, context.OffsetPrimary) &&
-                                           !RangeNeedsArrange(first, last);
+                                           !RangeNeedsArrangeForViewport(finalSize, context.OffsetPrimary, first, last);
                 if (canReuseArrangeRange)
                 {
                     _diagArrangeOverrideReusedRangeCount++;
@@ -878,12 +892,14 @@ public class VirtualizingStackPanel : Panel
             _lastArrangedChildOrderVersion != _childOrderVersion ||
             !_hasMeasuredConstraint)
         {
+            RecordViewerOwnedArrangeResult(false, "precondition");
             return false;
         }
 
         var viewportPrimary = Orientation == Orientation.Vertical ? _viewportHeight : _viewportWidth;
         if (!IsFinitePositive(viewportPrimary))
         {
+            RecordViewerOwnedArrangeResult(false, "non-finite-viewport");
             return false;
         }
 
@@ -892,11 +908,13 @@ public class VirtualizingStackPanel : Panel
         {
             if (Orientation == Orientation.Vertical && !AreClose(horizontalOffset, _lastTryArrangeHorizontalOffset))
             {
+                RecordViewerOwnedArrangeResult(false, "horizontal-offset-mismatch");
                 return false;
             }
 
             if (Orientation == Orientation.Horizontal && !AreClose(verticalOffset, _lastTryArrangeVerticalOffset))
             {
+                RecordViewerOwnedArrangeResult(false, "vertical-offset-mismatch");
                 return false;
             }
         }
@@ -907,27 +925,37 @@ public class VirtualizingStackPanel : Panel
         var last = ResolveEndIndex(context.EndOffset, first);
         if (first < 0 || last < first)
         {
+            RecordViewerOwnedArrangeResult(false, "empty-range");
             return false;
         }
 
         if (FirstRealizedIndex != first || LastRealizedIndex != last)
         {
+            RecordViewerOwnedArrangeResult(false, "realized-range-mismatch");
             return false;
         }
 
         var currentOrigin = new Vector2(LayoutSlot.X, LayoutSlot.Y);
         if (!AreClose(_lastArrangeOrigin, currentOrigin))
         {
+            RecordViewerOwnedArrangeResult(false, "origin-mismatch");
             return false;
         }
 
-        if (RangeNeedsArrange(first, last))
+        var arrangePath = "reuse";
+        if (RangeNeedsArrangeForViewport(_lastArrangeSize, context.OffsetPrimary, first, last))
         {
+            arrangePath = "range-needs-arrange";
             ArrangeRange(_lastArrangeSize, first, last, context.OffsetPrimary);
         }
         else if (!TryArrangeShiftedRange(_lastArrangeSize, currentOrigin, context.OffsetPrimary, first, last))
         {
+            arrangePath = "shifted-fallback";
             ArrangeRange(_lastArrangeSize, first, last, context.OffsetPrimary);
+        }
+        else
+        {
+            arrangePath = "shifted";
         }
 
         _lastArrangedFirst = first;
@@ -937,7 +965,14 @@ public class VirtualizingStackPanel : Panel
         _lastArrangedChildOrderVersion = _childOrderVersion;
         ClearPendingUnrealizedLayoutSlots();
         UiRoot.Current?.NotifyDirectRenderInvalidation(this, requireDeepSync: true);
+        RecordViewerOwnedArrangeResult(true, arrangePath);
         return true;
+    }
+
+    private void RecordViewerOwnedArrangeResult(bool result, string reason)
+    {
+        _runtimeLastTryArrangeForViewerOwnedOffsetResult = result;
+        _runtimeLastTryArrangeForViewerOwnedOffsetReason = reason;
     }
 
     private ViewerOwnedOffsetChangeHandling HandleViewerOwnedOffsetChange(
@@ -1141,6 +1176,10 @@ public class VirtualizingStackPanel : Panel
 
         var first = Math.Max(0, firstIndex);
         var last = Math.Min(Children.Count - 1, lastIndex);
+        _runtimeLastArrangeRangeFirst = first;
+        _runtimeLastArrangeRangeLast = last;
+        _runtimeLastArrangeRangeViewportOffset = viewportOffset;
+        _runtimeLastArrangeRangeArrangedCount = 0;
 
         try
         {
@@ -1170,6 +1209,8 @@ public class VirtualizingStackPanel : Panel
                         primary,
                         finalSize.Y));
                 }
+
+                _runtimeLastArrangeRangeArrangedCount++;
             }
         }
         finally
@@ -1330,6 +1371,10 @@ public class VirtualizingStackPanel : Panel
 
         var first = Math.Max(0, firstIndex);
         var last = Math.Min(Children.Count - 1, lastIndex);
+        _runtimeLastArrangeOrTranslateFirst = first;
+        _runtimeLastArrangeOrTranslateLast = last;
+        _runtimeLastArrangeOrTranslateViewportOffset = viewportOffset;
+        _runtimeLastArrangeOrTranslateHandledCount = 0;
         var handledAny = false;
         for (var i = first; i <= last; i++)
         {
@@ -1358,6 +1403,7 @@ public class VirtualizingStackPanel : Panel
             }
 
             handledAny = true;
+            _runtimeLastArrangeOrTranslateHandledCount++;
         }
 
         return handledAny;
@@ -1501,6 +1547,47 @@ public class VirtualizingStackPanel : Panel
         return false;
     }
 
+    private bool RangeNeedsArrangeForViewport(Vector2 finalSize, float viewportOffset, int first, int last)
+    {
+        EnsureStartOffsets();
+
+        var clampedFirst = Math.Max(0, first);
+        var clampedLast = Math.Min(Children.Count - 1, last);
+        for (var i = clampedFirst; i <= clampedLast; i++)
+        {
+            if (Children[i] is not FrameworkElement child)
+            {
+                continue;
+            }
+
+            if (child.NeedsArrange)
+            {
+                return true;
+            }
+
+            var primary = ResolvePrimarySizeForArrange(child, i);
+            var start = _startOffsets[i];
+            var expectedSlot = Orientation == Orientation.Vertical
+                ? new LayoutRect(
+                    LayoutSlot.X,
+                    LayoutSlot.Y + start - viewportOffset,
+                    finalSize.X,
+                    primary)
+                : new LayoutRect(
+                    LayoutSlot.X + start - viewportOffset,
+                    LayoutSlot.Y,
+                    primary,
+                    finalSize.Y);
+
+            if (!AreClose(child.LayoutSlot, expectedSlot))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private bool ShouldRelayoutForOffsetChange(float oldOffset, float newOffset, bool isVertical, bool viewerOwnedDecision = false)
     {
         if ((Orientation == Orientation.Vertical) != isVertical)
@@ -1614,7 +1701,8 @@ public class VirtualizingStackPanel : Panel
         }
 
         var offsetPrimary = Orientation == Orientation.Vertical ? verticalOffset : horizontalOffset;
-        var context = CreateViewportContext(viewportPrimary, MathF.Max(0f, offsetPrimary));
+        var maxOffset = MathF.Max(0f, GetTotalPrimarySize() - viewportPrimary);
+        var context = CreateViewportContext(viewportPrimary, Math.Clamp(offsetPrimary, 0f, maxOffset));
         return TryRefreshForViewerOwnedOffsetChange(context);
     }
 
@@ -1837,6 +1925,14 @@ public class VirtualizingStackPanel : Panel
         return AreClose(left.X, right.X) && AreClose(left.Y, right.Y);
     }
 
+    private static bool AreClose(LayoutRect left, LayoutRect right)
+    {
+        return AreClose(left.X, right.X) &&
+               AreClose(left.Y, right.Y) &&
+               AreClose(left.Width, right.Width) &&
+               AreClose(left.Height, right.Height);
+    }
+
     private bool TryRefreshForViewerOwnedOffsetChange(ViewportContext context)
     {
         if (!TryGetViewerOwnedAvailableSize(context, out var availableSize))
@@ -1971,6 +2067,10 @@ public class VirtualizingStackPanel : Panel
 
     private void ClearPendingUnrealizedLayoutSlots()
     {
+        _runtimeLastClearPendingFirst = _pendingUnrealizedClearFirst;
+        _runtimeLastClearPendingLast = _pendingUnrealizedClearLast;
+        _runtimeLastClearPendingClearedCount = 0;
+        _runtimeLastClearPendingSkippedRealizedCount = 0;
         if (_pendingUnrealizedClearFirst < 0 || _pendingUnrealizedClearLast < _pendingUnrealizedClearFirst)
         {
             return;
@@ -1983,12 +2083,14 @@ public class VirtualizingStackPanel : Panel
         {
             if (i >= FirstRealizedIndex && i <= LastRealizedIndex)
             {
+                _runtimeLastClearPendingSkippedRealizedCount++;
                 continue;
             }
 
             if (Children[i] is FrameworkElement child)
             {
                 child.Arrange(emptySlot);
+                _runtimeLastClearPendingClearedCount++;
                 if (child is ContentControl contentControl)
                 {
                     contentControl.ReleaseDeferredContentElementForVirtualization();
@@ -2042,6 +2144,11 @@ public class VirtualizingStackPanel : Panel
         if (Children.Count == 0)
         {
             return -1;
+        }
+
+        if (endOffset >= GetTotalPrimarySize() - 0.01f)
+        {
+            return Children.Count - 1;
         }
 
         var candidate = UpperBound(_startOffsets, endOffset) - 1;
@@ -2222,6 +2329,22 @@ public class VirtualizingStackPanel : Panel
             _lastArrangedFirst,
             _lastArrangedLast,
             _hasArrangedRange,
+            _pendingUnrealizedClearFirst,
+            _pendingUnrealizedClearLast,
+            _runtimeLastArrangeRangeFirst,
+            _runtimeLastArrangeRangeLast,
+            _runtimeLastArrangeRangeArrangedCount,
+            _runtimeLastArrangeRangeViewportOffset,
+            _runtimeLastArrangeOrTranslateFirst,
+            _runtimeLastArrangeOrTranslateLast,
+            _runtimeLastArrangeOrTranslateHandledCount,
+            _runtimeLastArrangeOrTranslateViewportOffset,
+            _runtimeLastTryArrangeForViewerOwnedOffsetResult,
+            _runtimeLastTryArrangeForViewerOwnedOffsetReason,
+            _runtimeLastClearPendingFirst,
+            _runtimeLastClearPendingLast,
+            _runtimeLastClearPendingClearedCount,
+            _runtimeLastClearPendingSkippedRealizedCount,
             _runtimeLastOffsetDecisionReason,
             _runtimeLastOffsetDecisionOldOffset,
             _runtimeLastOffsetDecisionNewOffset,

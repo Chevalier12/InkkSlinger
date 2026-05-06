@@ -953,6 +953,105 @@ public sealed class TreeViewInputTests
         Assert.Same(prePush, treeView.SelectedItem);
     }
 
+    [Fact]
+    public void ClickingExpandedExpanderAfterAncestorScroll_ShouldCollapseVisibleBranch()
+    {
+        var host = new Canvas
+        {
+            Width = 460f,
+            Height = 320f
+        };
+
+        var outerContent = new StackPanel();
+        outerContent.AddChild(new Border { Height = 140f });
+
+        var treeView = new TreeView
+        {
+            Width = 340f,
+            Height = 120f
+        };
+
+        var dashboard = new TreeViewItem
+        {
+            Header = "Dashboard",
+            IsExpanded = true
+        };
+        var reports = new TreeViewItem
+        {
+            Header = "Reports",
+            IsExpanded = true
+        };
+        reports.Items.Add(new TreeViewItem { Header = "Quarterly" });
+        reports.Items.Add(new TreeViewItem { Header = "Annual" });
+
+        var inbox = new TreeViewItem
+        {
+            Header = "Inbox",
+            IsExpanded = true
+        };
+        inbox.Items.Add(new TreeViewItem { Header = "Welcome" });
+        inbox.Items.Add(new TreeViewItem { Header = "Setup Guide" });
+
+        dashboard.Items.Add(reports);
+        dashboard.Items.Add(inbox);
+        treeView.Items.Add(dashboard);
+        outerContent.AddChild(treeView);
+        outerContent.AddChild(new Border { Height = 180f });
+
+        var outerScrollViewer = new ScrollViewer
+        {
+            Width = 380f,
+            Height = 220f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = outerContent
+        };
+
+        host.AddChild(outerScrollViewer);
+        Canvas.SetLeft(outerScrollViewer, 20f);
+        Canvas.SetTop(outerScrollViewer, 20f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        outerScrollViewer.ScrollToVerticalOffset(95f);
+        RunLayout(uiRoot);
+
+        Assert.True(inbox.IsExpanded);
+        Assert.True(inbox.TryGetRenderBoundsInRootSpace(out var inboxBounds));
+        var expanderPoint = FindVisibleExpanderPoint(inbox, inboxBounds);
+        var hit = VisualTreeHelper.HitTest(host, expanderPoint);
+        Assert.True(
+            IsDescendantOrSelf(inbox, hit),
+            $"Expected visible Inbox row hit. hit={hit?.GetType().Name ?? "<null>"}, bounds={inboxBounds}, slot={inbox.LayoutSlot}, point={expanderPoint}, outerOffset={outerScrollViewer.VerticalOffset:0.###}.");
+
+        Assert.True(inbox.HitExpander(expanderPoint));
+
+        Click(uiRoot, expanderPoint);
+        RunLayout(uiRoot);
+
+        Assert.False(
+            inbox.IsExpanded,
+            $"Expected visible Inbox expander to collapse after ancestor ScrollViewer scrolling. bounds={inboxBounds}, slot={inbox.LayoutSlot}, point={expanderPoint}, outerOffset={outerScrollViewer.VerticalOffset:0.###}.");
+    }
+
+    private static Vector2 FindVisibleExpanderPoint(TreeViewItem item, LayoutRect rowBoundsInRoot)
+    {
+        var y = rowBoundsInRoot.Y + (rowBoundsInRoot.Height / 2f);
+        var maxX = MathF.Min(rowBoundsInRoot.X + 80f, rowBoundsInRoot.X + rowBoundsInRoot.Width);
+
+        for (var x = rowBoundsInRoot.X; x <= maxX; x += 1f)
+        {
+            var point = new Vector2(x, y);
+            if (item.HitExpander(point))
+            {
+                return point;
+            }
+        }
+
+        throw new InvalidOperationException($"Could not find visible expander hit point for row bounds {rowBoundsInRoot} and slot {item.LayoutSlot}.");
+    }
+
     private static InputDelta CreatePointerDeltaNoMove(
         Vector2 pointer,
         bool leftPressed = false,

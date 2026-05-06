@@ -1017,6 +1017,7 @@ public class FrameworkElement : UIElement
         if (_isArrangeValid &&
             _isMeasureValid &&
             AreRectsEqual(_arrangeRect, effectiveFinalRect) &&
+            AreRectsEqual(LayoutSlot, effectiveFinalRect) &&
             AreSizesEqual(_lastArrangedDesiredSize, DesiredSize) &&
             !requiresArrangeRemeasure)
         {
@@ -1147,7 +1148,9 @@ public class FrameworkElement : UIElement
             NeedsMeasure ||
             NeedsArrange ||
             !AreScalarValuesEqual(_arrangeRect.Width, nextArrangeRect.Width) ||
-            !AreScalarValuesEqual(_arrangeRect.Height, nextArrangeRect.Height))
+            !AreScalarValuesEqual(_arrangeRect.Height, nextArrangeRect.Height) ||
+            !AreScalarValuesEqual(LayoutSlot.Width, nextArrangeRect.Width) ||
+            !AreScalarValuesEqual(LayoutSlot.Height, nextArrangeRect.Height))
         {
             return false;
         }

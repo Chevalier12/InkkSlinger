@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -531,6 +533,337 @@ public class ListBox : Selector
         }
 
         return GetItemContainersForPresenter().Count;
+    }
+
+    internal ComboBoxDropDownRuntimeDiagnosticsSnapshot GetComboBoxDropDownSnapshotForDiagnostics(
+        bool isDropDownOpen,
+        bool isDropDownPopupOpen)
+    {
+        return CreateComboBoxDropDownSnapshotForDiagnostics(
+            hasDropDownList: true,
+            isDropDownOpen,
+            isDropDownPopupOpen,
+            this);
+    }
+
+    internal static ComboBoxDropDownRuntimeDiagnosticsSnapshot CreateComboBoxDropDownSnapshotForDiagnostics(
+        bool hasDropDownList,
+        bool isDropDownOpen,
+        bool isDropDownPopupOpen,
+        ListBox? listBox = null)
+    {
+        if (listBox == null)
+        {
+            return CreateEmptyComboBoxDropDownSnapshot(hasDropDownList, isDropDownOpen, isDropDownPopupOpen);
+        }
+
+        var viewer = listBox.ActiveScrollViewer;
+        var host = listBox._itemsHost;
+        var hostFramework = host as FrameworkElement;
+        var virtualizingHost = host as VirtualizingStackPanel;
+        var virtualizingSnapshot = virtualizingHost?.GetVirtualizingStackPanelSnapshotForDiagnostics();
+        var viewport = viewer.LayoutSlot;
+        var firstContainerSummary = listBox.BuildContainerSlotSummary(viewport, maxCount: 12, viewportOnly: false);
+        var viewportContainerSummary = listBox.BuildContainerSlotSummary(viewport, maxCount: 12, viewportOnly: true);
+        listBox.CountContainerSlots(
+            viewport,
+            out var nonZeroSlotCount,
+            out var viewportIntersectingCount,
+            out var firstViewportIntersectingIndex,
+            out var lastViewportIntersectingIndex);
+
+        return new ComboBoxDropDownRuntimeDiagnosticsSnapshot(
+            true,
+            isDropDownOpen,
+            isDropDownPopupOpen,
+            listBox.IsVirtualizing,
+            listBox.GetItemContainersForPresenter().Count,
+            listBox.GetRealizedItemContainerCountForDiagnostics(),
+            nonZeroSlotCount,
+            viewportIntersectingCount,
+            firstViewportIntersectingIndex,
+            lastViewportIntersectingIndex,
+            firstContainerSummary,
+            viewportContainerSummary,
+            listBox.LayoutSlot.X,
+            listBox.LayoutSlot.Y,
+            listBox.LayoutSlot.Width,
+            listBox.LayoutSlot.Height,
+            listBox.DesiredSize.X,
+            listBox.DesiredSize.Y,
+            listBox.RenderSize.X,
+            listBox.RenderSize.Y,
+            host.GetType().Name,
+            host.LayoutSlot.X,
+            host.LayoutSlot.Y,
+            host.LayoutSlot.Width,
+            host.LayoutSlot.Height,
+            hostFramework?.DesiredSize.X ?? 0f,
+            hostFramework?.DesiredSize.Y ?? 0f,
+            hostFramework?.RenderSize.X ?? 0f,
+            hostFramework?.RenderSize.Y ?? 0f,
+            viewer.Content?.GetType().Name ?? string.Empty,
+            viewer.LayoutSlot.X,
+            viewer.LayoutSlot.Y,
+            viewer.LayoutSlot.Width,
+            viewer.LayoutSlot.Height,
+            viewer.HorizontalOffset,
+            viewer.VerticalOffset,
+            viewer.ExtentWidth,
+            viewer.ExtentHeight,
+            viewer.ViewportWidth,
+            viewer.ViewportHeight,
+            virtualizingHost != null,
+            virtualizingSnapshot?.IsVirtualizationActive ?? false,
+            virtualizingSnapshot?.ChildCount ?? 0,
+            virtualizingSnapshot?.FirstRealizedIndex ?? -1,
+            virtualizingSnapshot?.LastRealizedIndex ?? -1,
+            virtualizingSnapshot?.RealizedChildrenCount ?? 0,
+            virtualizingSnapshot?.RealizedStart ?? 0f,
+            virtualizingSnapshot?.RealizedEnd ?? 0f,
+            virtualizingSnapshot?.ExtentWidth ?? 0f,
+            virtualizingSnapshot?.ExtentHeight ?? 0f,
+            virtualizingSnapshot?.ViewportWidth ?? 0f,
+            virtualizingSnapshot?.ViewportHeight ?? 0f,
+            virtualizingSnapshot?.HorizontalOffset ?? 0f,
+            virtualizingSnapshot?.VerticalOffset ?? 0f,
+            virtualizingSnapshot?.LastMeasuredFirst ?? -1,
+            virtualizingSnapshot?.LastMeasuredLast ?? -1,
+            virtualizingSnapshot?.LastArrangedFirst ?? -1,
+            virtualizingSnapshot?.LastArrangedLast ?? -1,
+            virtualizingSnapshot?.HasArrangedRange ?? false,
+            virtualizingSnapshot?.PendingUnrealizedClearFirst ?? -1,
+            virtualizingSnapshot?.PendingUnrealizedClearLast ?? -1,
+            virtualizingSnapshot?.LastArrangeRangeFirst ?? -1,
+            virtualizingSnapshot?.LastArrangeRangeLast ?? -1,
+            virtualizingSnapshot?.LastArrangeRangeArrangedCount ?? 0,
+            virtualizingSnapshot?.LastArrangeRangeViewportOffset ?? 0f,
+            virtualizingSnapshot?.LastArrangeOrTranslateFirst ?? -1,
+            virtualizingSnapshot?.LastArrangeOrTranslateLast ?? -1,
+            virtualizingSnapshot?.LastArrangeOrTranslateHandledCount ?? 0,
+            virtualizingSnapshot?.LastArrangeOrTranslateViewportOffset ?? 0f,
+            virtualizingSnapshot?.LastTryArrangeForViewerOwnedOffsetResult ?? false,
+            virtualizingSnapshot?.LastTryArrangeForViewerOwnedOffsetReason ?? string.Empty,
+            virtualizingSnapshot?.LastClearPendingFirst ?? -1,
+            virtualizingSnapshot?.LastClearPendingLast ?? -1,
+            virtualizingSnapshot?.LastClearPendingClearedCount ?? 0,
+            virtualizingSnapshot?.LastClearPendingSkippedRealizedCount ?? 0,
+            virtualizingSnapshot?.LastOffsetDecisionReason ?? string.Empty,
+            virtualizingSnapshot?.LastViewportContextViewportPrimary ?? 0f,
+            virtualizingSnapshot?.LastViewportContextOffsetPrimary ?? 0f,
+            virtualizingSnapshot?.LastViewportContextStartOffset ?? 0f,
+            virtualizingSnapshot?.LastViewportContextEndOffset ?? 0f);
+    }
+
+    private static ComboBoxDropDownRuntimeDiagnosticsSnapshot CreateEmptyComboBoxDropDownSnapshot(
+        bool hasDropDownList,
+        bool isDropDownOpen,
+        bool isDropDownPopupOpen)
+    {
+        return new ComboBoxDropDownRuntimeDiagnosticsSnapshot(
+            hasDropDownList,
+            isDropDownOpen,
+            isDropDownPopupOpen,
+            false,
+            0,
+            0,
+            0,
+            0,
+            -1,
+            -1,
+            "none",
+            "none",
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            string.Empty,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            string.Empty,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            false,
+            false,
+            0,
+            -1,
+            -1,
+            0,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            -1,
+            -1,
+            -1,
+            -1,
+            false,
+            -1,
+            -1,
+            -1,
+            -1,
+            0,
+            0f,
+            -1,
+            -1,
+            0,
+            0f,
+            false,
+            string.Empty,
+            -1,
+            -1,
+            0,
+            0,
+            string.Empty,
+            0f,
+            0f,
+            0f,
+            0f);
+    }
+
+    private string BuildContainerSlotSummary(LayoutRect viewport, int maxCount, bool viewportOnly)
+    {
+        var containers = GetItemContainersForPresenter();
+        if (containers.Count == 0)
+        {
+            return "none";
+        }
+
+        var builder = new StringBuilder();
+        var appended = 0;
+        for (var i = 0; i < containers.Count && appended < maxCount; i++)
+        {
+            if (containers[i] is not FrameworkElement element)
+            {
+                continue;
+            }
+
+            var intersects = IntersectsNonEmpty(element.LayoutSlot, viewport);
+            if (viewportOnly && !intersects)
+            {
+                continue;
+            }
+
+            if (builder.Length > 0)
+            {
+                builder.Append(" | ");
+            }
+
+            builder.Append(i);
+            builder.Append(':');
+            builder.Append(element.GetType().Name);
+            builder.Append('@');
+            AppendRect(builder, element.LayoutSlot);
+            builder.Append(",desired=");
+            AppendSize(builder, element.DesiredSize);
+            builder.Append(",render=");
+            AppendSize(builder, element.RenderSize);
+            builder.Append(",visible=");
+            builder.Append(element.IsVisible ? '1' : '0');
+            builder.Append(",hit=");
+            builder.Append(element.IsHitTestVisible ? '1' : '0');
+            builder.Append(",vp=");
+            builder.Append(intersects ? '1' : '0');
+            appended++;
+        }
+
+        return builder.Length == 0 ? "none" : builder.ToString();
+    }
+
+    private void CountContainerSlots(
+        LayoutRect viewport,
+        out int nonZeroSlotCount,
+        out int viewportIntersectingCount,
+        out int firstViewportIntersectingIndex,
+        out int lastViewportIntersectingIndex)
+    {
+        nonZeroSlotCount = 0;
+        viewportIntersectingCount = 0;
+        firstViewportIntersectingIndex = -1;
+        lastViewportIntersectingIndex = -1;
+
+        var containers = GetItemContainersForPresenter();
+        for (var i = 0; i < containers.Count; i++)
+        {
+            if (containers[i] is not FrameworkElement element)
+            {
+                continue;
+            }
+
+            if (element.LayoutSlot.Width > 0.01f && element.LayoutSlot.Height > 0.01f)
+            {
+                nonZeroSlotCount++;
+            }
+
+            if (!IntersectsNonEmpty(element.LayoutSlot, viewport))
+            {
+                continue;
+            }
+
+            viewportIntersectingCount++;
+            if (firstViewportIntersectingIndex < 0)
+            {
+                firstViewportIntersectingIndex = i;
+            }
+
+            lastViewportIntersectingIndex = i;
+        }
+    }
+
+    private static bool IntersectsNonEmpty(LayoutRect a, LayoutRect b)
+    {
+        return a.Width > 0.01f &&
+               a.Height > 0.01f &&
+               b.Width > 0.01f &&
+               b.Height > 0.01f &&
+               a.X < b.X + b.Width &&
+               a.X + a.Width > b.X &&
+               a.Y < b.Y + b.Height &&
+               a.Y + a.Height > b.Y;
+    }
+
+    private static void AppendRect(StringBuilder builder, LayoutRect rect)
+    {
+        builder.Append('(');
+        builder.Append(rect.X.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+        builder.Append(',');
+        builder.Append(rect.Y.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+        builder.Append(',');
+        builder.Append(rect.Width.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+        builder.Append(',');
+        builder.Append(rect.Height.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+        builder.Append(')');
+    }
+
+    private static void AppendSize(StringBuilder builder, Vector2 size)
+    {
+        builder.Append('(');
+        builder.Append(size.X.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+        builder.Append(',');
+        builder.Append(size.Y.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+        builder.Append(')');
     }
 
     private void UpdateItemsHost()

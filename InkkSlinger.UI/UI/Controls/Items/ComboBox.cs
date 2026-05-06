@@ -1123,6 +1123,21 @@ public class ComboBox : Selector
             _runtimeSyncContainerTypographyFontStyleSetCount);
     }
 
+    internal ComboBoxDropDownRuntimeDiagnosticsSnapshot GetComboBoxDropDownSnapshotForDiagnostics()
+    {
+        if (_dropDownList == null)
+        {
+            return ListBox.CreateComboBoxDropDownSnapshotForDiagnostics(
+                hasDropDownList: false,
+                isDropDownOpen: IsDropDownOpen,
+                isDropDownPopupOpen: _dropDownPopup?.IsOpen ?? false);
+        }
+
+        return _dropDownList.GetComboBoxDropDownSnapshotForDiagnostics(
+            isDropDownOpen: IsDropDownOpen,
+            isDropDownPopupOpen: _dropDownPopup?.IsOpen ?? false);
+    }
+
     internal new static ComboBoxTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
     {
         return new ComboBoxTelemetrySnapshot(

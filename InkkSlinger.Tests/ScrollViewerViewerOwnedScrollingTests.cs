@@ -264,6 +264,49 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
+    public void PlainStackPanel_DefaultViewerScrolling_UsesTransformPathWithoutRearrangingContent()
+    {
+        var root = new Panel();
+        var content = CreateTallStackPanel(120);
+        var viewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        var contentArrangeBefore = content.GetStackPanelSnapshotForDiagnostics().ArrangeCallCount;
+        var viewerBefore = viewer.GetScrollViewerSnapshotForDiagnostics();
+
+        for (var i = 0; i < 12; i++)
+        {
+            Assert.True(viewer.HandleMouseWheelFromInput(-120));
+        }
+
+        var contentArrangeAfter = content.GetStackPanelSnapshotForDiagnostics().ArrangeCallCount;
+        var viewerAfter = viewer.GetScrollViewerSnapshotForDiagnostics();
+        var transformPathDelta =
+            viewerAfter.SetOffsetsTransformInvalidationPathCount -
+            viewerBefore.SetOffsetsTransformInvalidationPathCount;
+        var manualPathDelta =
+            viewerAfter.SetOffsetsManualArrangePathCount -
+            viewerBefore.SetOffsetsManualArrangePathCount;
+        var arrangeContentDelta =
+            viewerAfter.ArrangeContentForCurrentOffsetsCallCount -
+            viewerBefore.ArrangeContentForCurrentOffsetsCallCount;
+
+        Assert.True(viewer.VerticalOffset > 0f);
+        Assert.True(content.HasLocalRenderTransform());
+        Assert.Equal(12, transformPathDelta);
+        Assert.Equal(0, manualPathDelta);
+        Assert.Equal(0, arrangeContentDelta);
+        Assert.Equal(contentArrangeBefore, contentArrangeAfter);
+    }
+
+    [Fact]
     public void AutoBars_RemainVisible_ForOversizedCanvasContent()
     {
         var root = new Panel();

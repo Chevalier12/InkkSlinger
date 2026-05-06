@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
-public class StackPanel : Panel
+public class StackPanel : Panel, IScrollTransformContent
 {
     private static long _diagMeasureCallCount;
     private static long _diagMeasureElapsedTicks;

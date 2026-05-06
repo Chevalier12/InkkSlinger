@@ -47,7 +47,12 @@ public partial class TreeViewItem
         var glyphCx = LayoutSlot.X + GetVirtualizedDepthOffset() + padding.Left + (hitWidth / 2f);
         var glyphCy = LayoutSlot.Y + (rowHeight / 2f);
         var rect = new LayoutRect(glyphCx - (hitWidth / 2f), glyphCy - 7f, hitWidth, 14f);
-        return point.X >= rect.X && point.X <= rect.X + rect.Width && point.Y >= rect.Y && point.Y <= rect.Y + rect.Height;
+        if (point.X >= rect.X && point.X <= rect.X + rect.Width && point.Y >= rect.Y && point.Y <= rect.Y + rect.Height)
+        {
+            return true;
+        }
+
+        return HitTestRect(point, rect);
     }
 
     private bool HitTemplateExpander(Vector2 point)

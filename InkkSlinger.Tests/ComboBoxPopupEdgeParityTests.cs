@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -688,6 +689,76 @@ public sealed class ComboBoxPopupEdgeParityTests
     }
 
     [Fact]
+    public void OpenDropDown_WithLargeVirtualizedChoiceSet_ScrollingBottomThenTop_ShouldRestoreTopRows()
+    {
+        var host = new Canvas
+        {
+            Width = 360f,
+            Height = 420f
+        };
+
+        var comboBox = new ComboBox
+        {
+            Width = 220f,
+            Height = 36f,
+            MaxDropDownHeight = 260f,
+            ItemTemplate = new DataTemplate(static item => new TextBlock
+            {
+                Text = item is ComboBoxTemplateOption option ? option.DisplayText : string.Empty,
+                TextWrapping = TextWrapping.Wrap,
+                FontFamily = "Consolas",
+                FontSize = 12f
+            })
+        };
+
+        for (var i = 0; i < 98; i++)
+        {
+            comboBox.Items.Add(new ComboBoxTemplateOption($"Choice {i:00} - bottom then top slot restore repro"));
+        }
+
+        comboBox.SelectedIndex = 0;
+        host.AddChild(comboBox);
+        Canvas.SetLeft(comboBox, 40f);
+        Canvas.SetTop(comboBox, 40f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var dropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var scrollViewer = FindScrollViewer(dropDown);
+        ScrollDropDownToBottom(uiRoot, scrollViewer);
+
+        scrollViewer.ScrollToVerticalOffset(scrollViewer.ViewportHeight);
+        RunLayout(uiRoot);
+        scrollViewer.ScrollToVerticalOffset(0f);
+        RunLayout(uiRoot);
+
+        var snapshot = comboBox.GetComboBoxDropDownSnapshotForDiagnostics();
+        var topProbe = new Vector2(
+            scrollViewer.LayoutSlot.X + 24f,
+            scrollViewer.LayoutSlot.Y + 8f);
+        var hit = Assert.IsAssignableFrom<FrameworkElement>(VisualTreeHelper.HitTest(host, topProbe));
+        var firstVisibleItem = Assert.IsType<ComboBoxItem>(GetFirstViewportIntersectingItem(dropDown, scrollViewer));
+
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset) <= 0.5f,
+            $"Expected the dropdown ScrollViewer to return to the top. Offset={scrollViewer.VerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+        Assert.Equal(0, snapshot.VirtualizingStackPanelFirstRealizedIndex);
+        Assert.True(
+            snapshot.NonZeroItemContainerSlotCount >= snapshot.ViewportIntersectingItemContainerCount,
+            $"Expected every viewport-intersecting dropdown item to have a non-zero layout slot after returning to top. {FormatComboBoxDropDownSnapshot(snapshot)}");
+        Assert.True(
+            snapshot.ViewportIntersectingItemContainerCount > 0,
+            $"Expected top dropdown rows to intersect the viewport after returning to top. {FormatComboBoxDropDownSnapshot(snapshot)}");
+        Assert.True(
+            IsDescendantOrSelf(firstVisibleItem, hit),
+            $"Expected hit testing near the top of the reopened viewport to land on the restored first visible dropdown item. hit={hit.GetType().Name}, firstVisibleItem={firstVisibleItem.GetType().Name}, probe={topProbe}, {FormatComboBoxDropDownSnapshot(snapshot)}");
+    }
+
+    [Fact]
     public void ReopenDropDown_AfterScrollingToBottom_ShouldResetScrollViewerToTop()
     {
         var host = new Canvas
@@ -931,7 +1002,10 @@ public sealed class ComboBoxPopupEdgeParityTests
         ScrollDropDownToBottom(uiRoot, firstOpenScrollViewer);
 
         var bottomItem = Assert.IsType<ComboBoxItem>(GetLastViewportIntersectingItem(firstOpenDropDown, firstOpenScrollViewer));
-        Assert.Equal("VirtualizingStackPanel", GetVisibleDisplayText(bottomItem));
+        var bottomItemText = GetVisibleDisplayText(bottomItem);
+        Assert.True(
+            bottomItemText == "VirtualizingStackPanel",
+            $"Expected scrolling to the bottom to reveal the logical last item. Actual={bottomItemText}. {FormatListBoxSlotsForFailure(firstOpenDropDown, firstOpenScrollViewer)}");
         var clickPoint = new Vector2(
             bottomItem.LayoutSlot.X + (bottomItem.LayoutSlot.Width / 2f),
             bottomItem.LayoutSlot.Y + (bottomItem.LayoutSlot.Height / 2f));
@@ -1518,6 +1592,42 @@ public sealed class ComboBoxPopupEdgeParityTests
             }
         }
 
+        return bestElement ?? throw new InvalidOperationException(
+            $"Expected ListBox items host to contain an item intersecting the viewport. {FormatListBoxSlotsForFailure(listBox, scrollViewer)}");
+    }
+
+    private static FrameworkElement GetFirstViewportIntersectingItem(ListBox listBox, ScrollViewer scrollViewer)
+    {
+        var hostPanel = FindItemsHostPanel(listBox);
+        var viewportTop = scrollViewer.LayoutSlot.Y;
+        var viewportBottom = scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight;
+        FrameworkElement? bestElement = null;
+        var bestTop = float.PositiveInfinity;
+
+        foreach (var child in hostPanel.Children)
+        {
+            if (child is not FrameworkElement element)
+            {
+                continue;
+            }
+
+            var elementTop = element.LayoutSlot.Y;
+            var elementBottom = element.LayoutSlot.Y + element.LayoutSlot.Height;
+            if (element.LayoutSlot.Width <= 0f ||
+                element.LayoutSlot.Height <= 0f ||
+                elementBottom <= viewportTop ||
+                elementTop >= viewportBottom)
+            {
+                continue;
+            }
+
+            if (elementTop < bestTop)
+            {
+                bestElement = element;
+                bestTop = elementTop;
+            }
+        }
+
         return bestElement ?? throw new InvalidOperationException("Expected ListBox items host to contain an item intersecting the viewport.");
     }
 
@@ -1549,6 +1659,42 @@ public sealed class ComboBoxPopupEdgeParityTests
         return bestElement != null
             ? (bestElement, bestIndex)
             : throw new InvalidOperationException("Expected ListBox items host to contain at least one realized item container with generated item info.");
+    }
+
+    private static string FormatListBoxSlotsForFailure(ListBox listBox, ScrollViewer scrollViewer)
+    {
+        var hostPanel = FindItemsHostPanel(listBox);
+        var parts = new List<string>();
+        for (var i = 0; i < hostPanel.Children.Count && parts.Count < 16; i++)
+        {
+            if (hostPanel.Children[i] is not FrameworkElement element)
+            {
+                continue;
+            }
+
+            listBox.TryGetGeneratedItemInfo(element, out _, out var generatedIndex);
+            parts.Add($"{i}->{generatedIndex}@({element.LayoutSlot.X:0.#},{element.LayoutSlot.Y:0.#},{element.LayoutSlot.Width:0.#},{element.LayoutSlot.Height:0.#})/{GetVisibleDisplayTextOrEmpty(element)}");
+        }
+
+        return $"offset={scrollViewer.VerticalOffset:0.##}, viewport=({scrollViewer.LayoutSlot.X:0.#},{scrollViewer.LayoutSlot.Y:0.#},{scrollViewer.ViewportWidth:0.#},{scrollViewer.ViewportHeight:0.#}), children={hostPanel.Children.Count}, slots={string.Join(" | ", parts)}";
+    }
+
+    private static string GetVisibleDisplayTextOrEmpty(FrameworkElement element)
+    {
+        return TryGetVisibleDisplayTextBlock(element)?.Text ?? string.Empty;
+    }
+
+    private static string FormatComboBoxDropDownSnapshot(ComboBoxDropDownRuntimeDiagnosticsSnapshot snapshot)
+    {
+        return
+            $"offset={snapshot.ScrollViewerVerticalOffset:0.##}, viewport={snapshot.ScrollViewerViewportHeight:0.##}, " +
+            $"realized={snapshot.VirtualizingStackPanelFirstRealizedIndex}..{snapshot.VirtualizingStackPanelLastRealizedIndex}, " +
+            $"containers={snapshot.ListItemContainerCount}, realizedContainers={snapshot.RealizedItemContainerCount}, " +
+            $"nonZeroSlots={snapshot.NonZeroItemContainerSlotCount}, viewportHits={snapshot.ViewportIntersectingItemContainerCount}, " +
+            $"firstSlots={snapshot.FirstContainerSlotSummary}, viewportSlots={snapshot.ViewportIntersectingContainerSlotSummary}, " +
+            $"lastViewerOwned={snapshot.VirtualizingStackPanelLastTryArrangeForViewerOwnedOffsetResult}/{snapshot.VirtualizingStackPanelLastTryArrangeForViewerOwnedOffsetReason}, " +
+            $"lastArrangeRange={snapshot.VirtualizingStackPanelLastArrangeRangeFirst}..{snapshot.VirtualizingStackPanelLastArrangeRangeLast}@{snapshot.VirtualizingStackPanelLastArrangeRangeViewportOffset:0.##}, " +
+            $"lastArrangeOrTranslate={snapshot.VirtualizingStackPanelLastArrangeOrTranslateFirst}..{snapshot.VirtualizingStackPanelLastArrangeOrTranslateLast}@{snapshot.VirtualizingStackPanelLastArrangeOrTranslateViewportOffset:0.##}";
     }
 
     private static string GetVisibleDisplayText(FrameworkElement element)
