@@ -1,6 +1,6 @@
-# InkkSlinger Tests Folder Map
+﻿# InkkSlinger Tests Folder Map
 
-Generated: 2026-04-27
+Generated: 2026-05-07
 
 ```text
 InkkSlinger.Tests/
@@ -75,8 +75,13 @@ InkkSlinger.Tests/
   DesignerControllerTests.cs
   DesignerDocumentControllerTests.cs
   DesignerDocumentWorkflowControllerTests.cs
-  DesignerRepeatedXmlPasteRuntimeTests.cs
-  DesignerRootTemplatePickerRuntimeTests.cs
+  DesignerHostViewModelTests.cs
+  DesignerHoverTelemetryRuntimeReproTests.cs
+  DesignerProjectExplorerHoverRunTests.cs
+  DesignerProjectFileStoreTests.cs
+  DesignerProjectSessionTests.cs
+  DesignerRecentProjectStoreTests.cs
+  DesignerShellProjectExplorerTests.cs
   DesignerSplitterHangCaptureTests.cs
   DesignerXmlSyntaxHighlighterTests.cs
   DirtyBoundsEdgeRegressionTests.cs
@@ -96,6 +101,7 @@ InkkSlinger.Tests/
   ExpanderInputTests.cs
   FontDependencyPropertyIdentityTests.cs
   FrameNavigationTests.cs
+  FrameworkElementCursorTests.cs
   FrameworkElementTagTests.cs
   FreezableCoreTests.cs
   Game1IdleThrottlingTests.cs
@@ -151,6 +157,7 @@ InkkSlinger.Tests/
   RenderTransformPhase1Tests.cs
   ResizeGripInputTests.cs
   ResourceDictionaryMergedSemanticsTests.cs
+  RetainedDrawPipelineReviewTests.cs
   RetainedRenderSyncRegressionTests.cs
   RetainedRenderWakeUpTests.cs
   RichTextAdvancedStructureTests.cs
@@ -203,8 +210,12 @@ InkkSlinger.Tests/
   ThumbInputTests.cs
   ToolTipParityTests.cs
   TransformFreezableTests.cs
+  TreeViewExpandHangCaptureTests.cs
   TreeViewInputTests.cs
   TreeViewItemRenderingRegressionTests.cs
+  TreeViewMeasurePerformanceTests.cs
+  TreeViewVirtualizationParityTests.cs
+  TreeViewWheelFpsInvestigationTests.cs
   TriggerActionStoryboardControlTests.cs
   UIElementInvalidationDiagnosticsTests.cs
   UiRootReviewReproTests.cs

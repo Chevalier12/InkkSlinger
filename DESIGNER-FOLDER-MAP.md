@@ -1,11 +1,15 @@
-# Designer Folder Map
+﻿# Designer Folder Map
 
-Generated: 2026-04-27
+Generated: 2026-05-07
 
 ```text
 InkkSlinger.Designer/
   Properties/
     launchSettings.json
+  test/
+    Views/
+      Main.xml
+    App.xml
   App.cs
   app.manifest
   App.xml
@@ -16,6 +20,7 @@ InkkSlinger.Designer/
   DesignerHostView.xml
   DesignerHostView.xml.cs
   DesignerHostViewModel.cs
+  DesignerProjectExplorerHoverRuntimeScenario.cs
   DesignerProjectFileStore.cs
   DesignerProjectSession.cs
   DesignerRecentProjectStore.cs
@@ -30,10 +35,9 @@ InkkSlinger.Designer/
   DesignerSourceNavigationRequest.cs
   DesignerSourcePropertyInspector.cs
   DesignerSourcePropertyInspectorPresentation.cs
-  DesignerStarterProjectScaffolder.cs
   DesignerXmlEditorLanguageService.cs
   DesignerXmlSyntaxHighlighter.cs
-  IDE_EDITOR_QOL_TODO.md
   InkkSlinger.Designer.csproj
+  NativeFolderBrowserHelper.cs
   Program.cs
 ```

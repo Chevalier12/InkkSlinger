@@ -1,6 +1,6 @@
-# DemoApp Folder Map
+﻿# DemoApp Folder Map
 
-Generated: 2026-04-27
+Generated: 2026-05-07
 
 ```text
 InkkSlinger.DemoApp/
@@ -113,6 +113,8 @@ InkkSlinger.DemoApp/
     PasswordBoxDemoView.xml.cs
     PasswordBoxView.xml
     PasswordBoxView.xml.cs
+    PathView.xml
+    PathView.xml.cs
     PopupView.xml
     PopupView.xml.cs
     ProgressBarView.xml

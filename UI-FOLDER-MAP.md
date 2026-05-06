@@ -1,6 +1,6 @@
-# UI Folder Map
+﻿# UI Folder Map
 
-Generated: 2026-04-27
+Generated: 2026-05-07
 
 ```text
 UI/
@@ -77,6 +77,7 @@ UI/
         InkkOopsExitCodes.cs
         InkkOopsHostConfiguration.cs
         InkkOopsLiveRequestDispatcher.cs
+        InkkOopsLiveRequestDispatcher.Diagnostics.cs
         InkkOopsModels.cs
         InkkOopsPipeMessages.cs
         InkkOopsProjectPathResolver.cs
@@ -261,6 +262,20 @@ UI/
       SpellCheck.cs
       TextBox.cs
     Items/
+      TreeView/
+        TreeView.cs
+        TreeView.HierarchicalData.cs
+        TreeView.ItemMode.cs
+        TreeView.ScrollHost.cs
+        TreeView.Selection.cs
+        TreeView.Telemetry.cs
+        TreeView.VirtualizingTreeDataHost.cs
+        TreeView.VirtualizingTreeItemsHost.cs
+        TreeViewItem.cs
+        TreeViewItem.Helpers.cs
+        TreeViewItem.Layout.cs
+        TreeViewItem.Rendering.cs
+        TreeViewItem.Virtualization.cs
       ComboBox.cs
       ComboBoxItem.cs
       ContextMenu.cs
@@ -273,8 +288,6 @@ UI/
       MenuItem.cs
       TabControl.cs
       TabItem.cs
-      TreeView.cs
-      TreeViewItem.cs
     Panels/
       Canvas.cs
       DockPanel.cs
@@ -402,13 +415,13 @@ UI/
     Root/
       Services/
         IUiRootUpdateParticipant.cs
-        UiRootDirtyRegionOps.cs
+        RetainedRenderController.cs
+        RetainedRenderController.Tree.cs
         UiRootDraw.cs
         UiRootFrameState.cs
         UiRootFrameUpdates.cs
         UiRootInputPipeline.cs
         UiRootLayoutScheduler.cs
-        UiRootRetainedTree.cs
         UiRootVisualIndex.cs
       UiRoot.cs
       UiRootTypes.cs
@@ -503,6 +516,7 @@ UI/
     TextBlockSnapshots.cs
     TextBoxSnapshots.cs
     ThumbSnapshots.cs
+    TreeViewSnapshots.cs
     UIElementInvalidationDiagnosticsSnapshot.cs
     UIElementRenderTimingSnapshot.cs
     UniformGridTimingSnapshot.cs
@@ -543,6 +557,7 @@ UI/
     Layout/
       DocumentLayoutEngine.cs
     Types/
+      TextTrimming.cs
       TextWrapping.cs
     Viewing/
       DocumentPageMap.cs
