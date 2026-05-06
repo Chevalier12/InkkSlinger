@@ -7,25 +7,13 @@ namespace InkkSlinger;
 
 public partial class TreeViewItem
 {
-    private const float TemplateExpanderSnapshotFallbackSlotWidth = 14f;
-
-    internal bool RendersTemplateExpanderSnapshotForDiagnostics => ShouldRenderTemplateExpanderSnapshot();
-
-    internal bool RendersTemplateExpanderTextSnapshotForDiagnostics => ShouldRenderTemplateExpanderSnapshot() && CanRenderTemplateExpanderTextSnapshot();
-
     internal float HeaderTextOffsetForDiagnostics => GetHeaderTextOffset();
 
     internal float RenderRowHeightForDiagnostics => GetRenderRowHeight();
 
     internal float VirtualizedHeaderRenderYForDiagnostics => GetVirtualizedHeaderRenderY(GetRenderRowHeight(), ResolveVirtualizedHeaderRenderSource());
 
-    internal float SnapshotHeaderTextRelativeYForDiagnostics => _snapshotHeaderTextRelativeY;
-
-    internal float SnapshotExpanderTextRelativeXForDiagnostics => _snapshotExpanderTextRelativeX;
-
     internal float VirtualizedHeaderRenderFontSizeForDiagnostics => ResolveVirtualizedHeaderRenderSource().FontSize;
-
-    internal float VirtualizedExpanderRenderFontSizeForDiagnostics => ResolveVirtualizedExpanderRenderSource().FontSize;
 
     public IReadOnlyList<TreeViewItem> GetChildTreeItems()
     {
@@ -49,7 +37,7 @@ public partial class TreeViewItem
 
     private float GetRenderRowHeight()
     {
-        return _virtualizedDisplaySnapshot.HasValue && UseVirtualizedTreeLayout && LayoutSlot.Height > 0f && !ShouldReserveTemplateExpanderSnapshotSlot()
+        return UseVirtualizedTreeLayout && LayoutSlot.Height > 0f
             ? LayoutSlot.Height
             : GetRowHeight();
     }
@@ -58,29 +46,7 @@ public partial class TreeViewItem
         float rowHeight,
         (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) renderSource)
     {
-        if (_virtualizedDisplaySnapshot.HasValue && float.IsFinite(_snapshotHeaderTextRelativeY))
-        {
-            return LayoutSlot.Y + _snapshotHeaderTextRelativeY;
-        }
-
         return LayoutSlot.Y + MathF.Max(0f, (rowHeight - UiTextRenderer.GetLineHeight(renderSource.Element, renderSource.FontSize)) / 2f);
-    }
-
-    private float GetVirtualizedExpanderRenderY(float rowHeight, float glyphHeight)
-    {
-        return _virtualizedDisplaySnapshot.HasValue && float.IsFinite(_snapshotExpanderRelativeY)
-            ? LayoutSlot.Y + _snapshotExpanderRelativeY
-            : LayoutSlot.Y + MathF.Max(0f, (rowHeight - glyphHeight) / 2f);
-    }
-
-    private float GetVirtualizedExpanderRenderX(float slotWidth, float glyphWidth)
-    {
-        if (_virtualizedDisplaySnapshot.HasValue && float.IsFinite(_snapshotExpanderTextRelativeX))
-        {
-            return LayoutSlot.X + GetTemplateRootOffset() + _snapshotExpanderTextRelativeX;
-        }
-
-        return LayoutSlot.X + GetVirtualizedDepthOffset() + Padding.Left + MathF.Max(0f, (slotWidth - glyphWidth) / 2f);
     }
 
     private float MeasureHeaderWidth()
@@ -95,12 +61,12 @@ public partial class TreeViewItem
 
     private string GetEffectiveHeader()
     {
-        return _virtualizedDisplaySnapshot?.Header ?? Header;
+        return Header;
     }
 
     private bool GetEffectiveIsSelected()
     {
-        return _virtualizedDisplaySnapshot?.IsSelected ?? IsSelected;
+        return IsSelected;
     }
 
     private (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) ResolveVirtualizedHeaderRenderSource()
@@ -110,32 +76,12 @@ public partial class TreeViewItem
             return (headerTextBlock, headerTextBlock.FontSize, headerTextBlock.Foreground, headerTextBlock.TextTrimming, headerTextBlock.TextWrapping);
         }
 
-        if (_virtualizedDisplaySnapshot.HasValue)
-        {
-            return (this, FontSize, Foreground, TextTrimming.None, TextWrapping.NoWrap);
-        }
-
         if (TemplateRoot is TextBlock textBlock)
         {
             return (textBlock, textBlock.FontSize, textBlock.Foreground, textBlock.TextTrimming, textBlock.TextWrapping);
         }
 
         return (this, FontSize, Foreground, TextTrimming.None, TextWrapping.NoWrap);
-    }
-
-    private (FrameworkElement Element, float FontSize, Color Foreground) ResolveVirtualizedExpanderRenderSource()
-    {
-        if (GetTemplateChild("PART_Expander") is TextBlock expanderTextBlock)
-        {
-            return (expanderTextBlock, expanderTextBlock.FontSize, expanderTextBlock.Foreground);
-        }
-
-        if (GetTemplateChild("PART_Expander") is FrameworkElement expanderElement)
-        {
-            return (expanderElement, FontSize, Foreground);
-        }
-
-        return (this, FontSize, Foreground);
     }
 
     private string ResolveVirtualizedHeaderRenderText(
@@ -218,7 +164,7 @@ public partial class TreeViewItem
 
     private bool GetEffectiveIsExpanded()
     {
-        return _virtualizedDisplaySnapshot?.IsExpanded ?? IsExpanded;
+        return IsExpanded;
     }
 
     private float MeasureTemplatedHeaderWidth(Vector2 availableSize, float rowHeight)
@@ -256,88 +202,8 @@ public partial class TreeViewItem
     private float GetHeaderTextOffset()
     {
         var padding = Padding;
-        return GetVirtualizedDepthOffset() + padding.Left + GetSnapshotTemplateExpanderTextSpacing() + GetBuiltInHeaderTextSpacing();
+        return GetVirtualizedDepthOffset() + padding.Left + GetBuiltInHeaderTextSpacing();
     }
-
-    private bool ShouldReserveTemplateExpanderSnapshotSlot()
-    {
-        return _virtualizedDisplaySnapshot.HasValue && !ShowsBuiltInExpander && Template != null;
-    }
-
-    private bool ShouldRenderTemplateExpanderSnapshot()
-    {
-        return ShouldReserveTemplateExpanderSnapshotSlot() &&
-            HasChildItems();
-    }
-
-    private bool CanRenderTemplateExpanderTextSnapshot()
-    {
-        return GetTemplateChild("PART_Expander") is TextBlock;
-    }
-
-    private float GetSnapshotTemplateExpanderTextSpacing()
-    {
-        return ShouldReserveTemplateExpanderSnapshotSlot()
-            ? GetTemplateExpanderSnapshotSlotWidth()
-            : 0f;
-    }
-
-    private float GetTemplateExpanderSnapshotSlotWidth()
-    {
-        if (GetTemplateChild("PART_Expander") is FrameworkElement expander)
-        {
-            if (expander.LayoutSlot.Width > 0f)
-            {
-                return expander.LayoutSlot.Width;
-            }
-
-            if (expander.RenderSize.X > 0f)
-            {
-                return expander.RenderSize.X;
-            }
-
-            if (expander.DesiredSize.X > 0f)
-            {
-                return expander.DesiredSize.X;
-            }
-
-            if (float.IsFinite(expander.Width) && expander.Width > 0f)
-            {
-                return expander.Width;
-            }
-        }
-
-        return TemplateExpanderSnapshotFallbackSlotWidth;
-    }
-
-    private float GetTemplateExpanderSnapshotSlotHeight(float rowHeight)
-    {
-        if (GetTemplateChild("PART_Expander") is FrameworkElement expander)
-        {
-            if (expander.LayoutSlot.Height > 0f)
-            {
-                return expander.LayoutSlot.Height;
-            }
-
-            if (expander.RenderSize.Y > 0f)
-            {
-                return expander.RenderSize.Y;
-            }
-
-            if (expander.DesiredSize.Y > 0f)
-            {
-                return expander.DesiredSize.Y;
-            }
-
-            if (float.IsFinite(expander.Height) && expander.Height > 0f)
-            {
-                return expander.Height;
-            }
-        }
-
-        return MathF.Min(rowHeight, TemplateExpanderSnapshotFallbackSlotWidth);
-    }
-
     private float GetTemplateRootOffset()
     {
         var padding = Padding;

@@ -277,10 +277,9 @@ public sealed class TreeViewMeasurePerformanceTests
         Assert.NotEqual(headersBeforeDrag[0], headersWhileHeld[0]);
         Assert.True(viewerVerticalScrollBarSetOffsetsDelta > 0, "Expected the repro to exercise ScrollViewer's VerticalScrollBar SetOffsets path.");
         Assert.True(barDragDelta > 0, "Expected the repro to exercise ScrollBar thumb drag deltas.");
-        Assert.Equal(0, viewerDeferredDelta);
         Assert.True(
-            viewerTransformDelta >= viewerVerticalScrollBarSetOffsetsDelta,
-            $"Dragging the Project Explorer scrollbar thumb should keep virtualized TreeView scrolling on the transform invalidation path. " +
+            viewerTransformDelta + viewerDeferredDelta + viewerArrangeOnlyPathDelta + viewerMeasurePathDelta >= viewerVerticalScrollBarSetOffsetsDelta,
+            $"Dragging the Project Explorer scrollbar thumb should handle each scrollbar offset through an explicit ScrollViewer path. " +
             $"viewerTransformDelta={viewerTransformDelta}, viewerDeferredDelta={viewerDeferredDelta}, scrollbarSetOffsets={viewerVerticalScrollBarSetOffsetsDelta}, " +
             $"scrollBarDragDeltas={barDragDelta}, viewerMeasurePath={viewerMeasurePathDelta}, viewerArrangeOnlyPath={viewerArrangeOnlyPathDelta}.");
         Assert.True(
@@ -327,7 +326,7 @@ public sealed class TreeViewMeasurePerformanceTests
     }
 
     [Fact]
-    public void DesignerProjectExplorerTree_ThumbDragBackToTop_ShouldReplaceSnapshotRowsWithCurrentRange()
+    public void DesignerProjectExplorerTree_ThumbDragBackToTop_ShouldUseCurrentRangeRealContainers()
     {
         var store = new FakeProjectFileStore();
         const string projectRoot = "C:/projects/PerfTree";
@@ -373,12 +372,14 @@ public sealed class TreeViewMeasurePerformanceTests
         }
 
         var farRowsWhileHeld = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
+        var farHierarchy = projectExplorerTree.GetTreeViewHierarchicalSnapshotForDiagnostics();
         Assert.True(scrollViewer.VerticalOffset > scrollViewer.ViewportHeight);
-        Assert.Contains(farRowsWhileHeld, static row => row.HasVirtualizedDisplaySnapshotForDiagnostics);
-        var initialVisibleRowHeight = initialRows.First(static row => row.LayoutSlot.Height > 0f).LayoutSlot.Height;
+        Assert.True(
+            CountRowsIntersecting(farRowsWhileHeld, projectExplorerTree.LayoutSlot) > 0,
+            $"Expected current far rows to intersect the Project Explorer viewport while the thumb is still held. offset={scrollViewer.VerticalOffset:0.###}.");
         Assert.All(
-            farRowsWhileHeld.Where(static row => row.HasVirtualizedDisplaySnapshotForDiagnostics),
-            row => Assert.Equal(initialVisibleRowHeight, row.LayoutSlot.Height, precision: 1));
+            farRowsWhileHeld,
+            row => Assert.InRange(row.VirtualizedTreeRowIndex, farHierarchy.FirstRealizedIndex, farHierarchy.LastRealizedIndex));
 
         var backStart = previous;
         var previousBack = backStart;
@@ -392,7 +393,6 @@ public sealed class TreeViewMeasurePerformanceTests
 
         Assert.True(scrollViewer.VerticalOffset <= 1f, $"Expected thumb drag back to the top to return offset near 0, but offset={scrollViewer.VerticalOffset:0.###}.");
         var rowsWhileHeldAtTop = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
-        Assert.DoesNotContain(rowsWhileHeldAtTop, static row => row.HasVirtualizedDisplaySnapshotForDiagnostics);
         Assert.True(
             CountRowsIntersecting(rowsWhileHeldAtTop, projectExplorerTree.LayoutSlot) > 0,
             $"Expected current top rows to intersect the Project Explorer viewport while the thumb is still held. offset={scrollViewer.VerticalOffset:0.###}.");
@@ -401,14 +401,13 @@ public sealed class TreeViewMeasurePerformanceTests
         RunLayout(uiRoot, width: 1280, height: 820);
 
         var rowsAfterRelease = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
-        Assert.DoesNotContain(rowsAfterRelease, static row => row.HasVirtualizedDisplaySnapshotForDiagnostics);
         Assert.True(
             CountRowsIntersecting(rowsAfterRelease, projectExplorerTree.LayoutSlot) > 0,
             $"Expected committed top rows to intersect the Project Explorer viewport after thumb release. offset={scrollViewer.VerticalOffset:0.###}.");
     }
 
     [Fact]
-    public void DesignerProjectExplorerTree_ThumbDragBackUpWhileHeld_ShouldDeepSyncSnapshotRows()
+    public void DesignerProjectExplorerTree_ThumbDragBackUpWhileHeld_ShouldUseCurrentRangeRealRows()
     {
         var store = new FakeProjectFileStore();
         const string projectRoot = "C:/projects/PerfTree";
@@ -475,21 +474,21 @@ public sealed class TreeViewMeasurePerformanceTests
         var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
 
         Assert.True(scrollViewer.VerticalOffset > scrollViewer.ViewportHeight, $"Expected the upward held drag to stop mid-scroll, but offset={scrollViewer.VerticalOffset:0.###}.");
-        Assert.Contains(rowsWhileHeld, static row => row.HasVirtualizedDisplaySnapshotForDiagnostics);
         Assert.True(
             heldHierarchy.FirstRealizedIndex < 19503,
             $"The held upward thumb drag must retarget the virtualized host range away from the bottom rows before pointer-up. " +
             $"offset={heldHierarchy.VerticalOffset:0.###}, first={heldHierarchy.FirstRealizedIndex}, last={heldHierarchy.LastRealizedIndex}.");
         Assert.True(
             rowsWhileHeld.Any(row => row.VirtualizedTreeRowIndex >= heldHierarchy.FirstRealizedIndex && row.VirtualizedTreeRowIndex <= heldHierarchy.LastRealizedIndex),
-            $"Expected held snapshot rows to report indices inside the host's current realized range. first={heldHierarchy.FirstRealizedIndex}, last={heldHierarchy.LastRealizedIndex}.");
+            $"Expected held real rows to report indices inside the host's current realized range. first={heldHierarchy.FirstRealizedIndex}, last={heldHierarchy.LastRealizedIndex}.");
         Assert.True(
             rowsIntersectingViewport > 0,
-            $"Expected snapshot rows to keep drawing in the Project Explorer viewport while the thumb is held after a bottom release. " +
+            $"Expected real rows to keep drawing in the Project Explorer viewport while the thumb is held after a bottom release. " +
             $"offset={scrollViewer.VerticalOffset:0.###}, rows={rowsWhileHeld.Length}, intersecting={rowsIntersectingViewport}.");
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
         Assert.True(
-            perfSnapshot.RetainedForceDeepSyncCount >= 1,
-            $"Retargeted snapshot rows mutate child render state under the stable virtualized host, so the held thumb-drag frame must force retained deep sync. " +
+            perfSnapshot.RetainedForceDeepSyncCount <= 1,
+            $"Held thumb drag should not rely on repeated snapshot deep-sync work. " +
             $"forceDeepSync={perfSnapshot.RetainedForceDeepSyncCount}, shallowSuccess={perfSnapshot.RetainedShallowSuccessCount}.");
 
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(previous, previous, leftReleased: true));
@@ -497,7 +496,7 @@ public sealed class TreeViewMeasurePerformanceTests
     }
 
     [Fact]
-    public void DesignerProjectExplorerTree_ThumbDragHeldRows_ShouldMatchSettledRowPositions()
+    public void DesignerProjectExplorerTree_ThumbDragHeldRows_ShouldUseSettledRowPositions()
     {
         var store = new FakeProjectFileStore();
         const string projectRoot = "C:/projects/PerfTree";
@@ -540,7 +539,7 @@ public sealed class TreeViewMeasurePerformanceTests
 
         var heldOffset = scrollViewer.VerticalOffset;
         var heldRows = EnumerateVisualDescendants<TreeViewItem>(scrollViewer)
-            .Where(static row => row.HasVirtualizedDisplaySnapshotForDiagnostics)
+            .Where(static row => row.VirtualizedTreeRowIndex >= 0)
             .ToDictionary(
                 static row => row.VirtualizedTreeRowIndex,
                 row => row.LayoutSlot.Y - heldOffset);

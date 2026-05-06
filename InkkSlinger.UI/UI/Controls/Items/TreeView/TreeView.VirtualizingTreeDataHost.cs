@@ -21,9 +21,6 @@ public partial class TreeView
         private bool _rowOffsetsDirty = true;
         private int _firstRealizedIndex = -1;
         private int _lastRealizedIndex = -1;
-        private bool _pendingDeferredOffsetRefresh;
-        private bool _preserveRowMetricsForNextArrange;
-        private Dictionary<int, float>? _preservedThumbSnapshotRowYByIndex;
         private float _averageRowHeight = FallbackRowHeight;
         private float _rowHeightTotal;
         private float _measuredRowHeightTotal;
@@ -69,7 +66,6 @@ public partial class TreeView
             EnsureRowMetricStorage();
             _firstRealizedIndex = -1;
             _lastRealizedIndex = -1;
-            _pendingDeferredOffsetRefresh = false;
             _estimatedExtentWidth = EstimateExtentWidth(rows);
             InvalidateMeasure();
             InvalidateArrange();
@@ -97,14 +93,22 @@ public partial class TreeView
 
         protected override Vector2 ArrangeOverride(Vector2 finalSize)
         {
-            _pendingDeferredOffsetRefresh = false;
             RealizeRows(finalSize.Y, invalidateMeasureForChildMutations: false);
             ArrangeRealizedRows(finalSize);
 
             return finalSize;
         }
 
-        private void ArrangeRealizedRows(Vector2 finalSize)
+        private void ArrangeRealizedRows(Vector2 finalSize, bool suppressLayoutInvalidations = false)
+        {
+            using var suppression = suppressLayoutInvalidations
+                ? DeferChildMutationLayoutInvalidations()
+                : null;
+
+            ArrangeRealizedRowsCore(finalSize);
+        }
+
+        private void ArrangeRealizedRowsCore(Vector2 finalSize)
         {
             var childConstraint = new Vector2(finalSize.X, float.PositiveInfinity);
             foreach (var child in Children)
@@ -117,18 +121,12 @@ public partial class TreeView
                 if (item.NeedsMeasure)
                 {
                     item.Measure(childConstraint);
-                    if (!_preserveRowMetricsForNextArrange)
-                    {
-                        UpdateMeasuredRowMetric(item.VirtualizedTreeRowIndex, item.DesiredSize);
-                    }
+                    UpdateMeasuredRowMetric(item.VirtualizedTreeRowIndex, item.DesiredSize);
                 }
 
                 var index = item.VirtualizedTreeRowIndex;
                 var rowHeight = GetRowHeight(index);
-                var y = _preservedThumbSnapshotRowYByIndex is not null &&
-                        _preservedThumbSnapshotRowYByIndex.TryGetValue(index, out var preservedY)
-                    ? _owner.ActiveScrollViewer.VerticalOffset + preservedY
-                    : LayoutSlot.Y + GetRowOffset(index);
+                var y = LayoutSlot.Y + GetRowOffset(index);
                 var targetSlot = new LayoutRect(
                     LayoutSlot.X,
                     y,
@@ -141,8 +139,6 @@ public partial class TreeView
 
                 item.Arrange(targetSlot);
             }
-
-                    _preserveRowMetricsForNextArrange = false;
         }
 
         private static bool LayoutSlotsMatch(LayoutRect actual, LayoutRect expected)
@@ -161,13 +157,6 @@ public partial class TreeView
 
         public void RefreshPendingStableViewportOffsetChange()
         {
-            if (!_pendingDeferredOffsetRefresh)
-            {
-                return;
-            }
-
-            _pendingDeferredOffsetRefresh = false;
-            _preserveRowMetricsForNextArrange = true;
             RefreshForStableViewportOffsetChange(forceRealization: true);
         }
 
@@ -183,70 +172,12 @@ public partial class TreeView
             }
 
             var range = CalculateRealizedRange(LayoutSlot.Height);
-            if (!forceRealization && !_owner.IsActiveScrollViewerThumbCaptured())
-            {
-                _preservedThumbSnapshotRowYByIndex = null;
-            }
-
-            var isThumbCaptured = _owner.IsActiveScrollViewerThumbCaptured();
-            if (!forceRealization && isThumbCaptured && range.First > 0)
-            {
-                // During thumb drags, retarget existing rows as lightweight display snapshots.
-                // The real containers are committed on pointer release to avoid rebuilding templates every drag frame.
-                RetargetRealizedRowsForThumbDrag(range.First, range.Last);
-                _pendingDeferredOffsetRefresh = true;
-                UiRoot.Current?.NotifyDirectRenderInvalidation(this);
-                return;
-            }
-
             if (RealizeRows(LayoutSlot.Height, invalidateMeasureForChildMutations: false, suppressLayoutInvalidations: true))
             {
-                ArrangeRealizedRows(new Vector2(LayoutSlot.Width, LayoutSlot.Height));
+                ArrangeRealizedRows(new Vector2(LayoutSlot.Width, LayoutSlot.Height), suppressLayoutInvalidations: true);
             }
 
             UiRoot.Current?.NotifyDirectRenderInvalidation(this);
-        }
-
-        private void RetargetRealizedRowsForThumbDrag(int first, int last)
-        {
-            if (Children.Count == 0 || first > last)
-            {
-                return;
-            }
-
-            _firstRealizedIndex = first;
-            _lastRealizedIndex = last;
-            _preservedThumbSnapshotRowYByIndex ??= [];
-            _preservedThumbSnapshotRowYByIndex.Clear();
-
-            var childConstraint = new Vector2(LayoutSlot.Width, float.PositiveInfinity);
-            var rowIndex = first;
-            foreach (var child in Children)
-            {
-                if (rowIndex > last || child is not TreeViewItem item)
-                {
-                    continue;
-                }
-
-                var row = _rows[rowIndex];
-                item.ApplyVirtualizedDisplaySnapshot(
-                    _owner.GetHierarchicalHeader(row.Item),
-                    row.HasChildren,
-                    row.IsExpanded,
-                    _owner.IsHierarchicalDataItemSelected(row.Item),
-                    row.Depth,
-                    rowIndex);
-
-                var rowHeight = GetRowHeight(rowIndex);
-                var slot = new LayoutRect(
-                    LayoutSlot.X,
-                    LayoutSlot.Y + GetRowOffset(rowIndex),
-                    LayoutSlot.Width,
-                    rowHeight);
-                item.Arrange(slot);
-                _preservedThumbSnapshotRowYByIndex[rowIndex] = slot.Y - _owner.ActiveScrollViewer.VerticalOffset;
-                rowIndex++;
-            }
         }
 
         private bool RealizeRows(
@@ -280,13 +211,10 @@ public partial class TreeView
                     if (child is TreeViewItem treeItem &&
                         ShouldKeepRealizedChild(treeItem, first, last))
                     {
-                        if (!treeItem.HasVirtualizedDisplaySnapshot)
-                        {
-                            var keptRowIndex = treeItem.VirtualizedTreeRowIndex;
-                            _owner.ApplyHierarchicalDataContainer(treeItem, _rows[keptRowIndex], keptRowIndex);
-                            realizedByRowIndex ??= [];
-                            realizedByRowIndex[keptRowIndex] = treeItem;
-                        }
+                        var keptRowIndex = treeItem.VirtualizedTreeRowIndex;
+                        _owner.ApplyHierarchicalDataContainer(treeItem, _rows[keptRowIndex], keptRowIndex);
+                        realizedByRowIndex ??= [];
+                        realizedByRowIndex[keptRowIndex] = treeItem;
 
                         continue;
                     }
@@ -351,7 +279,6 @@ public partial class TreeView
             foreach (var child in Children)
             {
                 if (child is not TreeViewItem item ||
-                    item.HasVirtualizedDisplaySnapshot ||
                     !ShouldKeepRealizedChild(item, first, last))
                 {
                     return false;

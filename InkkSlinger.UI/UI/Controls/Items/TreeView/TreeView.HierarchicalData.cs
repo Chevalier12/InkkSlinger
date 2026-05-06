@@ -346,7 +346,6 @@ public partial class TreeView
         public void ApplyContainer(TreeViewItem container, VisibleTreeDataEntry row, int rowIndex)
         {
             _diagHierarchicalApplyContainerCallCount++;
-            container.ClearVirtualizedDisplaySnapshot();
             container.Header = GetHeader(row.Item);
             container.VirtualizedTreeDataItem = row.Item;
             container.DataContext = row.Item;
@@ -380,7 +379,6 @@ public partial class TreeView
             }
 
             container.IsSelected = false;
-            container.ClearVirtualizedDisplaySnapshot(updateHasItems: false);
             container.SetVirtualizedHeaderElement(null);
             container.VirtualizedTreeDataItem = null;
             container.ClearVirtualizedBranchStateForRecycle();

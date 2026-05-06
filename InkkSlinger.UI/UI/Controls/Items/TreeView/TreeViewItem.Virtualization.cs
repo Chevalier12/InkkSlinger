@@ -7,10 +7,6 @@ namespace InkkSlinger;
 
 public partial class TreeViewItem
 {
-    internal bool HasVirtualizedDisplaySnapshot => _virtualizedDisplaySnapshot.HasValue;
-
-    internal bool HasVirtualizedDisplaySnapshotForDiagnostics => HasVirtualizedDisplaySnapshot;
-
     internal bool IsSelectedForRenderDiagnostics => GetEffectiveIsSelected();
 
     internal string RenderedHeaderForDiagnostics
@@ -27,13 +23,6 @@ public partial class TreeViewItem
                 header,
                 LayoutSlot.X + GetHeaderTextOffset(),
                 ResolveVirtualizedHeaderRenderSource());
-            if (HasVirtualizedDisplaySnapshotForDiagnostics &&
-                string.Equals(rendered, header, StringComparison.Ordinal) &&
-                header.Length > 12)
-            {
-                return header[..12] + "...";
-            }
-
             return rendered;
         }
     }
@@ -76,99 +65,7 @@ public partial class TreeViewItem
 
     public bool HasChildItems()
     {
-        return _virtualizedDisplaySnapshot.HasValue
-            ? _virtualizedDisplaySnapshot.Value.HasChildren
-            : HasVirtualizedChildItems || ItemContainers.Count > 0;
-    }
-
-    internal void ApplyVirtualizedDisplaySnapshot(
-        string header,
-        bool hasChildren,
-        bool isExpanded,
-        bool isSelected,
-        int depth,
-        int rowIndex)
-    {
-        CaptureSnapshotTemplateRenderOffsets();
-        _virtualizedDisplaySnapshot = new VirtualizedDisplaySnapshot(
-            header,
-            hasChildren,
-            isExpanded,
-            isSelected);
-        _suppressExpanderPresentationUpdates = true;
-        try
-        {
-            HasItems = hasChildren;
-        }
-        finally
-        {
-            _suppressExpanderPresentationUpdates = false;
-        }
-
-        UseVirtualizedTreeLayout = true;
-        VirtualizedTreeDepth = depth;
-        VirtualizedTreeRowIndex = rowIndex;
-        InvalidateVisual();
-    }
-
-    private void CaptureSnapshotTemplateRenderOffsets()
-    {
-        _snapshotHeaderTextRelativeY = TryGetTemplateChildRelativeY("HeaderText", out var headerTextRelativeY)
-            ? headerTextRelativeY
-            : float.NaN;
-        _snapshotExpanderRelativeY = TryGetTemplateChildRelativeY("PART_Expander", out var expanderRelativeY)
-            ? expanderRelativeY
-            : float.NaN;
-        _snapshotExpanderTextRelativeX = TryGetTemplateChildRelativeXWithinTemplateRoot("PART_Expander", out var expanderTextRelativeX)
-            ? expanderTextRelativeX
-            : float.NaN;
-    }
-
-    private bool TryGetTemplateChildRelativeY(string childName, out float relativeY)
-    {
-        relativeY = 0f;
-        if (GetTemplateChild(childName) is not FrameworkElement element ||
-            LayoutSlot.Height <= 0f ||
-            element.LayoutSlot.Height <= 0f)
-        {
-            return false;
-        }
-
-        relativeY = element.LayoutSlot.Y - LayoutSlot.Y;
-        return float.IsFinite(relativeY) && relativeY >= 0f && relativeY <= LayoutSlot.Height;
-    }
-
-    private bool TryGetTemplateChildRelativeXWithinTemplateRoot(string childName, out float relativeX)
-    {
-        relativeX = 0f;
-        if (GetTemplateChild(childName) is not FrameworkElement element ||
-            TemplateRoot is not FrameworkElement templateRoot ||
-            element.LayoutSlot.Width <= 0f ||
-            templateRoot.LayoutSlot.Width <= 0f)
-        {
-            return false;
-        }
-
-        relativeX = element.LayoutSlot.X - templateRoot.LayoutSlot.X;
-        return float.IsFinite(relativeX) && relativeX >= 0f && relativeX <= templateRoot.LayoutSlot.Width;
-    }
-
-    internal void ClearVirtualizedDisplaySnapshot(bool updateHasItems = true)
-    {
-        if (!_virtualizedDisplaySnapshot.HasValue)
-        {
-            return;
-        }
-
-        _virtualizedDisplaySnapshot = null;
-        _snapshotHeaderTextRelativeY = float.NaN;
-        _snapshotExpanderTextRelativeX = float.NaN;
-        _snapshotExpanderRelativeY = float.NaN;
-        if (updateHasItems)
-        {
-            UpdateHasItems();
-        }
-        InvalidateVisual();
+        return HasVirtualizedChildItems || ItemContainers.Count > 0;
     }
 
     internal void SetVirtualizedHeaderElement(UIElement? element)

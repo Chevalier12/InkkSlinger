@@ -499,8 +499,6 @@ public sealed partial class InkkOopsLiveRequestDispatcher : IDisposable
             builder.Append(row.VirtualizedTreeRowIndex.ToString(CultureInfo.InvariantCulture));
             builder.Append(" depth:");
             builder.Append(row.VirtualizedTreeDepth.ToString(CultureInfo.InvariantCulture));
-            builder.Append(" snapshot:");
-            builder.Append(row.HasVirtualizedDisplaySnapshotForDiagnostics ? "true" : "false");
             builder.Append(" slot:(");
             builder.Append(row.LayoutSlot.X.ToString("0.###", CultureInfo.InvariantCulture));
             builder.Append(',');
@@ -513,8 +511,6 @@ public sealed partial class InkkOopsLiveRequestDispatcher : IDisposable
             builder.Append(row.HeaderTextOffsetForDiagnostics.ToString("0.###", CultureInfo.InvariantCulture));
             builder.Append(" renderY:");
             builder.Append(row.VirtualizedHeaderRenderYForDiagnostics.ToString("0.###", CultureInfo.InvariantCulture));
-            builder.Append(" snapshotRelativeY:");
-            builder.Append(row.SnapshotHeaderTextRelativeYForDiagnostics.ToString("0.###", CultureInfo.InvariantCulture));
             builder.Append(" fontSize:");
             builder.Append(row.VirtualizedHeaderRenderFontSizeForDiagnostics.ToString("0.###", CultureInfo.InvariantCulture));
             builder.Append(" renderedHeader:");

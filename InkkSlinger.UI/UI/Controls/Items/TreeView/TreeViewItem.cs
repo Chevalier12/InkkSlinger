@@ -10,18 +10,8 @@ public partial class TreeViewItem : ItemsControl
 {
     internal event EventHandler? ExpandedStateChanged;
     private bool _isApplyingPropagatedForeground;
-    private VirtualizedDisplaySnapshot? _virtualizedDisplaySnapshot;
     private UIElement? _virtualizedHeaderElement;
     private float _virtualizedHeaderMinRowHeight;
-    private float _snapshotHeaderTextRelativeY = float.NaN;
-    private float _snapshotExpanderTextRelativeX = float.NaN;
-    private float _snapshotExpanderRelativeY = float.NaN;
-
-    private readonly record struct VirtualizedDisplaySnapshot(
-        string Header,
-        bool HasChildren,
-        bool IsExpanded,
-        bool IsSelected);
 
     public static readonly DependencyProperty HeaderProperty =
         DependencyProperty.Register(
@@ -177,11 +167,6 @@ public partial class TreeViewItem : ItemsControl
 
     public override IEnumerable<UIElement> GetVisualChildren()
     {
-        if (_virtualizedDisplaySnapshot.HasValue)
-        {
-            yield break;
-        }
-
         if (_virtualizedHeaderElement != null)
         {
             yield return _virtualizedHeaderElement;
@@ -195,18 +180,11 @@ public partial class TreeViewItem : ItemsControl
 
     internal override int GetVisualChildCountForTraversal()
     {
-        return _virtualizedDisplaySnapshot.HasValue
-            ? 0
-            : base.GetVisualChildCountForTraversal() + (_virtualizedHeaderElement != null ? 1 : 0);
+        return base.GetVisualChildCountForTraversal() + (_virtualizedHeaderElement != null ? 1 : 0);
     }
 
     internal override UIElement GetVisualChildAtForTraversal(int index)
     {
-        if (_virtualizedDisplaySnapshot.HasValue)
-        {
-            throw new ArgumentOutOfRangeException(nameof(index));
-        }
-
         if (_virtualizedHeaderElement != null)
         {
             if (index == 0)
@@ -351,7 +329,7 @@ public partial class TreeViewItem : ItemsControl
 
     private void UpdateHasItems()
     {
-        HasItems = _virtualizedDisplaySnapshot?.HasChildren ?? (_hasVirtualizedChildItems || ItemContainers.Count > 0);
+        HasItems = _hasVirtualizedChildItems || ItemContainers.Count > 0;
     }
 
     internal void ApplyVirtualizedBranchState(bool hasChildren, bool isExpanded)
