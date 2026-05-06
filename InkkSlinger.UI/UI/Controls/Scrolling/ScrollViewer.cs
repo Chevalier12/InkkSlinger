@@ -1700,7 +1700,7 @@ public class ScrollViewer : ContentControl
 
         if (visibilityChanged)
         {
-            UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
+            UiRoot.NotifyStableSubtreeVisualStructureChangedForOwner(this, VisualParent, VisualParent);
         }
     }
 

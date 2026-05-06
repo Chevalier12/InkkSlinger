@@ -120,7 +120,12 @@ internal readonly record struct RetainedRenderControllerTelemetrySnapshot(
     int NodesVisited,
     int NodesDrawn,
     int ThresholdFallbackCount,
-    UiDirtyDrawDecisionReason LastDirtyDrawDecisionReason);
+    UiDirtyDrawDecisionReason LastDirtyDrawDecisionReason,
+    int DirtyRegionAddCount,
+    int DirtyRegionFragmentationFullDirtyCount,
+    int DirtyRegionBoundsDeltaSuppressedByTransformScrollCount,
+    string LastDirtyRegionAddReason,
+    string LastFullDirtySource);
 
 /// <summary>
 /// Dirty draw decision snapshot.
@@ -177,9 +182,11 @@ internal readonly record struct UiRootPerformanceTelemetrySnapshot(
     double LayoutArrangeWorkMilliseconds,
     string HottestLayoutMeasureElementType,
     string HottestLayoutMeasureElementName,
+    string HottestLayoutMeasureElementPath,
     double HottestLayoutMeasureElementMilliseconds,
     string HottestLayoutArrangeElementType,
     string HottestLayoutArrangeElementName,
+    string HottestLayoutArrangeElementPath,
     double HottestLayoutArrangeElementMilliseconds,
     int DirtyRootCount,
     int RetainedTraversalCount,

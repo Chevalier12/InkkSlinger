@@ -17,7 +17,7 @@ public partial class TreeViewItem
             UiDrawing.DrawFilledRect(spriteBatch, rowRect, SelectedBackground, Opacity);
         }
 
-        if (ShowsBuiltInExpander && HasChildItems())
+        if ((UseVirtualizedTreeLayout || ShowsBuiltInExpander) && HasChildItems())
         {
             // Modern chevron glyph: solid filled triangle
             //   ▶  right-pointing  →  branch is collapsed
@@ -25,7 +25,7 @@ public partial class TreeViewItem
             // The glyph is rendered at 65 % of the row's Foreground so it reads
             // as a subtle affordance rather than competing with the label text.
             var depthOffset = GetVirtualizedDepthOffset();
-            var glyphCx = LayoutSlot.X + depthOffset + padding.Left + 7f;   // horizontal centre of the glyph zone
+            var glyphCx = LayoutSlot.X + depthOffset + padding.Left + (GetVirtualizedExpanderColumnWidth() / 2f);
             var glyphCy = LayoutSlot.Y + (rowHeight / 2f);    // vertical centre of the row
             var glyphColor = Foreground * 0.65f;
 
@@ -56,7 +56,7 @@ public partial class TreeViewItem
         var header = GetEffectiveHeader();
         if (!string.IsNullOrEmpty(header) && _virtualizedHeaderElement == null)
         {
-            if (HasTemplateRoot)
+            if (HasTemplateRoot && !UseVirtualizedTreeLayout)
             {
                 return;
             }

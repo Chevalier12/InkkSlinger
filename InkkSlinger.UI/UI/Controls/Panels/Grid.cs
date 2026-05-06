@@ -720,15 +720,6 @@ public class Grid : Panel
             return false;
         }
 
-        if (source is FrameworkElement sourceElement &&
-            (!sourceElement.IsMeasureValidForTests ||
-             !sourceElement.IsArrangeValidForTests ||
-             sourceElement.NeedsMeasure ||
-             sourceElement.NeedsArrange))
-        {
-            return false;
-        }
-
         var availableSize = PreviousAvailableSizeForTests;
         if (float.IsNaN(availableSize.X) || float.IsNaN(availableSize.Y))
         {

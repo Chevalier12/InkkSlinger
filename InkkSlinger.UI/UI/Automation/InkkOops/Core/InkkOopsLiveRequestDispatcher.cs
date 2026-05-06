@@ -112,6 +112,7 @@ public sealed partial class InkkOopsLiveRequestDispatcher : IDisposable
                 InkkOopsPipeRequestKinds.RunScenario => await RunScenarioAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.ProbeDuringDrag => await ProbeDuringDragAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.ProbeScrollbarThumbDrag => await ProbeScrollbarThumbDragAsync(request, cancellationToken).ConfigureAwait(false),
+                InkkOopsPipeRequestKinds.ProbeAction => await ProbeActionAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.AssertNonBlank => await AssertNonBlankAsync(request, cancellationToken).ConfigureAwait(false),
                 InkkOopsPipeRequestKinds.DiffTelemetry => DiffTelemetry(request),
                 InkkOopsPipeRequestKinds.DragPathTarget => await ExecuteCommandAsync(request,

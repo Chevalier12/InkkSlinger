@@ -26,6 +26,7 @@ public partial class TreeView
         private float _measuredRowHeightTotal;
         private int _measuredRowHeightCount;
         private float _estimatedExtentWidth;
+        private bool _forceFullApplyOnNextRealization;
         private readonly Dictionary<object, EstimatedRowWidthCacheEntry> _estimatedRowWidthCache = new();
 
         public VirtualizingTreeDataHost(TreeView owner)
@@ -66,7 +67,53 @@ public partial class TreeView
             EnsureRowMetricStorage();
             _firstRealizedIndex = -1;
             _lastRealizedIndex = -1;
+            _forceFullApplyOnNextRealization = true;
             _estimatedExtentWidth = EstimateExtentWidth(rows);
+            InvalidateMeasure();
+            InvalidateArrange();
+        }
+
+        public void UpdateRows(
+            IReadOnlyList<VisibleTreeDataEntry> rows,
+            int changedRowIndex,
+            IReadOnlyList<VisibleTreeDataEntry> removedRows,
+            int addedRowCount)
+        {
+            _rows = rows;
+
+            var metricStartIndex = Math.Clamp(changedRowIndex + 1, 0, _rowHeights.Count);
+            var removedCount = Math.Min(removedRows.Count, Math.Max(0, _rowHeights.Count - metricStartIndex));
+            for (var i = 0; i < removedCount; i++)
+            {
+                var metricIndex = metricStartIndex + i;
+                _rowHeightTotal -= _rowHeights[metricIndex];
+                if (_rowHeightMeasured[metricIndex])
+                {
+                    _measuredRowHeightTotal -= _rowHeights[metricIndex];
+                    _measuredRowHeightCount--;
+                }
+            }
+
+            if (removedCount > 0)
+            {
+                _rowHeights.RemoveRange(metricStartIndex, removedCount);
+                _rowHeightMeasured.RemoveRange(metricStartIndex, removedCount);
+                _rowOffsets.RemoveRange(metricStartIndex, removedCount);
+            }
+
+            var insertedCount = Math.Clamp(addedRowCount, 0, Math.Max(0, rows.Count - metricStartIndex));
+            for (var i = 0; i < insertedCount; i++)
+            {
+                _rowHeights.Insert(metricStartIndex + i, _averageRowHeight);
+                _rowHeightMeasured.Insert(metricStartIndex + i, false);
+                _rowOffsets.Insert(metricStartIndex + i, 0f);
+                _rowHeightTotal += _averageRowHeight;
+                _estimatedExtentWidth = MathF.Max(_estimatedExtentWidth, EstimateRowWidth(rows[metricStartIndex + i]));
+            }
+
+            EnsureRowMetricStorage();
+            RecalculateAverageRowHeight();
+            _rowOffsetsDirty = true;
             InvalidateMeasure();
             InvalidateArrange();
         }
@@ -137,6 +184,11 @@ public partial class TreeView
                     continue;
                 }
 
+                if (item.TryTranslateArrangedSubtree(targetSlot))
+                {
+                    continue;
+                }
+
                 item.Arrange(targetSlot);
             }
         }
@@ -188,8 +240,10 @@ public partial class TreeView
             var range = CalculateRealizedRange(viewportHeight);
             var first = range.First;
             var last = range.Last;
+            var forceFullApply = _forceFullApplyOnNextRealization;
 
-            if (first == _firstRealizedIndex &&
+            if (!forceFullApply &&
+                first == _firstRealizedIndex &&
                 last == _lastRealizedIndex &&
                 HasCurrentRealizedRows(first, last))
             {
@@ -204,63 +258,49 @@ public partial class TreeView
                            ? DeferChildMutationInvalidations()
                            : DeferChildMutationArrangeInvalidations())
             {
-                Dictionary<int, TreeViewItem>? realizedByRowIndex = null;
-                for (var childIndex = Children.Count - 1; childIndex >= 0; childIndex--)
+                RealizeRowsByViewportSlot(first, last);
+            }
+
+            _forceFullApplyOnNextRealization = false;
+            return true;
+        }
+
+        private void RealizeRowsByViewportSlot(int first, int last)
+        {
+            var targetCount = first <= last ? last - first + 1 : 0;
+            while (Children.Count > targetCount)
+            {
+                var removeIndex = Children.Count - 1;
+                var removed = Children[removeIndex];
+                RemoveChildAt(removeIndex);
+                if (removed is TreeViewItem removedTreeItem)
                 {
-                    var child = Children[childIndex];
-                    if (child is TreeViewItem treeItem &&
-                        ShouldKeepRealizedChild(treeItem, first, last))
-                    {
-                        var keptRowIndex = treeItem.VirtualizedTreeRowIndex;
-                        _owner.ApplyHierarchicalDataContainer(treeItem, _rows[keptRowIndex], keptRowIndex);
-                        realizedByRowIndex ??= [];
-                        realizedByRowIndex[keptRowIndex] = treeItem;
-
-                        continue;
-                    }
-
-                    RemoveChildAt(childIndex);
-                    if (child is TreeViewItem removedTreeItem)
-                    {
-                        _owner.RecycleHierarchicalDataContainer(removedTreeItem);
-                    }
-                }
-
-                var targetChildIndex = 0;
-                for (var rowIndex = first; rowIndex <= last; rowIndex++)
-                {
-                    if (realizedByRowIndex?.TryGetValue(rowIndex, out var realizedContainer) == true)
-                    {
-                        var currentIndex = IndexOfChild(realizedContainer);
-                        if (currentIndex >= 0 && currentIndex != targetChildIndex)
-                        {
-                            MoveChildRange(currentIndex, targetChildIndex, 1);
-                        }
-
-                        targetChildIndex++;
-                        continue;
-                    }
-
-                    var row = _rows[rowIndex];
-                    var container = _owner.RealizeHierarchicalDataContainer(row, rowIndex);
-                    var existingIndex = IndexOfChild(container);
-                    if (existingIndex >= 0)
-                    {
-                        if (existingIndex != targetChildIndex)
-                        {
-                            MoveChildRange(existingIndex, targetChildIndex, 1);
-                        }
-                    }
-                    else
-                    {
-                        InsertChild(targetChildIndex, container);
-                    }
-
-                    targetChildIndex++;
+                    _owner.RecycleHierarchicalDataContainer(removedTreeItem);
                 }
             }
 
-            return true;
+            for (var index = 0; index < Children.Count; index++)
+            {
+                if (Children[index] is TreeViewItem treeItem)
+                {
+                    _owner.UnmapHierarchicalDataContainer(treeItem);
+                }
+            }
+
+            for (var targetChildIndex = 0; targetChildIndex < targetCount; targetChildIndex++)
+            {
+                var rowIndex = first + targetChildIndex;
+                var row = _rows[rowIndex];
+                if (targetChildIndex < Children.Count &&
+                    Children[targetChildIndex] is TreeViewItem existingContainer)
+                {
+                    _owner.RebindHierarchicalDataContainer(existingContainer, row, rowIndex);
+                    continue;
+                }
+
+                var container = _owner.RealizeHierarchicalDataContainer(row, rowIndex);
+                InsertChild(targetChildIndex, container);
+            }
         }
 
         private bool HasCurrentRealizedRows(int first, int last)

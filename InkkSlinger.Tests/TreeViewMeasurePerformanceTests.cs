@@ -99,6 +99,241 @@ public sealed class TreeViewMeasurePerformanceTests
     }
 
     [Fact]
+    public void TreeView_HierarchicalExpandCollapse_UpdatesOnlyChangedBranch()
+    {
+        var root = new LazyProjectNode("Root", isFolder: true);
+        for (var folderIndex = 0; folderIndex < 160; folderIndex++)
+        {
+            var folder = new LazyProjectNode($"Folder {folderIndex:000}", isFolder: true);
+            for (var fileIndex = 0; fileIndex < 12; fileIndex++)
+            {
+                folder.Children.Add(new LazyProjectNode($"File {folderIndex:000}-{fileIndex:000}.xml", isFolder: false));
+            }
+
+            root.Children.Add(folder);
+        }
+
+        var target = root.Children[20];
+        var childSelectorCallCount = 0;
+        var headerSelectorCallCount = 0;
+        var hasChildrenSelectorCallCount = 0;
+        var treeView = new TreeView
+        {
+            Width = 800f,
+            Height = 420f,
+            HierarchicalChildrenSelector = item =>
+            {
+                childSelectorCallCount++;
+                return item is LazyProjectNode node ? node.Children : Array.Empty<LazyProjectNode>();
+            },
+            HierarchicalHasChildrenSelector = item =>
+            {
+                hasChildrenSelectorCallCount++;
+                return item is LazyProjectNode { IsFolder: true };
+            },
+            HierarchicalHeaderSelector = item =>
+            {
+                headerSelectorCallCount++;
+                return item is LazyProjectNode node ? node.Name : string.Empty;
+            },
+            HierarchicalExpandedSelector = item => item is LazyProjectNode node && (ReferenceEquals(node, root) || node.IsFolder),
+            HierarchicalItemsSource = new[] { root }
+        };
+
+        var uiRoot = new UiRoot(treeView);
+        RunLayout(uiRoot, width: 800, height: 420);
+        RunLayout(uiRoot, width: 800, height: 420);
+
+        childSelectorCallCount = 0;
+        headerSelectorCallCount = 0;
+        hasChildrenSelectorCallCount = 0;
+
+        Assert.True(treeView.SetHierarchicalItemExpanded(target, false));
+        RunLayout(uiRoot, width: 800, height: 420);
+
+        Assert.True(
+            childSelectorCallCount <= 1,
+            $"Collapsing one hierarchical branch should not enumerate unrelated visible branches. childSelectorCallCount={childSelectorCallCount}.");
+        Assert.True(
+            hasChildrenSelectorCallCount <= 2,
+            $"Collapsing one hierarchical branch should update the target row, not rebuild the full flattened tree. hasChildrenSelectorCallCount={hasChildrenSelectorCallCount}.");
+        Assert.True(
+            headerSelectorCallCount < 80,
+            $"Collapsing one hierarchical branch should not re-read headers for the whole project tree. headerSelectorCallCount={headerSelectorCallCount}.");
+
+        childSelectorCallCount = 0;
+        headerSelectorCallCount = 0;
+        hasChildrenSelectorCallCount = 0;
+
+        Assert.True(treeView.SetHierarchicalItemExpanded(target, true));
+        RunLayout(uiRoot, width: 800, height: 420);
+
+        Assert.True(
+            childSelectorCallCount <= 2,
+            $"Expanding one hierarchical branch should enumerate only that branch. childSelectorCallCount={childSelectorCallCount}.");
+        Assert.True(
+            hasChildrenSelectorCallCount <= target.Children.Count + 2,
+            $"Expanding one hierarchical branch should classify only inserted rows. hasChildrenSelectorCallCount={hasChildrenSelectorCallCount}.");
+        Assert.True(
+            headerSelectorCallCount < 100,
+            $"Expanding one hierarchical branch should not re-read headers for the whole project tree. headerSelectorCallCount={headerSelectorCallCount}.");
+    }
+
+    [Fact]
+    public void TreeView_HierarchicalCollapse_PreservesUnchangedRealizedRowsAfterChangedBranch()
+    {
+        var root = new LazyProjectNode("Root", isFolder: true);
+        for (var folderIndex = 0; folderIndex < 60; folderIndex++)
+        {
+            var folder = new LazyProjectNode($"Folder {folderIndex:000}", isFolder: true);
+            for (var fileIndex = 0; fileIndex < 2; fileIndex++)
+            {
+                folder.Children.Add(new LazyProjectNode($"File {folderIndex:000}-{fileIndex:000}.xml", isFolder: false));
+            }
+
+            root.Children.Add(folder);
+        }
+
+        var target = root.Children[2];
+        var treeView = new TreeView
+        {
+            Width = 800f,
+            Height = 420f,
+            HierarchicalChildrenSelector = static item => item is LazyProjectNode node ? node.Children : Array.Empty<LazyProjectNode>(),
+            HierarchicalHasChildrenSelector = static item => item is LazyProjectNode { IsFolder: true },
+            HierarchicalHeaderSelector = static item => item is LazyProjectNode node ? node.Name : string.Empty,
+            HierarchicalExpandedSelector = static item => item is LazyProjectNode { IsFolder: true },
+            HierarchicalItemsSource = new[] { root }
+        };
+
+        var uiRoot = new UiRoot(treeView);
+        RunLayout(uiRoot, width: 800, height: 420);
+        RunLayout(uiRoot, width: 800, height: 420);
+
+        var realizedBefore = EnumerateVisualDescendants<TreeViewItem>(treeView)
+            .Where(static item => item.VirtualizedTreeDataItem is LazyProjectNode)
+            .ToDictionary(static item => (LazyProjectNode)item.VirtualizedTreeDataItem!, static item => item);
+        var unchangedRowsAfterTarget = root.Children
+            .Skip(3)
+            .Where(realizedBefore.ContainsKey)
+            .ToArray();
+        Assert.NotEmpty(unchangedRowsAfterTarget);
+
+        _ = TreeView.GetTelemetryAndReset();
+
+        Assert.True(treeView.SetHierarchicalItemExpanded(target, false));
+        RunLayout(uiRoot, width: 800, height: 420);
+
+        var telemetry = TreeView.GetTelemetryAndReset();
+        var realizedAfter = EnumerateVisualDescendants<TreeViewItem>(treeView)
+            .Where(static item => item.VirtualizedTreeDataItem is LazyProjectNode)
+            .ToArray();
+
+        Assert.True(
+            realizedAfter.Length <= realizedBefore.Count + 1,
+            $"Collapsing a visible branch should rebind the fixed viewport slots instead of growing the realized set. " +
+            $"before={realizedBefore.Count}, after={realizedAfter.Length}.");
+        Assert.True(
+            telemetry.HierarchicalRecycleContainerCallCount <= 1,
+            $"Collapsing a visible branch should not tear down the realized viewport when the viewport slot count is stable. " +
+            $"recycleCount={telemetry.HierarchicalRecycleContainerCallCount}, removedDescendants={target.Children.Count}.");
+        Assert.True(
+            telemetry.HierarchicalRealizeContainerCallCount <= 1,
+            $"Collapsing a visible branch should reuse existing viewport slots rather than allocate a replacement row set. " +
+            $"realizeCount={telemetry.HierarchicalRealizeContainerCallCount}, removedDescendants={target.Children.Count}.");
+    }
+
+    [Fact]
+    public void TreeView_HierarchicalCollapse_DirtiesVirtualizedViewportWithoutFullFrameOrLeafFanout()
+    {
+        var root = new LazyProjectNode("Root", isFolder: true);
+        for (var folderIndex = 0; folderIndex < 60; folderIndex++)
+        {
+            var folder = new LazyProjectNode($"Folder {folderIndex:000}", isFolder: true);
+            for (var fileIndex = 0; fileIndex < 2; fileIndex++)
+            {
+                folder.Children.Add(new LazyProjectNode($"File {folderIndex:000}-{fileIndex:000}.xml", isFolder: false));
+            }
+
+            root.Children.Add(folder);
+        }
+
+        var target = root.Children[2];
+        var treeView = new TreeView
+        {
+            Name = "ProjectExplorerTree",
+            Width = 258f,
+            Height = 492f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
+            HierarchicalChildrenSelector = static item => item is LazyProjectNode node ? node.Children : Array.Empty<LazyProjectNode>(),
+            HierarchicalHasChildrenSelector = static item => item is LazyProjectNode { IsFolder: true },
+            HierarchicalHeaderSelector = static item => item is LazyProjectNode node ? node.Name : string.Empty,
+            HierarchicalExpandedSelector = static item => item is LazyProjectNode { IsFolder: true },
+            HierarchicalItemsSource = new[] { root }
+        };
+
+        var host = new Canvas { Width = 1280f, Height = 820f };
+        host.AddChild(treeView);
+        var uiRoot = new UiRoot(host);
+        treeView.AutomationScrollViewer.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+        treeView.AutomationScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Visible;
+
+        RunLayout(uiRoot, width: 1280, height: 820);
+        RunLayout(uiRoot, width: 1280, height: 820);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        host.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        _ = FrameworkElement.GetTelemetryAndReset();
+        _ = Control.GetTelemetryAndReset();
+        _ = TreeView.GetTelemetryAndReset();
+        uiRoot.GetTelemetryAndReset();
+
+        Assert.True(treeView.SetHierarchicalItemExpanded(target, false));
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        var decision = uiRoot.ResolveDirtyDrawDecisionAfterRetainedSyncForTests();
+        var retainedTelemetry = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+        var syncedRoots = uiRoot.GetLastSynchronizedDirtyRootSummaryForTests(limit: 12);
+        var frameworkTelemetry = FrameworkElement.GetTelemetryAndReset();
+        var treeTelemetry = TreeView.GetTelemetryAndReset();
+
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+        Assert.False(
+            uiRoot.IsFullDirtyForTests(),
+            $"Collapsing one virtualized TreeView branch should not mark the full frame dirty. roots={syncedRoots}; dirty={uiRoot.GetDirtyRegionSummaryForTests(limit: 12)}");
+        Assert.NotEqual(UiDirtyDrawDecisionReason.FullDirty, decision.AfterSyncReason);
+        Assert.True(
+            retainedTelemetry.DirtyRegionAddCount <= 12,
+            $"Virtualized branch collapse should dirty the viewport once instead of tracking every moved realized row element. " +
+            $"dirtyAdds={retainedTelemetry.DirtyRegionAddCount}, suppressed={retainedTelemetry.DirtyRegionBoundsDeltaSuppressedByTransformScrollCount}, " +
+            $"trace={string.Join(" | ", uiRoot.GetDirtyBoundsEventTraceForTests())}");
+        Assert.DoesNotContain(
+            uiRoot.GetDirtyBoundsEventTraceForTests(),
+            static entry => entry.StartsWith("dirty-add:old:", StringComparison.Ordinal) ||
+                            entry.StartsWith("dirty-add:new:", StringComparison.Ordinal));
+        Assert.True(
+            syncedRoots.Contains("VirtualizingTreeDataHost", StringComparison.Ordinal) ||
+            syncedRoots.Contains("ScrollViewer", StringComparison.Ordinal),
+            $"Collapse should sync the virtualized data host or its viewport owner, not unrelated template leaves. roots={syncedRoots}.");
+        Assert.DoesNotContain("Viewbox#", syncedRoots);
+        Assert.DoesNotContain("Grid#", syncedRoots);
+        Assert.DoesNotContain("TreeViewItem#", syncedRoots);
+        Assert.True(
+            treeTelemetry.HierarchicalRecycleContainerCallCount <= target.Children.Count,
+            $"Collapse should recycle only removed visible descendants. recycle={treeTelemetry.HierarchicalRecycleContainerCallCount}, removed={target.Children.Count}.");
+        Assert.True(
+            frameworkTelemetry.InvalidateMeasureCallCount <= 40,
+            $"Collapse should not fan out measure invalidation through unchanged chevron/template leaves. " +
+            $"invalidateMeasure={frameworkTelemetry.InvalidateMeasureCallCount}, roots={syncedRoots}.");
+        Assert.True(
+            frameworkTelemetry.ArrangeCallCount <= 70,
+            $"Collapse should translate unchanged shifted realized rows instead of recursively arranging every row template. " +
+            $"arrangeCalls={frameworkTelemetry.ArrangeCallCount}, roots={syncedRoots}.");
+    }
+
+    [Fact]
     public void DesignerProjectExplorerTree_WheelScroll_ShouldStayWithinFrameBudget()
     {
         var store = new FakeProjectFileStore();
@@ -177,6 +412,65 @@ public sealed class TreeViewMeasurePerformanceTests
             $"treeMeasureCallDelta={treeMeasureCallDelta}, treeArrangeCallDelta={treeArrangeCallDelta}, " +
             $"viewerDeferredDelta={viewerDeferredDelta}, viewerTransformDelta={viewerTransformDelta}, averageSetOffsetsMs={averageSetOffsetsMs:0.###}, " +
             $"aggregateControlVisualChildren={controlTelemetry.GetVisualChildrenCallCount}.");
+    }
+
+    [Fact]
+    public void DesignerProjectExplorerTree_QuickExpandCollapse_ShouldKeepBranchTemplateInvalidationsAtRowOwner()
+    {
+        var store = new FakeProjectFileStore();
+        const string projectRoot = "C:/projects/PerfTree";
+        PopulateProjectTree(store, projectRoot, sectionCount: 8, filesPerSection: 12, longFileNames: true);
+
+        var documentController = new InkkSlinger.Designer.DesignerDocumentController("<UserControl />", store);
+        var projectSession = InkkSlinger.Designer.DesignerProjectSession.Open(projectRoot, store);
+        var shell = new InkkSlinger.Designer.DesignerShellView(
+            documentController: documentController,
+            projectSession: projectSession);
+
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, width: 1280, height: 820);
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        var projectExplorerTree = Assert.IsType<TreeView>(shell.FindName("ProjectExplorerTree"));
+        var target = Assert.Single(
+            shell.ViewModel.ProjectRootNode!.Children,
+            static node => node.Name == "Views");
+
+        _ = FrameworkElement.GetTelemetryAndReset();
+        _ = Control.GetTelemetryAndReset();
+        _ = TreeView.GetTelemetryAndReset();
+        var renderBefore = uiRoot.GetRenderTelemetrySnapshotForTests();
+
+        Assert.True(projectExplorerTree.SetHierarchicalItemExpanded(target, false));
+        RunLayout(uiRoot, width: 1280, height: 820);
+        Assert.True(projectExplorerTree.SetHierarchicalItemExpanded(target, true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+        Assert.True(projectExplorerTree.SetHierarchicalItemExpanded(target, false));
+        RunLayout(uiRoot, width: 1280, height: 820);
+        Assert.True(projectExplorerTree.SetHierarchicalItemExpanded(target, true));
+        RunLayout(uiRoot, width: 1280, height: 820);
+
+        var renderAfter = uiRoot.GetRenderTelemetrySnapshotForTests();
+        var frameworkTelemetry = FrameworkElement.GetTelemetryAndReset();
+        var syncedRoots = uiRoot.GetLastSynchronizedDirtyRootSummaryForTests(limit: 16);
+        var virtualizedTemplateVisuals = EnumerateVisualDescendants<Viewbox>(projectExplorerTree).Count();
+
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+        Assert.Equal(0, virtualizedTemplateVisuals);
+        Assert.DoesNotContain("Viewbox#", syncedRoots);
+        Assert.DoesNotContain("TextBlock#HeaderText", syncedRoots);
+        Assert.True(
+            frameworkTelemetry.InvalidateMeasureCallCount <= 900,
+            $"Quick expand/collapse should not fan out branch-glyph Visibility invalidations through every realized template leaf. " +
+            $"invalidateMeasure={frameworkTelemetry.InvalidateMeasureCallCount}, syncedRoots={syncedRoots}.");
+        Assert.True(
+            frameworkTelemetry.ArrangeCallCount <= 900,
+            $"Quick expand/collapse should keep layout work proportional to realized rows, not template-leaf trigger churn. " +
+            $"arrangeCalls={frameworkTelemetry.ArrangeCallCount}, arrangeMs={frameworkTelemetry.ArrangeMilliseconds:0.###}, syncedRoots={syncedRoots}.");
+        Assert.True(
+            renderAfter.FullDirtyVisualStructureChangeCount - renderBefore.FullDirtyVisualStructureChangeCount <= 120,
+            $"Quick expand/collapse should not promote every branch-glyph trigger change to retained structure damage. " +
+            $"structureDirtyDelta={renderAfter.FullDirtyVisualStructureChangeCount - renderBefore.FullDirtyVisualStructureChangeCount}, syncedRoots={syncedRoots}.");
     }
 
     [Fact]
@@ -602,11 +896,9 @@ public sealed class TreeViewMeasurePerformanceTests
         {
             var snapshot = row.GetControlSnapshotForDiagnostics();
             Assert.True(snapshot.HasTemplateAssigned, $"Expected realized project rows to have a TreeViewItem template. header={row.Header}");
-            Assert.True(snapshot.HasTemplateRoot, $"Expected realized project rows to expose a template root. header={row.Header}");
-            Assert.Equal("Grid", snapshot.TemplateRootType);
-
-            var textBlocks = EnumerateVisualDescendants<TextBlock>(row).ToArray();
-            Assert.Contains(textBlocks, static textBlock => textBlock.TextTrimming == TextTrimming.CharacterEllipsis);
+            Assert.NotEmpty(row.RenderedHeaderForDiagnostics);
+            Assert.Empty(EnumerateVisualDescendants<TextBlock>(row));
+            Assert.Empty(EnumerateVisualDescendants<Viewbox>(row));
         }
 
         var pointer = GetCenter(projectExplorerTree.LayoutSlot);
@@ -626,20 +918,18 @@ public sealed class TreeViewMeasurePerformanceTests
         var uiRootTelemetry = uiRoot.GetUiRootTelemetrySnapshot();
         var averageUpdateMs = uiRootTelemetry.UpdateElapsedMs / wheelTicks;
         var realizedRowsAfterWheel = EnumerateVisualDescendants<TreeViewItem>(scrollViewer).ToArray();
-        var realizedHeaderTextBlocksAfterWheel = EnumerateVisualDescendants<TextBlock>(scrollViewer)
-            .Where(static textBlock => textBlock.TextTrimming == TextTrimming.CharacterEllipsis)
-            .ToArray();
+        var realizedHeaderTextBlocksAfterWheel = EnumerateVisualDescendants<TextBlock>(scrollViewer).ToArray();
 
         Assert.True(scrollViewer.VerticalOffset > 0f, $"Expected project explorer to scroll, but offset stayed {scrollViewer.VerticalOffset:0.###}.");
         Assert.True(
             averageUpdateMs <= 16.6,
             $"Designer project explorer average wheel frame cost with templated trimmed rows {averageUpdateMs:0.###}ms exceeds 16.6ms. " +
-            $"wheelTicks={wheelTicks}, verticalOffset={scrollViewer.VerticalOffset:0.###}, realizedRows={realizedRowsAfterWheel.Length}, headerTextBlocks={realizedHeaderTextBlocksAfterWheel.Length}.");
+            $"wheelTicks={wheelTicks}, verticalOffset={scrollViewer.VerticalOffset:0.###}, realizedRows={realizedRowsAfterWheel.Length}, templateTextBlocks={realizedHeaderTextBlocksAfterWheel.Length}.");
         Assert.True(
             realizedRowsAfterWheel.Length < 120,
             $"Templated trimmed project rows should stay bounded to the viewport cache during scroll. " +
             $"realizedRows={realizedRowsAfterWheel.Length}, verticalOffset={scrollViewer.VerticalOffset:0.###}.");
-        Assert.Equal(realizedRowsAfterWheel.Length, realizedHeaderTextBlocksAfterWheel.Length);
+        Assert.Empty(realizedHeaderTextBlocksAfterWheel);
     }
 
     [Fact]
@@ -690,6 +980,8 @@ public sealed class TreeViewMeasurePerformanceTests
         scrollViewer.ScrollToHorizontalOffset(scrollViewer.ExtentWidth - scrollViewer.ViewportWidth);
         RunLayout(uiRoot, width: 360, height: 160);
 
+        row = treeView.ContainerFromHierarchicalItem(longNode);
+        Assert.NotNull(row);
         var renderedAtRight = row.RenderedHeaderForDiagnostics;
         Assert.EndsWith("...", renderedAtLeft, StringComparison.Ordinal);
         Assert.True(

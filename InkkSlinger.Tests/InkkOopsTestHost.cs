@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,6 +17,7 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
 
     private readonly UIElement _visualRoot;
     private readonly List<AutomationEventRecord> _automationEvents = new();
+    private readonly List<TestFrameTimingSample> _frameTimingSamples = new();
     private readonly string _displayedFps;
     private readonly List<Vector2> _pointerTrace = new();
     private readonly HashSet<Keys> _automationHeldKeys = new();
@@ -23,6 +25,7 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
     private bool _hasPointer;
     private int _width;
     private int _height;
+    private int _frameTimingSerial;
 
     public InkkOopsTestHost(
         UIElement visualRoot,
@@ -76,6 +79,44 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
         return "motion=none";
     }
 
+    public int GetFrameTimingCursor()
+    {
+        return _frameTimingSerial;
+    }
+
+    public Task<string> CaptureFrameTimingWindowAsync(string artifactName, int startFrameSerial, int maxFrameCount, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var samples = _frameTimingSamples
+            .Where(sample => sample.Serial > startFrameSerial)
+            .Take(Math.Max(1, maxFrameCount))
+            .ToArray();
+        var builder = new StringBuilder();
+        builder.AppendLine($"# InkkOops Frame Timing Window: {artifactName}");
+        builder.AppendLine();
+        builder.AppendLine($"startFrameSerial={startFrameSerial}");
+        builder.AppendLine($"sampleCount={samples.Length}");
+        if (samples.Length > 0)
+        {
+            var worst = samples.MaxBy(static sample => sample.TotalMilliseconds);
+            builder.AppendLine($"maxFrameTotalMs={worst.TotalMilliseconds:0.###}");
+            builder.AppendLine($"maxFrameTotalSerial={worst.Serial}");
+            builder.AppendLine("## Samples");
+            foreach (var sample in samples)
+            {
+                builder.AppendLine($"- serial={sample.Serial} totalMs={sample.TotalMilliseconds:0.###} updateMs={sample.UpdateMilliseconds:0.###} drawMs={sample.DrawMilliseconds:0.###} layoutMs=0 dirtyDecision=None fps={_displayedFps}");
+            }
+        }
+        else
+        {
+            builder.AppendLine("summary=none");
+        }
+
+        Directory.CreateDirectory(ArtifactRoot);
+        File.WriteAllText(Path.Combine(ArtifactRoot, artifactName + "-frame-window.md"), builder.ToString());
+        return Task.FromResult(builder.ToString());
+    }
+
     public Task ResizeWindowAsync(int width, int height, CancellationToken cancellationToken = default)
     {
         _width = width;
@@ -97,6 +138,8 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
             UiRoot.Update(
                 new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
                 new Microsoft.Xna.Framework.Graphics.Viewport(0, 0, _width, _height));
+            _frameTimingSerial++;
+            _frameTimingSamples.Add(new TestFrameTimingSample(_frameTimingSerial, UiRoot.LastUpdateMs, UiRoot.LastDrawMs));
         }
 
         return Task.CompletedTask;
@@ -458,5 +501,10 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
                    HoveredElement == other.HoveredElement &&
                    FocusedElement == other.FocusedElement;
         }
+    }
+
+    private readonly record struct TestFrameTimingSample(int Serial, double UpdateMilliseconds, double DrawMilliseconds)
+    {
+        public double TotalMilliseconds => UpdateMilliseconds + DrawMilliseconds;
     }
 }

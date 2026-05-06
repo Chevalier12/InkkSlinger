@@ -108,6 +108,115 @@ public sealed class UiRootReviewReproTests
         Assert.False(child.NeedsArrange);
     }
 
+    [Fact]
+    public void DescendantArrangeInvalidation_WithStableParentRects_DoesNotArrangeUnrelatedSiblings()
+    {
+        var root = new Panel();
+        var branch = new Panel();
+        var leaf = new Border
+        {
+            Width = 40f,
+            Height = 20f
+        };
+        var unrelatedSibling = new ArrangeCountingPanel
+        {
+            Width = 40f,
+            Height = 20f
+        };
+
+        branch.AddChild(leaf);
+        root.AddChild(branch);
+        root.AddChild(unrelatedSibling);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot);
+        uiRoot.CompleteDrawStateForTests();
+        var siblingArrangeCount = unrelatedSibling.ArrangeOverrideCallCount;
+
+        leaf.InvalidateArrangeForDirectLayoutOnly(invalidateRender: false);
+        RunLayout(uiRoot, elapsedMs: 32);
+
+        Assert.False(leaf.NeedsArrange);
+        Assert.Equal(siblingArrangeCount, unrelatedSibling.ArrangeOverrideCallCount);
+    }
+
+    [Fact]
+    public void DescendantArrangeInvalidation_DoesNotTelemetryTraverseUnrelatedCleanSubtrees()
+    {
+        var root = new Panel();
+        var branch = new Panel();
+        var leaf = new Border
+        {
+            Width = 40f,
+            Height = 20f
+        };
+        var unrelatedSibling = new VisualChildrenCountingPanel
+        {
+            Width = 40f,
+            Height = 20f
+        };
+
+        for (var i = 0; i < 200; i++)
+        {
+            unrelatedSibling.AddChild(new Border
+            {
+                Width = 1f,
+                Height = 1f
+            });
+        }
+
+        branch.AddChild(leaf);
+        root.AddChild(branch);
+        root.AddChild(unrelatedSibling);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot);
+        uiRoot.CompleteDrawStateForTests();
+        unrelatedSibling.GetVisualChildrenCallCount = 0;
+
+        leaf.InvalidateArrangeForDirectLayoutOnly(invalidateRender: false);
+        RunLayout(uiRoot, elapsedMs: 32);
+
+        Assert.False(leaf.NeedsArrange);
+        Assert.True(
+            unrelatedSibling.GetVisualChildrenCallCount <= 1,
+            $"A clean unrelated subtree may be touched by normal parent arrange, but UiRoot must not repeatedly walk it for layout telemetry or invalid-layout scans. " +
+            $"getVisualChildrenCallCount={unrelatedSibling.GetVisualChildrenCallCount}.");
+    }
+
+    [Fact]
+    public void CachedDescendantMeasureReuse_ClearsInvalidationAndDoesNotArrangeUnrelatedSiblings()
+    {
+        var root = new Panel();
+        var branch = new Panel();
+        var leaf = new Border
+        {
+            Width = 40f,
+            Height = 20f
+        };
+        var unrelatedSibling = new ArrangeCountingPanel
+        {
+            Width = 40f,
+            Height = 20f
+        };
+
+        branch.AddChild(leaf);
+        root.AddChild(branch);
+        root.AddChild(unrelatedSibling);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot);
+        uiRoot.CompleteDrawStateForTests();
+        var siblingArrangeCount = unrelatedSibling.ArrangeOverrideCallCount;
+
+        leaf.InvalidateMeasure();
+        RunLayout(uiRoot, elapsedMs: 32);
+
+        Assert.False(leaf.NeedsMeasure);
+        Assert.False(leaf.NeedsArrange);
+        Assert.Equal(siblingArrangeCount, unrelatedSibling.ArrangeOverrideCallCount);
+    }
+
     private static void RunLayout(UiRoot uiRoot, int elapsedMs = 16)
     {
         uiRoot.Update(
@@ -157,5 +266,27 @@ public sealed class UiRootReviewReproTests
             MiddlePressed = false,
             MiddleReleased = false
         };
+    }
+
+    private sealed class ArrangeCountingPanel : Panel
+    {
+        public int ArrangeOverrideCallCount { get; private set; }
+
+        protected override Vector2 ArrangeOverride(Vector2 finalSize)
+        {
+            ArrangeOverrideCallCount++;
+            return base.ArrangeOverride(finalSize);
+        }
+    }
+
+    private sealed class VisualChildrenCountingPanel : Panel
+    {
+        public int GetVisualChildrenCallCount { get; set; }
+
+        public override IEnumerable<UIElement> GetVisualChildren()
+        {
+            GetVisualChildrenCallCount++;
+            return base.GetVisualChildren();
+        }
     }
 }

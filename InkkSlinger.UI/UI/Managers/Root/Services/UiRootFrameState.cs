@@ -306,6 +306,41 @@ public sealed partial class UiRoot
         Automation.NotifyVisualStructureChanged(element, oldParent, newParent);
     }
 
+    internal void NotifyStableSubtreeVisualStructureChanged(UIElement element, UIElement? oldParent, UIElement? newParent)
+    {
+        var owningRoot = ResolveVisualStructureNotificationRoot(element, oldParent, newParent);
+        if (!ReferenceEquals(owningRoot, this))
+        {
+            owningRoot.NotifyStableSubtreeVisualStructureChanged(element, oldParent, newParent);
+            return;
+        }
+
+        if (!ReferenceEquals(element, _visualRoot) &&
+            !IsElementConnectedToVisualRootCore(element) &&
+            !IsElementConnectedToVisualRootCore(oldParent) &&
+            !IsElementConnectedToVisualRootCore(newParent))
+        {
+            return;
+        }
+
+        _visualStructureChangeCount++;
+        _visualStructureVersion++;
+        MarkVisualIndexDirty();
+        ClearDetachedInputState(element);
+        InvalidateInputCachesForSubtree(element);
+        InvalidateOverlayCandidateCache();
+        BumpPointerResolveStateVersion();
+        _mustDrawNextFrame = true;
+        _retainedRender.NotifyInvalidation(new RetainedInvalidation(
+            element,
+            element,
+            element,
+            element,
+            RetainedInvalidationKind.Structure,
+            RequireDeepSync: true));
+        Automation.NotifyVisualStructureChanged(element, oldParent, newParent);
+    }
+
     private void ClearDetachedInputState(UIElement mutationRoot)
     {
         if (_inputState.CapturedPointerElement != null &&

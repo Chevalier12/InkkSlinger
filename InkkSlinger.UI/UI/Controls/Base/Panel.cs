@@ -39,6 +39,7 @@ public class Panel : FrameworkElement
     private bool _deferredChildMutationMeasureInvalidation;
     private bool _deferredChildMutationArrangeInvalidation;
     private bool _deferredChildMutationStructureChanged;
+    private bool _deferredChildMutationStableStructureChanged;
     private bool _zOrderCacheDirty = true;
 
     internal bool IsSuppressingChildMutationStructureNotifications => _childMutationLayoutSuppressedDeferralDepth > 0;
@@ -478,7 +479,15 @@ public class Panel : FrameworkElement
         _zOrderCacheDirty = true;
         if (_childMutationDeferralDepth > 0)
         {
-            _deferredChildMutationStructureChanged = true;
+            if (notifyStructureChanged)
+            {
+                _deferredChildMutationStructureChanged = true;
+            }
+            else
+            {
+                _deferredChildMutationStableStructureChanged = true;
+            }
+
             if (_childMutationLayoutSuppressedDeferralDepth > 0)
             {
                 return;
@@ -515,6 +524,10 @@ public class Panel : FrameworkElement
         if (notifyStructureChanged)
         {
             UiRoot.NotifyVisualStructureChangedForOwner(this, VisualParent, VisualParent);
+        }
+        else
+        {
+            UiRoot.NotifyStableSubtreeVisualStructureChangedForOwner(this, VisualParent, VisualParent);
         }
     }
 
@@ -554,10 +567,15 @@ public class Panel : FrameworkElement
         {
             UiRoot.NotifyVisualStructureChangedForOwner(this, VisualParent, VisualParent);
         }
+        else if (_deferredChildMutationStableStructureChanged)
+        {
+            UiRoot.NotifyStableSubtreeVisualStructureChangedForOwner(this, VisualParent, VisualParent);
+        }
 
         _deferredChildMutationMeasureInvalidation = false;
         _deferredChildMutationArrangeInvalidation = false;
         _deferredChildMutationStructureChanged = false;
+        _deferredChildMutationStableStructureChanged = false;
     }
 
     private sealed class ChildMutationInvalidationDeferral : IDisposable

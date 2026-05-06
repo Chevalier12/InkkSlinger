@@ -279,7 +279,7 @@ internal sealed class TemplateTriggerEngine
 
                 foreach (var changedTarget in changedRenderTargets)
                 {
-                    UiRoot.Current?.NotifyDirectRenderInvalidation(changedTarget);
+                    UiRoot.Current?.NotifyDirectRenderInvalidation(_owner.ResolveTemplateTriggerInvalidationTarget(changedTarget));
                 }
             }
             while (_reapplyPending);

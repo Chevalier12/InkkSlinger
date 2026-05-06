@@ -13,11 +13,18 @@ public sealed partial class UiRoot
         private readonly UiRoot _root;
         private int _scrollViewportDirtyCount;
         private int _structureInvalidationCount;
+        private int _dirtyRegionAddCount;
+        private int _dirtyRegionFragmentationFullDirtyCount;
+        private int _dirtyRegionBoundsDeltaSuppressedByTransformScrollCount;
+        private string _lastDirtyRegionAddReason = "none";
+        private string _lastFullDirtySource = "none";
+        private UIElement? _transformScrollDirtyBoundsSuppressionRoot;
         internal readonly List<RenderNode> RetainedRenderList = new();
         internal readonly Dictionary<UIElement, int> RenderNodeIndices = new();
         internal readonly Queue<UIElement> DirtyRenderQueue = new();
         internal readonly HashSet<UIElement> DirtyRenderSet = new();
         internal readonly HashSet<UIElement> DirtyRenderRootsRequireDeepSync = new();
+        internal readonly HashSet<UIElement> DirtyRenderRootsAllowSubtreeRebuild = new();
         internal readonly List<DirtyRenderWorkItem> DirtyRenderWorkItems = new();
         internal readonly List<IndexedDirtyRenderCandidate> DirtyRenderCandidates = new();
         internal readonly List<UIElement> PendingAncestorMetadataRefreshRoots = new();
@@ -64,11 +71,13 @@ public sealed partial class UiRoot
         internal void MarkFullFrameDirty(UiFullDirtyReason reason)
         {
             _root.RecordFullFrameDirtyReason(reason);
+            _lastFullDirtySource = reason.ToString();
             DirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
         }
 
         internal void MarkFullFrameDirtyWithoutReason()
         {
+            _lastFullDirtySource = "unspecified";
             DirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
         }
 
@@ -216,7 +225,10 @@ public sealed partial class UiRoot
 
             if (invalidation.RetainedSyncRoot != null)
             {
-                EnqueueDirtyRenderNode(invalidation.RetainedSyncRoot, invalidation.RequireDeepSync);
+                EnqueueDirtyRenderNode(
+                    invalidation.RetainedSyncRoot,
+                    invalidation.RequireDeepSync,
+                    allowSubtreeRebuild: invalidation.Kind == RetainedInvalidationKind.Structure);
             }
         }
 
@@ -766,8 +778,29 @@ public sealed partial class UiRoot
                 _root._lastDirtyBoundsUsedHint = true;
                 _root._lastDirtyBounds = transformScrollBounds;
                 _root._hasLastDirtyBounds = true;
-                _root._dirtyBoundsEventTrace.Add($"{_root._lastDirtyBoundsVisualType}#{_root._lastDirtyBoundsVisualName}:scroll-clip-hint:{transformScrollBounds.X:0.##},{transformScrollBounds.Y:0.##},{transformScrollBounds.Width:0.##},{transformScrollBounds.Height:0.##}");
-                AddDirtyRegionForDiagnostics(transformScrollBounds, "scroll-clip-hint");
+                if (AddDirtyRegionForDiagnostics(transformScrollBounds, "scroll-clip-hint"))
+                {
+                    _root._dirtyBoundsEventTrace.Add($"{_root._lastDirtyBoundsVisualType}#{_root._lastDirtyBoundsVisualName}:scroll-clip-hint:{transformScrollBounds.X:0.##},{transformScrollBounds.Y:0.##},{transformScrollBounds.Width:0.##},{transformScrollBounds.Height:0.##}");
+                }
+
+                return;
+            }
+
+            if (TryGetAncestorTransformScrollDirtyBoundsHint(visual, out var ancestorTransformScrollBounds))
+            {
+                if (!TryClipDirtyBoundsToVisualChain(visual, ref ancestorTransformScrollBounds))
+                {
+                    return;
+                }
+
+                _root._lastDirtyBoundsUsedHint = true;
+                _root._lastDirtyBounds = ancestorTransformScrollBounds;
+                _root._hasLastDirtyBounds = true;
+                if (AddDirtyRegionForDiagnostics(ancestorTransformScrollBounds, "ancestor-scroll-clip-hint"))
+                {
+                    _root._dirtyBoundsEventTrace.Add($"{_root._lastDirtyBoundsVisualType}#{_root._lastDirtyBoundsVisualName}:ancestor-scroll-clip-hint:{ancestorTransformScrollBounds.X:0.##},{ancestorTransformScrollBounds.Y:0.##},{ancestorTransformScrollBounds.Width:0.##},{ancestorTransformScrollBounds.Height:0.##}");
+                }
+
                 return;
             }
 
@@ -818,6 +851,14 @@ public sealed partial class UiRoot
 
         internal void RecordBoundsDelta(RenderNode previous, RenderNode updated)
         {
+            if (_transformScrollDirtyBoundsSuppressionRoot != null &&
+                (ReferenceEquals(updated.Visual, _transformScrollDirtyBoundsSuppressionRoot) ||
+                 IsDescendantOf(updated.Visual, _transformScrollDirtyBoundsSuppressionRoot)))
+            {
+                _dirtyRegionBoundsDeltaSuppressedByTransformScrollCount++;
+                return;
+            }
+
             var previousBounds = previous.BoundsSnapshot;
             if (previous.HasBoundsSnapshot &&
                 updated.HasBoundsSnapshot &&
@@ -890,10 +931,28 @@ public sealed partial class UiRoot
             }
         }
 
-        private void AddDirtyRegionForDiagnostics(LayoutRect bounds, string reason)
+        private bool AddDirtyRegionForDiagnostics(LayoutRect bounds, string reason)
         {
-            _root._dirtyBoundsEventTrace.Add($"dirty-add:{reason}:{bounds.X:0.##},{bounds.Y:0.##},{bounds.Width:0.##},{bounds.Height:0.##}");
-            DirtyRegions.AddDirtyRegion(bounds);
+            var wasFullFrameDirty = DirtyRegions.IsFullFrameDirty;
+            var fallbackCountBefore = DirtyRegions.FullRedrawFallbackCount;
+            var accepted = DirtyRegions.AddDirtyRegion(bounds);
+            if (accepted)
+            {
+                _root._dirtyBoundsEventTrace.Add($"dirty-add:{reason}:{bounds.X:0.##},{bounds.Y:0.##},{bounds.Width:0.##},{bounds.Height:0.##}");
+                _dirtyRegionAddCount++;
+                _lastDirtyRegionAddReason = reason;
+            }
+
+            if (!wasFullFrameDirty &&
+                DirtyRegions.IsFullFrameDirty &&
+                DirtyRegions.FullRedrawFallbackCount > fallbackCountBefore)
+            {
+                _dirtyRegionFragmentationFullDirtyCount++;
+                _lastFullDirtySource = $"dirty-region-fragmentation:{reason}";
+                _root._dirtyBoundsEventTrace.Add($"full-dirty:dirty-region-fragmentation:{reason}");
+            }
+
+            return accepted;
         }
 
         private bool TryClipDirtyBoundsToVisualChain(UIElement? visual, ref LayoutRect bounds)
@@ -956,6 +1015,28 @@ public sealed partial class UiRoot
                 transformOwner.TryGetContentViewportClipRect(out bounds))
             {
                 return bounds.Width > 0f && bounds.Height > 0f;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetAncestorTransformScrollDirtyBoundsHint(UIElement visual, out LayoutRect bounds)
+        {
+            bounds = default;
+            for (var current = visual.VisualParent; current != null; current = current.VisualParent)
+            {
+                if (!IsTransformScrollContent(current))
+                {
+                    continue;
+                }
+
+                if (TryGetDirectTransformScrollOwner(current, out var transformOwner) &&
+                    transformOwner.TryGetContentViewportClipRect(out bounds))
+                {
+                    return bounds.Width > 0f && bounds.Height > 0f;
+                }
+
+                return false;
             }
 
             return false;
@@ -1269,13 +1350,23 @@ public sealed partial class UiRoot
                 _root._lastRetainedNodesVisited,
                 _root._lastRetainedNodesDrawn,
                 _root._dirtyRegionThresholdFallbackCount,
-                _root._lastDirtyDrawDecisionReason);
+                _root._lastDirtyDrawDecisionReason,
+                _dirtyRegionAddCount,
+                _dirtyRegionFragmentationFullDirtyCount,
+                _dirtyRegionBoundsDeltaSuppressedByTransformScrollCount,
+                _lastDirtyRegionAddReason,
+                _lastFullDirtySource);
         }
 
         internal void ResetTelemetry()
         {
             _scrollViewportDirtyCount = 0;
             _structureInvalidationCount = 0;
+            _dirtyRegionAddCount = 0;
+            _dirtyRegionFragmentationFullDirtyCount = 0;
+            _dirtyRegionBoundsDeltaSuppressedByTransformScrollCount = 0;
+            _lastDirtyRegionAddReason = "none";
+            _lastFullDirtySource = "none";
         }
 
         private readonly record struct RenderTraversalMetrics(

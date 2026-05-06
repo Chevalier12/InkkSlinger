@@ -34,7 +34,7 @@ public partial class TreeViewItem
             return false;
         }
 
-        if (!ShowsBuiltInExpander)
+        if (!UseVirtualizedTreeLayout && !ShowsBuiltInExpander)
         {
             return HitTemplateExpander(point);
         }
@@ -43,9 +43,10 @@ public partial class TreeViewItem
         // Hit zone is centred on the glyph centre (glyphCx = X + padding.Left + 7, glyphCy = Y + rowHeight/2)
         // Use a 14×14 box so the small triangle remains easy to click.
         var padding = Padding;
-        var glyphCx = LayoutSlot.X + GetVirtualizedDepthOffset() + padding.Left + 7f;
+        var hitWidth = MathF.Max(14f, GetVirtualizedExpanderColumnWidth());
+        var glyphCx = LayoutSlot.X + GetVirtualizedDepthOffset() + padding.Left + (hitWidth / 2f);
         var glyphCy = LayoutSlot.Y + (rowHeight / 2f);
-        var rect = new LayoutRect(glyphCx - 7f, glyphCy - 7f, 14f, 14f);
+        var rect = new LayoutRect(glyphCx - (hitWidth / 2f), glyphCy - 7f, hitWidth, 14f);
         return point.X >= rect.X && point.X <= rect.X + rect.Width && point.Y >= rect.Y && point.Y <= rect.Y + rect.Height;
     }
 

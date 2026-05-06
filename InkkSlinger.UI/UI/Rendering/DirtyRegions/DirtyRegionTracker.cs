@@ -91,11 +91,11 @@ internal sealed class DirtyRegionTracker
         ResetTrackedRegionState();
     }
 
-    public void AddDirtyRegion(LayoutRect region)
+    public bool AddDirtyRegion(LayoutRect region)
     {
         if (IsFullFrameDirty)
         {
-            return;
+            return false;
         }
 
         var candidate = Normalize(region);
@@ -106,10 +106,10 @@ internal sealed class DirtyRegionTracker
 
         if (!IsValid(candidate))
         {
-            return;
+            return false;
         }
 
-        AddDirtyRegionCore(candidate);
+        return AddDirtyRegionCore(candidate);
     }
 
     public double GetDirtyAreaCoverage()
@@ -127,14 +127,14 @@ internal sealed class DirtyRegionTracker
         return Math.Clamp(_dirtyArea / _viewportArea, 0d, 1d);
     }
 
-    private void AddDirtyRegionCore(LayoutRect candidate)
+    private bool AddDirtyRegionCore(LayoutRect candidate)
     {
         for (var i = _regions.Count - 1; i >= 0; i--)
         {
             var existingRegion = _regions[i];
             if (Contains(existingRegion, candidate))
             {
-                return;
+                return false;
             }
 
             if (!IntersectsOrTouches(existingRegion, candidate) &&
@@ -164,6 +164,8 @@ internal sealed class DirtyRegionTracker
         {
             MarkFullFrameDirty(dueToFragmentation: true);
         }
+
+        return true;
     }
 
     private void ResetTrackedRegionState()

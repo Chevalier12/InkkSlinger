@@ -33,10 +33,6 @@ public sealed partial class UiRoot
     private readonly List<UIElement> _inputAncestorBuilder = new();
     private readonly Stack<UIElement> _inputCacheInvalidationTraversalStack = new();
     private readonly HashSet<UIElement> _inputCacheInvalidationVisited = new(ReferenceEqualityComparer.Instance);
-    private readonly Dictionary<FrameworkElement, LayoutElementSample> _layoutSamplesBeforeMeasure = new(ReferenceEqualityComparer.Instance);
-    private readonly Dictionary<FrameworkElement, LayoutElementSample> _layoutSamplesAfterMeasure = new(ReferenceEqualityComparer.Instance);
-    private readonly Dictionary<FrameworkElement, LayoutElementSample> _layoutSamplesAfterArrange = new(ReferenceEqualityComparer.Instance);
-    private readonly Stack<UIElement> _layoutSampleTraversalStack = new();
     private readonly List<UIElement> _openOverlayVisuals = new();
     private readonly List<ContextMenu> _openContextMenus = new();
     private readonly List<UiIndexedUpdateParticipant> _activeUpdateParticipants = new();
@@ -138,9 +134,11 @@ public sealed partial class UiRoot
     private double _lastLayoutArrangeWorkMs;
     private string _lastHottestLayoutMeasureElementType = "none";
     private string _lastHottestLayoutMeasureElementName = string.Empty;
+    private string _lastHottestLayoutMeasureElementPath = "none";
     private double _lastHottestLayoutMeasureElementMs;
     private string _lastHottestLayoutArrangeElementType = "none";
     private string _lastHottestLayoutArrangeElementName = string.Empty;
+    private string _lastHottestLayoutArrangeElementPath = "none";
     private double _lastHottestLayoutArrangeElementMs;
     private int _lastDirtyRootCountAfterCoalescing;
     private int _lastMenuScopeBuildCount;
@@ -290,6 +288,33 @@ public sealed partial class UiRoot
                 ReferenceEquals(newParentRoot, candidate._visualRoot))
             {
                 candidate.NotifyVisualStructureChanged(element, oldParent, newParent);
+                return;
+            }
+        }
+    }
+
+    internal static void NotifyStableSubtreeVisualStructureChangedForOwner(
+        UIElement element,
+        UIElement? oldParent,
+        UIElement? newParent)
+    {
+        var elementRoot = element.GetVisualRoot();
+        var oldParentRoot = oldParent?.GetVisualRoot();
+        var newParentRoot = newParent?.GetVisualRoot();
+        for (var i = RegisteredRoots.Count - 1; i >= 0; i--)
+        {
+            if (!RegisteredRoots[i].TryGetTarget(out var candidate))
+            {
+                RegisteredRoots.RemoveAt(i);
+                continue;
+            }
+
+            if (ReferenceEquals(element, candidate._visualRoot) ||
+                ReferenceEquals(elementRoot, candidate._visualRoot) ||
+                ReferenceEquals(oldParentRoot, candidate._visualRoot) ||
+                ReferenceEquals(newParentRoot, candidate._visualRoot))
+            {
+                candidate.NotifyStableSubtreeVisualStructureChanged(element, oldParent, newParent);
                 return;
             }
         }
@@ -615,9 +640,11 @@ public sealed partial class UiRoot
             _lastLayoutArrangeWorkMs,
             _lastHottestLayoutMeasureElementType,
             _lastHottestLayoutMeasureElementName,
+            _lastHottestLayoutMeasureElementPath,
             _lastHottestLayoutMeasureElementMs,
             _lastHottestLayoutArrangeElementType,
             _lastHottestLayoutArrangeElementName,
+            _lastHottestLayoutArrangeElementPath,
             _lastHottestLayoutArrangeElementMs,
             _lastDirtyRootCountAfterCoalescing,
             _lastRetainedTraversalCount,

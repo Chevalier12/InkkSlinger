@@ -485,6 +485,7 @@ public class Control : FrameworkElement, ICommandSource
             return;
         }
 
+        ClearTemplateBindings();
         ClearTemplateTree();
         _templateReleasedForVirtualization = true;
     }
@@ -1148,6 +1149,11 @@ public class Control : FrameworkElement, ICommandSource
         }
 
         _templateTriggerEngine.Apply(Template.Triggers as IReadOnlyList<TriggerBase> ?? Template.Triggers.ToList());
+    }
+
+    internal virtual UIElement ResolveTemplateTriggerInvalidationTarget(UIElement changedTarget)
+    {
+        return changedTarget;
     }
 
     private void ValidateTemplateParts()

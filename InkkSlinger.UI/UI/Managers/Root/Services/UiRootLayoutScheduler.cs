@@ -1,6 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -30,9 +30,11 @@ public sealed partial class UiRoot
         _lastLayoutArrangeWorkMs = 0d;
         _lastHottestLayoutMeasureElementType = "none";
         _lastHottestLayoutMeasureElementName = string.Empty;
+        _lastHottestLayoutMeasureElementPath = "none";
         _lastHottestLayoutMeasureElementMs = 0d;
         _lastHottestLayoutArrangeElementType = "none";
         _lastHottestLayoutArrangeElementName = string.Empty;
+        _lastHottestLayoutArrangeElementPath = "none";
         _lastHottestLayoutArrangeElementMs = 0d;
         _lastDirtyRootCountAfterCoalescing = 0;
         _lastRetainedTraversalCount = 0;
@@ -100,8 +102,9 @@ public sealed partial class UiRoot
             return;
         }
 
-        CaptureLayoutSamples(_layoutRoot, _layoutSamplesBeforeMeasure);
+        FrameworkElement.ResetFrameTimingForTests();
         RunLayoutUntilStable(new Vector2(viewport.Width, viewport.Height));
+        RecordLayoutTelemetryFromFrameSnapshot(FrameworkElement.GetFrameTimingSnapshotForTests());
         _layoutGeneration++;
         RefreshPointerTargetsAfterLayoutMutation();
         _hasCompletedInitialLayout = true;
@@ -116,12 +119,7 @@ public sealed partial class UiRoot
         for (var pass = 0; pass < maxLayoutPasses; pass++)
         {
             _layoutRoot!.Measure(viewportSize);
-            CaptureLayoutSamples(_layoutRoot, _layoutSamplesAfterMeasure);
-            RecordLayoutMeasureTelemetry(_layoutSamplesBeforeMeasure, _layoutSamplesAfterMeasure);
-
             _layoutRoot.Arrange(new LayoutRect(0f, 0f, viewportSize.X, viewportSize.Y));
-            CaptureLayoutSamples(_layoutRoot, _layoutSamplesAfterArrange);
-            RecordLayoutArrangeTelemetry(_layoutSamplesAfterMeasure, _layoutSamplesAfterArrange);
             LayoutPasses++;
 
             if (HasInvalidLayout(_layoutRoot))
@@ -133,8 +131,6 @@ public sealed partial class UiRoot
             {
                 return;
             }
-
-            CaptureLayoutSamples(_layoutRoot, _layoutSamplesBeforeMeasure);
         }
     }
 
@@ -143,6 +139,11 @@ public sealed partial class UiRoot
         if (element.NeedsMeasure || element.NeedsArrange)
         {
             return true;
+        }
+
+        if (!element.SubtreeDirty)
+        {
+            return false;
         }
 
         foreach (var child in element.GetVisualChildren())
@@ -171,94 +172,20 @@ public sealed partial class UiRoot
         _retainedRender.Sync(viewport);
     }
 
-    private void CaptureLayoutSamples(FrameworkElement root, Dictionary<FrameworkElement, LayoutElementSample> samples)
+    private void RecordLayoutTelemetryFromFrameSnapshot(FrameworkLayoutTimingSnapshot snapshot)
     {
-        samples.Clear();
-        _layoutSampleTraversalStack.Clear();
-        _layoutSampleTraversalStack.Push(root);
-
-        while (_layoutSampleTraversalStack.Count > 0)
-        {
-            var current = _layoutSampleTraversalStack.Pop();
-            if (current is FrameworkElement frameworkElement)
-            {
-                samples[frameworkElement] = new LayoutElementSample(
-                    frameworkElement.MeasureElapsedTicksForTests,
-                    frameworkElement.MeasureExclusiveElapsedTicksForTests,
-                    frameworkElement.ArrangeElapsedTicksForTests);
-            }
-
-            foreach (var child in current.GetVisualChildren())
-            {
-                _layoutSampleTraversalStack.Push(child);
-            }
-        }
+        _lastLayoutMeasureWorkMs = TicksToMilliseconds(snapshot.MeasureElapsedTicks);
+        _lastLayoutMeasureExclusiveWorkMs = TicksToMilliseconds(snapshot.MeasureExclusiveElapsedTicks);
+        _lastHottestLayoutMeasureElementType = snapshot.HottestMeasureElementType;
+        _lastHottestLayoutMeasureElementName = snapshot.HottestMeasureElementName;
+        _lastHottestLayoutMeasureElementPath = snapshot.HottestMeasureElementPath;
+        _lastHottestLayoutMeasureElementMs = TicksToMilliseconds(snapshot.HottestMeasureElapsedTicks);
+        _lastLayoutArrangeWorkMs = TicksToMilliseconds(snapshot.ArrangeElapsedTicks);
+        _lastHottestLayoutArrangeElementType = snapshot.HottestArrangeElementType;
+        _lastHottestLayoutArrangeElementName = snapshot.HottestArrangeElementName;
+        _lastHottestLayoutArrangeElementPath = snapshot.HottestArrangeElementPath;
+        _lastHottestLayoutArrangeElementMs = TicksToMilliseconds(snapshot.HottestArrangeElapsedTicks);
     }
-
-    private void RecordLayoutMeasureTelemetry(
-        IReadOnlyDictionary<FrameworkElement, LayoutElementSample> beforeLayout,
-        IReadOnlyDictionary<FrameworkElement, LayoutElementSample> afterMeasure)
-    {
-        long totalMeasureTicks = 0L;
-        long totalMeasureExclusiveTicks = 0L;
-        FrameworkElement? hottestMeasureElement = null;
-        long hottestMeasureTicks = 0L;
-
-        foreach (var pair in afterMeasure)
-        {
-            var before = beforeLayout.TryGetValue(pair.Key, out var beforeSample)
-                ? beforeSample
-                : default;
-            var measureDelta = Math.Max(0L, pair.Value.MeasureElapsedTicks - before.MeasureElapsedTicks);
-            var measureExclusiveDelta = Math.Max(0L, pair.Value.MeasureExclusiveElapsedTicks - before.MeasureExclusiveElapsedTicks);
-            totalMeasureTicks += measureDelta;
-            totalMeasureExclusiveTicks += measureExclusiveDelta;
-            if (measureDelta > hottestMeasureTicks)
-            {
-                hottestMeasureTicks = measureDelta;
-                hottestMeasureElement = pair.Key;
-            }
-        }
-
-        _lastLayoutMeasureWorkMs = TicksToMilliseconds(totalMeasureTicks);
-        _lastLayoutMeasureExclusiveWorkMs = TicksToMilliseconds(totalMeasureExclusiveTicks);
-        _lastHottestLayoutMeasureElementType = hottestMeasureElement?.GetType().Name ?? "none";
-        _lastHottestLayoutMeasureElementName = hottestMeasureElement?.Name ?? string.Empty;
-        _lastHottestLayoutMeasureElementMs = TicksToMilliseconds(hottestMeasureTicks);
-    }
-
-    private void RecordLayoutArrangeTelemetry(
-        IReadOnlyDictionary<FrameworkElement, LayoutElementSample> afterMeasure,
-        IReadOnlyDictionary<FrameworkElement, LayoutElementSample> afterArrange)
-    {
-        long totalArrangeTicks = 0L;
-        FrameworkElement? hottestArrangeElement = null;
-        long hottestArrangeTicks = 0L;
-
-        foreach (var pair in afterArrange)
-        {
-            var before = afterMeasure.TryGetValue(pair.Key, out var beforeSample)
-                ? beforeSample
-                : default;
-            var arrangeDelta = Math.Max(0L, pair.Value.ArrangeElapsedTicks - before.ArrangeElapsedTicks);
-            totalArrangeTicks += arrangeDelta;
-            if (arrangeDelta > hottestArrangeTicks)
-            {
-                hottestArrangeTicks = arrangeDelta;
-                hottestArrangeElement = pair.Key;
-            }
-        }
-
-        _lastLayoutArrangeWorkMs = TicksToMilliseconds(totalArrangeTicks);
-        _lastHottestLayoutArrangeElementType = hottestArrangeElement?.GetType().Name ?? "none";
-        _lastHottestLayoutArrangeElementName = hottestArrangeElement?.Name ?? string.Empty;
-        _lastHottestLayoutArrangeElementMs = TicksToMilliseconds(hottestArrangeTicks);
-    }
-
-    private readonly record struct LayoutElementSample(
-        long MeasureElapsedTicks,
-        long MeasureExclusiveElapsedTicks,
-        long ArrangeElapsedTicks);
 
     private static double TicksToMilliseconds(long ticks)
     {

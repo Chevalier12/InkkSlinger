@@ -22,6 +22,10 @@ public interface IInkkOopsHost
 
     string GetLastPointerMotionTelemetrySummary();
 
+    int GetFrameTimingCursor();
+
+    Task<string> CaptureFrameTimingWindowAsync(string artifactName, int startFrameSerial, int maxFrameCount, CancellationToken cancellationToken = default);
+
     Task ResizeWindowAsync(int width, int height, CancellationToken cancellationToken = default);
 
     Task MaximizeWindowAsync(CancellationToken cancellationToken = default);

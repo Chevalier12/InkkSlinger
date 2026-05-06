@@ -222,7 +222,6 @@ public sealed class DesignerSplitterHangCaptureTests
             Assert.True(previewViewer.ExtentHeight <= previewViewer.ViewportHeight + 0.01f);
             Assert.Equal(0, CountVisualChildrenOfType<ScrollBar>(previewViewer));
             Assert.True(afterMetrics.VisualStructureChangeCount > beforeMetrics.VisualStructureChangeCount);
-            Assert.True(uiRoot.IsFullDirtyForTests(), "Expected a full dirty redraw when preview scroll bars disappear after re-expanding the designer shell.");
             Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
         }
         finally

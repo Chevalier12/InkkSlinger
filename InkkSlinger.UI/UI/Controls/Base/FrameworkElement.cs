@@ -21,6 +21,9 @@ public class FrameworkElement : UIElement
     [ThreadStatic]
     private static List<long>? _activeMeasureChildTickStack;
 
+    [ThreadStatic]
+    private static List<long>? _activeArrangeChildTickStack;
+
     private readonly Dictionary<DependencyProperty, object> _dynamicResourceBindings = new();
     private FrameworkElement? _resourceParent;
     private NameScope? _nameScope;
@@ -208,6 +211,7 @@ public class FrameworkElement : UIElement
     private long _measureElapsedTicks;
     private long _measureExclusiveElapsedTicks;
     private long _arrangeElapsedTicks;
+    private long _arrangeExclusiveElapsedTicks;
     private long _runtimeMeasureSkippedInvisibleCount;
     private long _runtimeMeasureCachedReuseCount;
     private long _runtimeMeasureReusableSizeReuseCount;
@@ -564,6 +568,8 @@ public class FrameworkElement : UIElement
 
     internal long ArrangeElapsedTicksForTests => _arrangeElapsedTicks;
 
+    internal long ArrangeExclusiveElapsedTicksForTests => _arrangeExclusiveElapsedTicks;
+
     internal static FrameworkLayoutTimingSnapshot GetFrameTimingSnapshotForTests()
     {
         return new FrameworkLayoutTimingSnapshot(
@@ -779,6 +785,11 @@ public class FrameworkElement : UIElement
         return string.Join(" > ", segments);
     }
 
+    internal string GetDiagnosticElementPathForTelemetry()
+    {
+        return BuildDiagnosticElementPath(this);
+    }
+
     private static string DescribeElementForTiming(FrameworkElement element)
     {
         return string.IsNullOrEmpty(element.Name)
@@ -887,6 +898,7 @@ public class FrameworkElement : UIElement
         if (_isMeasureValid && _previousAvailableSize == effectiveAvailableSize)
         {
             IncrementDiagnostic(ref _runtimeMeasureCachedReuseCount, ref _diagMeasureCachedReuseCount);
+            ClearMeasureInvalidation();
             return;
         }
 
@@ -895,6 +907,7 @@ public class FrameworkElement : UIElement
         {
             IncrementDiagnostic(ref _runtimeMeasureReusableSizeReuseCount, ref _diagMeasureReusableSizeReuseCount);
             _previousAvailableSize = effectiveAvailableSize;
+            ClearMeasureInvalidation();
             return;
         }
 
@@ -971,9 +984,9 @@ public class FrameworkElement : UIElement
             AddAggregate(ref _diagMeasureExclusiveElapsedTicks, exclusiveMeasureTicks);
             _frameMeasureElapsedTicks += totalMeasureTicks;
             _frameMeasureExclusiveElapsedTicks += exclusiveMeasureTicks;
-            if (totalMeasureTicks > _frameHottestMeasureElapsedTicks)
+            if (exclusiveMeasureTicks > _frameHottestMeasureElapsedTicks)
             {
-                _frameHottestMeasureElapsedTicks = totalMeasureTicks;
+                _frameHottestMeasureElapsedTicks = exclusiveMeasureTicks;
                 _frameHottestMeasureElementType = GetType().Name;
                 _frameHottestMeasureElementName = Name;
                 _frameHottestMeasureElementPath = BuildDiagnosticElementPath(this);
@@ -1015,6 +1028,8 @@ public class FrameworkElement : UIElement
         IncrementAggregate(ref _diagArrangeWorkCount);
         _arrangeRect = effectiveFinalRect;
         var arrangeStart = Stopwatch.GetTimestamp();
+        var arrangeChildTickStack = _activeArrangeChildTickStack ??= new List<long>();
+        arrangeChildTickStack.Add(0L);
 
         if (!IsVisible)
         {
@@ -1023,17 +1038,7 @@ public class FrameworkElement : UIElement
             RenderSize = Vector2.Zero;
             _isArrangeValid = true;
             ClearArrangeInvalidation();
-            var invisibleArrangeTicks = Stopwatch.GetTimestamp() - arrangeStart;
-            _arrangeElapsedTicks += invisibleArrangeTicks;
-            AddAggregate(ref _diagArrangeElapsedTicks, invisibleArrangeTicks);
-            _frameArrangeElapsedTicks += invisibleArrangeTicks;
-            if (invisibleArrangeTicks > _frameHottestArrangeElapsedTicks)
-            {
-                _frameHottestArrangeElapsedTicks = invisibleArrangeTicks;
-                _frameHottestArrangeElementType = GetType().Name;
-                _frameHottestArrangeElementName = Name;
-                _frameHottestArrangeElementPath = BuildDiagnosticElementPath(this);
-            }
+            RecordArrangeTiming(arrangeStart, arrangeChildTickStack);
             return;
         }
 
@@ -1132,17 +1137,7 @@ public class FrameworkElement : UIElement
         {
             IncrementDiagnostic(ref _runtimeArrangeInvalidatedDuringArrangeCount, ref _diagArrangeInvalidatedDuringArrangeCount);
         }
-        var arrangeTicks = Stopwatch.GetTimestamp() - arrangeStart;
-        _arrangeElapsedTicks += arrangeTicks;
-        AddAggregate(ref _diagArrangeElapsedTicks, arrangeTicks);
-        _frameArrangeElapsedTicks += arrangeTicks;
-        if (arrangeTicks > _frameHottestArrangeElapsedTicks)
-        {
-            _frameHottestArrangeElapsedTicks = arrangeTicks;
-            _frameHottestArrangeElementType = GetType().Name;
-            _frameHottestArrangeElementName = Name;
-            _frameHottestArrangeElementPath = BuildDiagnosticElementPath(this);
-        }
+        RecordArrangeTiming(arrangeStart, arrangeChildTickStack);
     }
 
     internal bool TryTranslateArrangedSubtree(LayoutRect nextArrangeRect)
@@ -1175,9 +1170,11 @@ public class FrameworkElement : UIElement
 
     private bool CanRepairDescendantArrangeWithoutSelfArrange(LayoutRect effectiveFinalRect, bool requiresArrangeRemeasure)
     {
-        // Parent ArrangeOverride can coordinate sibling positions and overlay layout even when the
-        // invalidation originated in a descendant, so skipping the parent arrange pass is unsafe.
-        return false;
+        return _isMeasureValid &&
+               _isArrangeValid &&
+               !NeedsMeasure &&
+               !requiresArrangeRemeasure &&
+               AreRectsEqual(_arrangeRect, effectiveFinalRect);
     }
 
     private bool TryRepairDescendantArrangeOnlySubtree()
@@ -1302,16 +1299,35 @@ public class FrameworkElement : UIElement
         IncrementDiagnostic(ref _runtimeLayoutUpdatedRaiseCount, ref _diagLayoutUpdatedRaiseCount);
         LayoutUpdated?.Invoke(this, EventArgs.Empty);
 
+        RecordArrangeTiming(arrangeStart, _activeArrangeChildTickStack!);
+    }
+
+    private void RecordArrangeTiming(long arrangeStart, List<long> arrangeChildTickStack)
+    {
         var arrangeTicks = Stopwatch.GetTimestamp() - arrangeStart;
+        var lastIndex = arrangeChildTickStack.Count - 1;
+        var childArrangeTicks = lastIndex >= 0 ? arrangeChildTickStack[lastIndex] : 0L;
+        if (lastIndex >= 0)
+        {
+            arrangeChildTickStack.RemoveAt(lastIndex);
+        }
+
+        var exclusiveArrangeTicks = Math.Max(0L, arrangeTicks - childArrangeTicks);
         _arrangeElapsedTicks += arrangeTicks;
+        _arrangeExclusiveElapsedTicks += exclusiveArrangeTicks;
         AddAggregate(ref _diagArrangeElapsedTicks, arrangeTicks);
         _frameArrangeElapsedTicks += arrangeTicks;
-        if (arrangeTicks > _frameHottestArrangeElapsedTicks)
+        if (exclusiveArrangeTicks > _frameHottestArrangeElapsedTicks)
         {
-            _frameHottestArrangeElapsedTicks = arrangeTicks;
+            _frameHottestArrangeElapsedTicks = exclusiveArrangeTicks;
             _frameHottestArrangeElementType = GetType().Name;
             _frameHottestArrangeElementName = Name;
             _frameHottestArrangeElementPath = BuildDiagnosticElementPath(this);
+        }
+
+        if (arrangeChildTickStack.Count > 0)
+        {
+            arrangeChildTickStack[^1] += arrangeTicks;
         }
     }
 

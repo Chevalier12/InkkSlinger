@@ -10,8 +10,14 @@ public partial class TreeViewItem : ItemsControl
 {
     internal event EventHandler? ExpandedStateChanged;
     private bool _isApplyingPropagatedForeground;
+    private bool _isApplyingVirtualizedBranchState;
     private UIElement? _virtualizedHeaderElement;
     private float _virtualizedHeaderMinRowHeight;
+    private bool _virtualizedTemplateSnapshotResolved;
+    private float _virtualizedExpanderColumnWidth;
+    private float _virtualizedHeaderFontSize;
+    private TextTrimming _virtualizedHeaderTextTrimming;
+    private TextWrapping _virtualizedHeaderTextWrapping;
 
     public static readonly DependencyProperty HeaderProperty =
         DependencyProperty.Register(
@@ -172,6 +178,11 @@ public partial class TreeViewItem : ItemsControl
             yield return _virtualizedHeaderElement;
         }
 
+        if (UseVirtualizedTreeLayout)
+        {
+            yield break;
+        }
+
         foreach (var child in base.GetVisualChildren())
         {
             yield return child;
@@ -180,7 +191,7 @@ public partial class TreeViewItem : ItemsControl
 
     internal override int GetVisualChildCountForTraversal()
     {
-        return base.GetVisualChildCountForTraversal() + (_virtualizedHeaderElement != null ? 1 : 0);
+        return (UseVirtualizedTreeLayout ? 0 : base.GetVisualChildCountForTraversal()) + (_virtualizedHeaderElement != null ? 1 : 0);
     }
 
     internal override UIElement GetVisualChildAtForTraversal(int index)
@@ -193,6 +204,11 @@ public partial class TreeViewItem : ItemsControl
             }
 
             index--;
+        }
+
+        if (UseVirtualizedTreeLayout)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
         }
 
         return base.GetVisualChildAtForTraversal(index);
@@ -274,6 +290,15 @@ public partial class TreeViewItem : ItemsControl
     {
         base.OnDependencyPropertyChanged(args);
 
+        if (args.Property == TemplateProperty || args.Property == StyleProperty)
+        {
+            ResetVirtualizedTemplateSnapshot();
+            if (UseVirtualizedTreeLayout && args.Property == TemplateProperty)
+            {
+                EnsureVirtualizedTemplateSnapshot();
+            }
+        }
+
         if (args.Property == ShowsBuiltInExpanderProperty)
         {
             InvalidateMeasure();
@@ -293,7 +318,63 @@ public partial class TreeViewItem : ItemsControl
         }
 
         ExpandedStateChanged?.Invoke(this, EventArgs.Empty);
+        if (UseVirtualizedTreeLayout)
+        {
+            return;
+        }
+
         UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
+    }
+
+    protected override bool ShouldInvalidateMeasureForPropertyChange(
+        DependencyPropertyChangedEventArgs args,
+        FrameworkPropertyMetadata metadata)
+    {
+        if (ShouldAbsorbVirtualizedBranchLayoutInvalidation(args.Property))
+        {
+            return false;
+        }
+
+        return base.ShouldInvalidateMeasureForPropertyChange(args, metadata);
+    }
+
+    protected override bool ShouldInvalidateArrangeForPropertyChange(
+        DependencyPropertyChangedEventArgs args,
+        FrameworkPropertyMetadata metadata)
+    {
+        if (ShouldAbsorbVirtualizedBranchLayoutInvalidation(args.Property))
+        {
+            return false;
+        }
+
+        return base.ShouldInvalidateArrangeForPropertyChange(args, metadata);
+    }
+
+    protected override bool TryHandleMeasureInvalidation(UIElement origin, UIElement? source, string reason)
+    {
+        if (ShouldAbsorbVirtualizedBranchTemplateInvalidation(origin))
+        {
+            InvalidateVisual();
+            return true;
+        }
+
+        return base.TryHandleMeasureInvalidation(origin, source, reason);
+    }
+
+    protected override bool TryHandleArrangeInvalidation(UIElement origin, UIElement? source, string reason)
+    {
+        if (ShouldAbsorbVirtualizedBranchTemplateInvalidation(origin))
+        {
+            InvalidateVisual();
+            return true;
+        }
+
+        return base.TryHandleArrangeInvalidation(origin, source, reason);
+    }
+
+    internal override UIElement ResolveTemplateTriggerInvalidationTarget(UIElement changedTarget)
+    {
+        return UseVirtualizedTreeLayout ? this : base.ResolveTemplateTriggerInvalidationTarget(changedTarget);
     }
 
     protected override bool IsItemItsOwnContainerOverride(object item)
@@ -334,7 +415,14 @@ public partial class TreeViewItem : ItemsControl
 
     internal void ApplyVirtualizedBranchState(bool hasChildren, bool isExpanded)
     {
+        if (_hasVirtualizedChildItems == hasChildren &&
+            IsExpanded == isExpanded)
+        {
+            return;
+        }
+
         _suppressExpanderPresentationUpdates = true;
+        _isApplyingVirtualizedBranchState = true;
         try
         {
             HasVirtualizedChildItems = hasChildren;
@@ -342,6 +430,7 @@ public partial class TreeViewItem : ItemsControl
         }
         finally
         {
+            _isApplyingVirtualizedBranchState = false;
             _suppressExpanderPresentationUpdates = false;
         }
 
@@ -350,9 +439,18 @@ public partial class TreeViewItem : ItemsControl
 
     internal void ClearVirtualizedBranchStateForRecycle()
     {
-        _hasVirtualizedChildItems = false;
-        HasItems = false;
-        UpdateExpanderPresentation();
+        _suppressExpanderPresentationUpdates = true;
+        _isApplyingVirtualizedBranchState = true;
+        try
+        {
+            _hasVirtualizedChildItems = false;
+            HasItems = false;
+        }
+        finally
+        {
+            _isApplyingVirtualizedBranchState = false;
+            _suppressExpanderPresentationUpdates = false;
+        }
     }
 
     private void UpdateExpanderPresentation()
@@ -365,6 +463,34 @@ public partial class TreeViewItem : ItemsControl
 
         CurrentExpanderGlyph = IsExpanded ? ExpandedExpanderGlyph : CollapsedExpanderGlyph;
         ExpanderGlyphVisibility = Visibility.Visible;
+    }
+
+    private bool ShouldAbsorbVirtualizedBranchLayoutInvalidation(DependencyProperty property)
+    {
+        return _isApplyingVirtualizedBranchState &&
+               UseVirtualizedTreeLayout &&
+               (property == HasItemsProperty || property == IsExpandedProperty);
+    }
+
+    private bool ShouldAbsorbVirtualizedBranchTemplateInvalidation(UIElement origin)
+    {
+        return _isApplyingVirtualizedBranchState &&
+               UseVirtualizedTreeLayout &&
+               !ReferenceEquals(origin, this) &&
+               IsVisualDescendantOfThis(origin);
+    }
+
+    private bool IsVisualDescendantOfThis(UIElement element)
+    {
+        for (UIElement? current = element; current != null; current = current.VisualParent)
+        {
+            if (ReferenceEquals(current, this))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
 }

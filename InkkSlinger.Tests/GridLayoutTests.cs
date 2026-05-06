@@ -45,6 +45,51 @@ public sealed class GridLayoutTests
     }
 
     [Fact]
+    public void FixedCellVisibilityToggle_ReconcilesLocallyWithoutParentMeasureInvalidation()
+    {
+        var root = new Grid();
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40f) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(40f) });
+
+        var expanderSlot = new Grid
+        {
+            Width = 14f,
+            Height = 14f
+        };
+
+        var expandedGlyph = new Viewbox
+        {
+            Width = 10f,
+            Height = 10f,
+            Stretch = Stretch.None,
+            Content = new FixedSizeElement(new Vector2(10f, 10f))
+        };
+
+        var collapsedGlyph = new Viewbox
+        {
+            Width = 10f,
+            Height = 10f,
+            Stretch = Stretch.None,
+            Visibility = Visibility.Collapsed,
+            Content = new FixedSizeElement(new Vector2(10f, 10f))
+        };
+
+        expanderSlot.AddChild(expandedGlyph);
+        expanderSlot.AddChild(collapsedGlyph);
+        root.AddChild(expanderSlot);
+
+        MeasureArrangeAndUpdate(root, 40f, 40f);
+
+        var rootMeasureInvalidations = root.MeasureInvalidationCount;
+
+        expandedGlyph.Visibility = Visibility.Collapsed;
+        collapsedGlyph.Visibility = Visibility.Visible;
+
+        Assert.Equal(rootMeasureInvalidations, root.MeasureInvalidationCount);
+        Assert.True(root.IsMeasureValidForTests);
+    }
+
+    [Fact]
     public void Measure_WhenFirstPassWasUnconstrainedAndFinalSizeFitsDesired_DoesNotReMeasureChild()
     {
         var grid = new Grid();

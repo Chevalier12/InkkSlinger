@@ -125,6 +125,21 @@ public partial class TreeView
         _hierarchicalData.ApplyContainer(container, row, rowIndex);
     }
 
+    private void UpdateHierarchicalDataContainer(TreeViewItem container, VisibleTreeDataEntry row, int rowIndex)
+    {
+        _hierarchicalData.UpdateContainerState(container, row, rowIndex);
+    }
+
+    private void RebindHierarchicalDataContainer(TreeViewItem container, VisibleTreeDataEntry row, int rowIndex)
+    {
+        _hierarchicalData.RebindContainer(container, row, rowIndex);
+    }
+
+    private void UnmapHierarchicalDataContainer(TreeViewItem container)
+    {
+        _hierarchicalData.UnmapContainer(container);
+    }
+
     private void RecycleHierarchicalDataContainer(TreeViewItem container)
     {
         _hierarchicalData.RecycleContainer(container);
@@ -265,14 +280,7 @@ public partial class TreeView
                 return false;
             }
 
-            if (isExpanded)
-            {
-                EnsureLazyChildrenLoaded(item);
-            }
-
-            _expansionOverrides[item] = isExpanded;
-            _owner.RefreshHierarchicalDataRows();
-            return true;
+            return ApplyExpansionChange(item, isExpanded);
         }
 
         public void ToggleExpanded(TreeViewItem clickedItem)
@@ -284,13 +292,7 @@ public partial class TreeView
                 return;
             }
 
-            if (!clickedItem.IsExpanded)
-            {
-                EnsureLazyChildrenLoaded(item);
-            }
-
-            _expansionOverrides[item] = !clickedItem.IsExpanded;
-            _owner.RefreshHierarchicalDataRows();
+            ApplyExpansionChange(item, !clickedItem.IsExpanded);
         }
 
         public bool IsExpanded(object item)
@@ -345,21 +347,73 @@ public partial class TreeView
 
         public void ApplyContainer(TreeViewItem container, VisibleTreeDataEntry row, int rowIndex)
         {
+            ApplyContainer(container, row, rowIndex, refreshStyleAndTemplate: true);
+        }
+
+        private void ApplyContainer(
+            TreeViewItem container,
+            VisibleTreeDataEntry row,
+            int rowIndex,
+            bool refreshStyleAndTemplate)
+        {
             _diagHierarchicalApplyContainerCallCount++;
-            container.Header = GetHeader(row.Item);
+            var header = GetHeader(row.Item);
+            if (!string.Equals(container.Header, header, StringComparison.Ordinal))
+            {
+                container.Header = header;
+            }
+
             container.VirtualizedTreeDataItem = row.Item;
-            container.DataContext = row.Item;
+            if (!ReferenceEquals(container.DataContext, row.Item))
+            {
+                container.DataContext = row.Item;
+            }
+
             container.UseVirtualizedTreeLayout = true;
             container.VirtualizedTreeDepth = row.Depth;
             container.VirtualizedTreeRowIndex = rowIndex;
             container.ApplyVirtualizedBranchState(row.HasChildren, row.IsExpanded);
             container.IsSelected = IsSelected(row.Item);
-            _owner.PrepareContainerForItemOverride(container, row.Item, rowIndex);
-            _owner.ApplyHierarchicalItemTemplate(container, row.Item);
+            if (refreshStyleAndTemplate)
+            {
+                _owner.PrepareContainerForItemOverride(container, row.Item, rowIndex);
+                _owner.ApplyHierarchicalItemTemplate(container, row.Item);
+            }
+
             if (container.IsSelected)
             {
                 _owner.SelectedItem = container;
             }
+        }
+
+        public void UpdateContainerState(TreeViewItem container, VisibleTreeDataEntry row, int rowIndex)
+        {
+            container.VirtualizedTreeRowIndex = rowIndex;
+            container.VirtualizedTreeDepth = row.Depth;
+            container.ApplyVirtualizedBranchState(row.HasChildren, row.IsExpanded);
+            container.IsSelected = IsSelected(row.Item);
+            if (container.IsSelected)
+            {
+                _owner.SelectedItem = container;
+            }
+        }
+
+        public void UnmapContainer(TreeViewItem container)
+        {
+            if (container.VirtualizedTreeDataItem is { } item)
+            {
+                _containers.Remove(item);
+            }
+        }
+
+        public void RebindContainer(TreeViewItem container, VisibleTreeDataEntry row, int rowIndex)
+        {
+            UnmapContainer(container);
+            _containers[row.Item] = container;
+            var refreshStyleAndTemplate = _owner.ItemContainerStyleSelector != null ||
+                                          _owner.ItemTemplate != null ||
+                                          _owner.ItemTemplateSelector != null;
+            ApplyContainer(container, row, rowIndex, refreshStyleAndTemplate);
         }
 
         public void RecycleContainer(TreeViewItem container)
@@ -426,11 +480,107 @@ public partial class TreeView
                 : Array.Empty<object>();
         }
 
+        private bool ApplyExpansionChange(object item, bool isExpanded)
+        {
+            if (isExpanded)
+            {
+                EnsureLazyChildrenLoaded(item);
+            }
+
+            var rowIndex = FindRowIndexCore(item);
+            if (rowIndex < 0 ||
+                _owner._itemsHost is not VirtualizingTreeDataHost dataHost)
+            {
+                _expansionOverrides[item] = isExpanded;
+                _owner.RefreshHierarchicalDataRows();
+                return true;
+            }
+
+            var row = _rows[rowIndex];
+            if (!row.HasChildren)
+            {
+                _expansionOverrides[item] = false;
+                return true;
+            }
+
+            if (row.IsExpanded == isExpanded)
+            {
+                _expansionOverrides[item] = isExpanded;
+                return true;
+            }
+
+            _expansionOverrides[item] = isExpanded;
+            if (isExpanded)
+            {
+                ExpandRow(dataHost, rowIndex, row);
+            }
+            else
+            {
+                CollapseRow(dataHost, rowIndex, row);
+            }
+
+            SyncSelectedContainer();
+            return true;
+        }
+
+        private int FindRowIndexCore(object item)
+        {
+            return _rows.FindIndex(row => ReferenceEquals(row.Item, item) || Equals(row.Item, item));
+        }
+
+        private void CollapseRow(VirtualizingTreeDataHost dataHost, int rowIndex, VisibleTreeDataEntry row)
+        {
+            var removedCount = CountVisibleDescendantRows(rowIndex, row.Depth);
+            var removedRows = removedCount > 0
+                ? _rows.GetRange(rowIndex + 1, removedCount)
+                : [];
+            _rows[rowIndex] = row with { IsExpanded = false };
+            if (removedCount > 0)
+            {
+                _rows.RemoveRange(rowIndex + 1, removedCount);
+            }
+
+            dataHost.UpdateRows(_rows, rowIndex, removedRows, addedRowCount: 0);
+        }
+
+        private void ExpandRow(VirtualizingTreeDataHost dataHost, int rowIndex, VisibleTreeDataEntry row)
+        {
+            var addedRows = new List<VisibleTreeDataEntry>();
+            foreach (var child in GetChildren(row.Item))
+            {
+                AddRow(addedRows, child, row.Depth + 1);
+            }
+
+            _rows[rowIndex] = row with { IsExpanded = true };
+            if (addedRows.Count > 0)
+            {
+                _rows.InsertRange(rowIndex + 1, addedRows);
+            }
+
+            dataHost.UpdateRows(_rows, rowIndex, removedRows: [], addedRows.Count);
+        }
+
+        private int CountVisibleDescendantRows(int rowIndex, int depth)
+        {
+            var count = 0;
+            for (var index = rowIndex + 1; index < _rows.Count && _rows[index].Depth > depth; index++)
+            {
+                count++;
+            }
+
+            return count;
+        }
+
         private void AddRow(object item, int depth)
+        {
+            AddRow(_rows, item, depth);
+        }
+
+        private void AddRow(List<VisibleTreeDataEntry> targetRows, object item, int depth)
         {
             var hasChildren = HasChildren(item);
             var expanded = hasChildren && IsExpandedCore(item);
-            _rows.Add(new VisibleTreeDataEntry(item, depth, hasChildren, expanded));
+            targetRows.Add(new VisibleTreeDataEntry(item, depth, hasChildren, expanded));
 
             if (!expanded)
             {
@@ -439,7 +589,7 @@ public partial class TreeView
 
             foreach (var child in GetChildren(item))
             {
-                AddRow(child, depth + 1);
+                AddRow(targetRows, child, depth + 1);
             }
         }
 

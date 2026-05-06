@@ -53,6 +53,7 @@ public static class InkkOopsPipeRequestKinds
     public const string RunScenario = "run-scenario";
     public const string ProbeDuringDrag = "probe-during-drag";
     public const string ProbeScrollbarThumbDrag = "probe-scrollbar-thumb-drag";
+    public const string ProbeAction = "probe-action";
     public const string AssertNonBlank = "assert-nonblank";
     public const string DiffTelemetry = "diff-telemetry";
 }

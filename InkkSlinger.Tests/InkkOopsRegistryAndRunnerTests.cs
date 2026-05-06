@@ -245,9 +245,15 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
         Assert.True(File.Exists(Path.Combine(response.ArtifactDirectory, "button-trace-report.md")));
         Assert.True(File.Exists(Path.Combine(response.ArtifactDirectory, "button-trace-trace.json")));
         Assert.True(File.Exists(Path.Combine(response.ArtifactDirectory, "button-trace-artifact-index.json")));
+        Assert.True(File.Exists(Path.Combine(response.ArtifactDirectory, "button-trace-step-001-wait-for-visible-frame-window.md")));
         var report = File.ReadAllText(Path.Combine(response.ArtifactDirectory, "button-trace-report.md"));
+        var trace = File.ReadAllText(Path.Combine(response.ArtifactDirectory, "button-trace-trace.json"));
         Assert.Contains("Telemetry Diff", report);
         Assert.Contains("Hints", report);
+        Assert.Contains("frameWindow:", report);
+        Assert.Contains("sampleCount=", report);
+        Assert.Contains("FrameWindowPath", trace);
+        Assert.Contains("FrameSummary", trace);
     }
 
     [Fact]
@@ -283,6 +289,38 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
         Assert.Contains("scenario=thumb-drag-probe", response.Value);
         Assert.True(File.Exists(Path.Combine(response.ArtifactDirectory, "thumb-drag-probe-report.md")));
         Assert.True(host.PointerTrace.Count > 0);
+    }
+
+    [Fact]
+    public async Task LiveRequestDispatcher_ProbeAction_Captures_Frame_Timing_Window()
+    {
+        var button = new Button
+        {
+            Name = "ProbeButton",
+            Content = "Probe",
+            Width = 120f,
+            Height = 32f
+        };
+        var root = new Canvas { Width = 400f, Height = 240f };
+        root.AddChild(button);
+        using var host = new InkkOopsTestHost(root, width: 400, height: 240);
+        using var dispatcher = new InkkOopsLiveRequestDispatcher(host, new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly), host.ArtifactRoot);
+
+        var response = await dispatcher.SubmitAsync(
+            new InkkOopsPipeRequest
+            {
+                RequestKind = InkkOopsPipeRequestKinds.ProbeAction,
+                ArtifactName = "button-probe",
+                FrameCount = 3,
+                Text = """{"command":"click","target":"ProbeButton"}"""
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InkkOopsRunStatus.Completed.ToString(), response.Status);
+        Assert.Contains("probe=button-probe", response.Value);
+        Assert.Contains("maxFrameTotalMs=", response.Value);
+        Assert.True(File.Exists(Path.Combine(response.ArtifactDirectory, "button-probe-frame-window.md")));
+        Assert.True(File.Exists(Path.Combine(response.ArtifactDirectory, "button-probe-report.md")));
     }
 
     [Fact]

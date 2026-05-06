@@ -7,6 +7,8 @@ namespace InkkSlinger;
 
 public partial class TreeViewItem
 {
+    private const float DefaultExpanderColumnWidth = 16f;
+
     internal float HeaderTextOffsetForDiagnostics => GetHeaderTextOffset();
 
     internal float RenderRowHeightForDiagnostics => GetRenderRowHeight();
@@ -71,6 +73,12 @@ public partial class TreeViewItem
 
     private (FrameworkElement Element, float FontSize, Color Foreground, TextTrimming TextTrimming, TextWrapping TextWrapping) ResolveVirtualizedHeaderRenderSource()
     {
+        if (UseVirtualizedTreeLayout)
+        {
+            EnsureVirtualizedTemplateSnapshot();
+            return (this, _virtualizedHeaderFontSize, Foreground, _virtualizedHeaderTextTrimming, _virtualizedHeaderTextWrapping);
+        }
+
         if (GetTemplateChild("HeaderText") is TextBlock headerTextBlock)
         {
             return (headerTextBlock, headerTextBlock.FontSize, headerTextBlock.Foreground, headerTextBlock.TextTrimming, headerTextBlock.TextWrapping);
@@ -219,6 +227,11 @@ public partial class TreeViewItem
 
     private float GetBuiltInHeaderTextSpacing()
     {
+        if (UseVirtualizedTreeLayout)
+        {
+            return GetVirtualizedExpanderColumnWidth();
+        }
+
         if (!ShowsBuiltInExpander)
         {
             return 0f;
@@ -229,12 +242,117 @@ public partial class TreeViewItem
 
     private float GetBuiltInHeaderSpacingWidth()
     {
+        if (UseVirtualizedTreeLayout)
+        {
+            return GetVirtualizedExpanderColumnWidth();
+        }
+
         if (!ShowsBuiltInExpander)
         {
             return 0f;
         }
 
         return HasChildItems() ? 20f : 10f;
+    }
+
+    private float GetVirtualizedExpanderColumnWidth()
+    {
+        if (UseVirtualizedTreeLayout)
+        {
+            EnsureVirtualizedTemplateSnapshot();
+            return _virtualizedExpanderColumnWidth;
+        }
+
+        if (GetTemplateChild("PART_Expander") is FrameworkElement expander)
+        {
+            if (float.IsFinite(expander.Width) && expander.Width > 0f)
+            {
+                return expander.Width;
+            }
+
+            if (expander.DesiredSize.X > 0f)
+            {
+                return expander.DesiredSize.X;
+            }
+
+            if (expander.LayoutSlot.Width > 0f)
+            {
+                return expander.LayoutSlot.Width;
+            }
+        }
+
+        return DefaultExpanderColumnWidth;
+    }
+
+    private void ResetVirtualizedTemplateSnapshot()
+    {
+        _virtualizedTemplateSnapshotResolved = false;
+        _virtualizedExpanderColumnWidth = DefaultExpanderColumnWidth;
+        _virtualizedHeaderFontSize = FontSize;
+        _virtualizedHeaderTextTrimming = TextTrimming.None;
+        _virtualizedHeaderTextWrapping = TextWrapping.NoWrap;
+    }
+
+    private void EnsureVirtualizedTemplateSnapshot()
+    {
+        if (!UseVirtualizedTreeLayout || _virtualizedTemplateSnapshotResolved)
+        {
+            return;
+        }
+
+        _virtualizedTemplateSnapshotResolved = true;
+        _virtualizedExpanderColumnWidth = DefaultExpanderColumnWidth;
+        _virtualizedHeaderFontSize = FontSize;
+        _virtualizedHeaderTextTrimming = TextTrimming.None;
+        _virtualizedHeaderTextWrapping = TextWrapping.NoWrap;
+
+        if (!HasTemplateRoot && Template != null)
+        {
+            ApplyTemplate();
+        }
+
+        if (GetTemplateChild("PART_Expander") is FrameworkElement expander)
+        {
+            _virtualizedExpanderColumnWidth = ResolveTemplateExpanderWidth(expander);
+        }
+
+        if (GetTemplateChild("HeaderText") is TextBlock headerTextBlock)
+        {
+            _virtualizedHeaderFontSize = headerTextBlock.FontSize;
+            _virtualizedHeaderTextTrimming = headerTextBlock.TextTrimming;
+            _virtualizedHeaderTextWrapping = headerTextBlock.TextWrapping;
+        }
+        else if (TemplateRoot is TextBlock rootTextBlock)
+        {
+            _virtualizedHeaderFontSize = rootTextBlock.FontSize;
+            _virtualizedHeaderTextTrimming = rootTextBlock.TextTrimming;
+            _virtualizedHeaderTextWrapping = rootTextBlock.TextWrapping;
+        }
+
+        if (HasTemplateRoot)
+        {
+            ReleaseTemplateForVirtualization();
+        }
+    }
+
+    private static float ResolveTemplateExpanderWidth(FrameworkElement expander)
+    {
+        if (float.IsFinite(expander.Width) && expander.Width > 0f)
+        {
+            return expander.Width;
+        }
+
+        if (expander.DesiredSize.X > 0f)
+        {
+            return expander.DesiredSize.X;
+        }
+
+        if (expander.LayoutSlot.Width > 0f)
+        {
+            return expander.LayoutSlot.Width;
+        }
+
+        return DefaultExpanderColumnWidth;
     }
 
     private void PropagateTypographyToChildren(

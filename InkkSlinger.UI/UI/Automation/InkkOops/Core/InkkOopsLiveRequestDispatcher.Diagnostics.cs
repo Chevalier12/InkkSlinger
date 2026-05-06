@@ -43,16 +43,27 @@ public sealed partial class InkkOopsLiveRequestDispatcher
                 throw new InvalidOperationException("Nested run-scenario steps are not supported.");
             }
 
+            var stepIndex = trace.Steps.Count + 1;
+            var frameCursor = _session.Host.GetFrameTimingCursor();
             var stopwatch = Stopwatch.StartNew();
             var response = await SubmitAsync(stepRequest, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
+            var frameArtifactName = $"{scenarioName}-step-{stepIndex:000}-{SanitizeArtifactName(step.Command)}-frame-window";
+            var frameWindow = await _session.Host.CaptureFrameTimingWindowAsync(
+                frameArtifactName,
+                frameCursor,
+                Math.Max(8, step.Frames + 4),
+                cancellationToken).ConfigureAwait(false);
+            var frameReportPath = _artifacts.WriteTextArtifact($"{frameArtifactName}.md", frameWindow);
             trace.Steps.Add(new InkkOopsTraceStep(
-                trace.Steps.Count + 1,
+                stepIndex,
                 step.Command,
                 response.Status,
                 stopwatch.Elapsed.TotalMilliseconds,
                 response.Message,
-                TrimTraceValue(response.Value)));
+                TrimTraceValue(response.Value),
+                frameReportPath,
+                ExtractFrameWindowSummary(frameWindow).Trim()));
 
             if (!string.Equals(response.Status, InkkOopsRunStatus.Completed.ToString(), StringComparison.Ordinal))
             {
@@ -114,6 +125,66 @@ public sealed partial class InkkOopsLiveRequestDispatcher
             TimeoutMilliseconds = request.TimeoutMilliseconds
         };
         return await RunScenarioAsync(scenarioRequest, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<InkkOopsPipeResponse> ProbeActionAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Text))
+        {
+            throw new ArgumentException("probe-action requires --text containing one scenario step JSON object.", nameof(request));
+        }
+
+        var step = JsonSerializer.Deserialize<InkkOopsScenarioStep>(request.Text, ScenarioJsonOptions)
+            ?? throw new ArgumentException("probe-action text did not deserialize to a scenario step.", nameof(request));
+        if (string.IsNullOrWhiteSpace(step.Command))
+        {
+            throw new ArgumentException("probe-action step requires a command.", nameof(request));
+        }
+
+        var stepRequest = CreateRequestFromScenarioStep(step, request);
+        if (stepRequest.RequestKind is InkkOopsPipeRequestKinds.ProbeAction or InkkOopsPipeRequestKinds.RunScenario)
+        {
+            throw new InvalidOperationException("probe-action cannot wrap probe-action or run-scenario.");
+        }
+
+        var probeName = SanitizeArtifactName(string.IsNullOrWhiteSpace(request.ArtifactName)
+            ? $"probe-{step.Command}"
+            : request.ArtifactName);
+        var frameCount = request.FrameCount > 0 ? request.FrameCount : 12;
+        var cursor = _session.Host.GetFrameTimingCursor();
+        var beforeTelemetry = await CaptureTelemetryArtifactAsync($"{probeName}-before", cancellationToken).ConfigureAwait(false);
+        var stopwatch = Stopwatch.StartNew();
+        var response = await SubmitAsync(stepRequest, cancellationToken).ConfigureAwait(false);
+        stopwatch.Stop();
+        await _session.WaitFramesAsync(frameCount, cancellationToken).ConfigureAwait(false);
+        var afterTelemetry = await CaptureTelemetryArtifactAsync($"{probeName}-after", cancellationToken).ConfigureAwait(false);
+        var frameWindow = await _session.Host.CaptureFrameTimingWindowAsync(probeName, cursor, frameCount + 4, cancellationToken).ConfigureAwait(false);
+        var frameReportPath = _artifacts.WriteTextArtifact($"{probeName}-frame-window.md", frameWindow);
+        var diff = InkkOopsTelemetryAnalysis.CreateDiff(beforeTelemetry.Text, afterTelemetry.Text);
+        var hints = InkkOopsTelemetryAnalysis.CreateHints(afterTelemetry.Text, diff);
+        var report = FormatProbeActionReport(
+            probeName,
+            step.Command,
+            response,
+            stopwatch.Elapsed.TotalMilliseconds,
+            beforeTelemetry.Path,
+            afterTelemetry.Path,
+            frameReportPath,
+            frameWindow,
+            diff,
+            hints);
+        var reportPath = _artifacts.WriteTextArtifact($"{probeName}-report.md", report);
+        var status = string.Equals(response.Status, InkkOopsRunStatus.Completed.ToString(), StringComparison.Ordinal)
+            ? InkkOopsRunStatus.Completed.ToString()
+            : InkkOopsRunStatus.Failed.ToString();
+
+        return new InkkOopsPipeResponse
+        {
+            Status = status,
+            RequestKind = InkkOopsPipeRequestKinds.ProbeAction,
+            ArtifactDirectory = _artifacts.DirectoryPath,
+            Value = $"probe={probeName}{Environment.NewLine}wrappedCommand={step.Command}{Environment.NewLine}wrappedStatus={response.Status}{Environment.NewLine}elapsedMs={stopwatch.Elapsed.TotalMilliseconds:0.###}{Environment.NewLine}frameReport={frameReportPath}{Environment.NewLine}report={reportPath}{Environment.NewLine}{ExtractFrameWindowSummary(frameWindow)}"
+        };
     }
 
     private async Task<InkkOopsPipeResponse> AssertNonBlankAsync(InkkOopsPipeRequest request, CancellationToken cancellationToken)
@@ -182,6 +253,10 @@ public sealed partial class InkkOopsLiveRequestDispatcher
                 report = reportPath,
                 trace = traceJsonPath,
                 telemetry = new[] { beforeTelemetryPath, afterTelemetryPath },
+                frameWindows = trace.Steps
+                    .Where(static step => !string.IsNullOrWhiteSpace(step.FrameWindowPath))
+                    .Select(static step => step.FrameWindowPath)
+                    .ToArray(),
                 stepCount = trace.Steps.Count,
                 hints = trace.Hints
             },
@@ -212,6 +287,20 @@ public sealed partial class InkkOopsLiveRequestDispatcher
         foreach (var step in trace.Steps)
         {
             builder.AppendLine($"- {step.Index}. `{step.Command}` status=`{step.Status}` elapsedMs=`{step.ElapsedMilliseconds:0.###}`");
+            if (!string.IsNullOrWhiteSpace(step.FrameWindowPath))
+            {
+                builder.AppendLine($"  frameWindow: `{step.FrameWindowPath}`");
+            }
+
+            if (!string.IsNullOrWhiteSpace(step.FrameSummary))
+            {
+                builder.AppendLine("  frameSummary:");
+                foreach (var line in step.FrameSummary.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
+                {
+                    builder.AppendLine($"    {line}");
+                }
+            }
+
             if (!string.IsNullOrWhiteSpace(step.Message))
             {
                 builder.AppendLine($"  message: {step.Message.ReplaceLineEndings(" ")}");
@@ -332,6 +421,7 @@ public sealed partial class InkkOopsLiveRequestDispatcher
             "move-pointer-path" => InkkOopsPipeRequestKinds.MovePointerPath,
             "drag-path-target" or "drag-path" => InkkOopsPipeRequestKinds.DragPathTarget,
             "probe-scrollbar-thumb-drag" or "probe-scrollbar-drag" => InkkOopsPipeRequestKinds.ProbeScrollbarThumbDrag,
+            "probe-action" => InkkOopsPipeRequestKinds.ProbeAction,
             "assert-nonblank" or "assert-frame-nonblank" => InkkOopsPipeRequestKinds.AssertNonBlank,
             "diff-telemetry" => InkkOopsPipeRequestKinds.DiffTelemetry,
             _ => throw new ArgumentException($"Unknown scenario command '{command}'.")
@@ -377,6 +467,69 @@ public sealed partial class InkkOopsLiveRequestDispatcher
 
         var normalized = value.ReplaceLineEndings(" ").Trim();
         return normalized.Length <= 400 ? normalized : normalized[..400] + "...";
+    }
+
+    private static string FormatProbeActionReport(
+        string probeName,
+        string wrappedCommand,
+        InkkOopsPipeResponse wrappedResponse,
+        double elapsedMilliseconds,
+        string beforeTelemetryPath,
+        string afterTelemetryPath,
+        string frameReportPath,
+        string frameWindow,
+        IReadOnlyList<InkkOopsTelemetryDelta> diff,
+        IReadOnlyList<string> hints)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine($"# InkkOops Probe Action Report: {probeName}");
+        builder.AppendLine();
+        builder.AppendLine($"- wrappedCommand: `{wrappedCommand}`");
+        builder.AppendLine($"- wrappedStatus: `{wrappedResponse.Status}`");
+        builder.AppendLine($"- elapsedMs: `{elapsedMilliseconds:0.###}`");
+        builder.AppendLine($"- beforeTelemetry: `{beforeTelemetryPath}`");
+        builder.AppendLine($"- afterTelemetry: `{afterTelemetryPath}`");
+        builder.AppendLine($"- frameWindow: `{frameReportPath}`");
+        if (!string.IsNullOrWhiteSpace(wrappedResponse.Message))
+        {
+            builder.AppendLine($"- message: `{wrappedResponse.Message.ReplaceLineEndings(" ")}`");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("## Frame Window");
+        builder.AppendLine("```text");
+        builder.Append(ExtractFrameWindowSummary(frameWindow));
+        builder.AppendLine("```");
+        builder.AppendLine();
+        builder.AppendLine("## Telemetry Diff");
+        builder.Append(InkkOopsTelemetryAnalysis.FormatDiffReport(diff, hints));
+        return builder.ToString();
+    }
+
+    private static string ExtractFrameWindowSummary(string frameWindow)
+    {
+        var builder = new StringBuilder();
+        foreach (var line in frameWindow.Split(["\r\n", "\n"], StringSplitOptions.None))
+        {
+            if (line.StartsWith("sampleCount=", StringComparison.Ordinal) ||
+                line.StartsWith("maxFrameTotalMs=", StringComparison.Ordinal) ||
+                line.StartsWith("maxFrameTotalSerial=", StringComparison.Ordinal) ||
+                line.StartsWith("maxUpdateMs=", StringComparison.Ordinal) ||
+                line.StartsWith("maxUpdateSerial=", StringComparison.Ordinal) ||
+                line.StartsWith("maxDrawMs=", StringComparison.Ordinal) ||
+                line.StartsWith("maxDrawSerial=", StringComparison.Ordinal) ||
+                line.StartsWith("maxLayoutMs=", StringComparison.Ordinal) ||
+                line.StartsWith("maxLayoutSerial=", StringComparison.Ordinal) ||
+                line.StartsWith("hottestMeasurePath=", StringComparison.Ordinal) ||
+                line.StartsWith("hottestArrangePath=", StringComparison.Ordinal) ||
+                line.StartsWith("minDisplayedFps=", StringComparison.Ordinal) ||
+                line.StartsWith("minDisplayedFpsSerial=", StringComparison.Ordinal))
+            {
+                builder.AppendLine(line);
+            }
+        }
+
+        return builder.ToString();
     }
 
     private static (string Before, string After) ParseTelemetryPair(string text)
@@ -452,7 +605,15 @@ public sealed partial class InkkOopsLiveRequestDispatcher
         public List<string> Hints { get; } = [];
     }
 
-    private sealed record InkkOopsTraceStep(int Index, string Command, string Status, double ElapsedMilliseconds, string Message, string Value);
+    private sealed record InkkOopsTraceStep(
+        int Index,
+        string Command,
+        string Status,
+        double ElapsedMilliseconds,
+        string Message,
+        string Value,
+        string FrameWindowPath,
+        string FrameSummary);
 
     private sealed record InkkOopsTraceArtifacts(string ReportPath, string TraceJsonPath, string IndexPath);
 }
