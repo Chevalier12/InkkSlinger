@@ -321,7 +321,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     public int SelectedEditorTabIndex
     {
         get => _selectedEditorTabIndex;
-        set => SetField(ref _selectedEditorTabIndex, value);
+        set => SetSelectedEditorTabIndex(value, loadProjectAppResources: true);
     }
 
     public DesignerSourceNavigationRequest? SourceNavigationRequest
@@ -431,7 +431,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         ProjectSession.OpenDocument(node.FullPath, DocumentController);
         OnPropertyChanged(nameof(SourceText));
         SourceNavigationRequest = null;
-        SelectedEditorTabIndex = SourceEditorTabIndex;
+        SetSelectedEditorTabIndex(SourceEditorTabIndex, loadProjectAppResources: false);
         ClearDocumentStatusOverride();
         RefreshCommandStates();
     }
@@ -494,12 +494,12 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         {
             if (diagnostic.Source == DesignerDiagnosticSource.AppResources)
             {
-                SelectedEditorTabIndex = AppResourcesEditorTabIndex;
+                SetSelectedEditorTabIndex(AppResourcesEditorTabIndex, loadProjectAppResources: false);
                 AppResourcesNavigationRequest = new DesignerSourceNavigationRequest(diagnostic.Line.Value);
                 return;
             }
 
-            SelectedEditorTabIndex = SourceEditorTabIndex;
+            SetSelectedEditorTabIndex(SourceEditorTabIndex, loadProjectAppResources: false);
             SourceNavigationRequest = new DesignerSourceNavigationRequest(diagnostic.Line.Value);
         }
     }
@@ -507,7 +507,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     private void ApplyRootTemplate(DesignerRootTemplateViewModel template)
     {
         SourceText = CreateBarebonesRootSource(template.ElementName);
-        SelectedEditorTabIndex = SourceEditorTabIndex;
+        SetSelectedEditorTabIndex(SourceEditorTabIndex, loadProjectAppResources: false);
         SourceNavigationRequest = null;
         SetDocumentStatusOverride(
             string.Create(CultureInfo.InvariantCulture, $"Created {template.ElementName} root scaffold."),
@@ -810,8 +810,31 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
 
         if (selectDiagnosticsOnError && Controller.PreviewState == DesignerPreviewState.Error && errorCount > 0)
         {
-            SelectedEditorTabIndex = DiagnosticsEditorTabIndex;
+            SetSelectedEditorTabIndex(DiagnosticsEditorTabIndex, loadProjectAppResources: false);
         }
+    }
+
+    private void SetSelectedEditorTabIndex(int value, bool loadProjectAppResources)
+    {
+        if (!SetField(ref _selectedEditorTabIndex, value))
+        {
+            return;
+        }
+
+        if (loadProjectAppResources && value == AppResourcesEditorTabIndex)
+        {
+            LoadProjectAppResourcesIfAvailable();
+        }
+    }
+
+    private void LoadProjectAppResourcesIfAvailable()
+    {
+        if (ProjectSession?.TryReadAppXml(out var text) != true)
+        {
+            return;
+        }
+
+        AppResourcesText = text;
     }
 
     private static string NormalizeLineEndings(string? text)

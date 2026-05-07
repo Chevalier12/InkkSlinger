@@ -266,6 +266,29 @@ public sealed class IDEEditorControlTests
     }
 
     [Fact]
+    public void RefreshDocumentMetrics_PartialBottomViewportLine_IncludesTrailingLineNumber()
+    {
+        var (_, editor) = CreateLaidOutEditor(220f, 96f, CreateNumberedText(80));
+        var lineHeight = editor.LineNumberPresenter.LineHeight;
+        var viewportLineSpan = editor.ViewportHeight / lineHeight;
+
+        Assert.False(
+            MathF.Abs(viewportLineSpan - MathF.Round(viewportLineSpan)) <= 0.01f,
+            $"Expected this fixture to expose a partial bottom line, but viewport={editor.ViewportHeight:0.###}, lineHeight={lineHeight:0.###}, span={viewportLineSpan:0.###}.");
+
+        var expectedVisibleLineCount = Math.Clamp(
+            (int)MathF.Ceiling(editor.ViewportHeight / lineHeight),
+            1,
+            editor.LineCount);
+
+        Assert.Equal(expectedVisibleLineCount, editor.LineNumberPresenter.VisibleLineCount);
+        Assert.Equal(
+            expectedVisibleLineCount.ToString(),
+            editor.LineNumberPresenter.VisibleLineTexts[^1]);
+        AssertGutterIntegrity(editor);
+    }
+
+    [Fact]
     public void TextInput_RefreshesGutterLineCountWithoutSurfaceOwnedSync()
     {
         var (_, editor) = CreateLaidOutEditor(180f, 96f, "alpha");
@@ -731,12 +754,25 @@ public sealed class IDEEditorControlTests
         Assert.True(presenter.LineHeight >= 1f, $"Expected the gutter to use a positive line height, but LineHeight={presenter.LineHeight:0.###}.");
         Assert.InRange(presenter.VerticalLineOffset, 0f, presenter.LineHeight + 0.01f);
 
+        var renderedRows = presenter.GetVisualChildren().OfType<TextBlock>().ToArray();
+        Assert.Equal(presenter.VisibleLineCount, renderedRows.Length);
+
         for (var index = 0; index < presenter.VisibleLineTexts.Count; index++)
         {
             Assert.True(
                 int.TryParse(presenter.VisibleLineTexts[index], out var parsedLineNumber),
                 $"Expected gutter text at index {index} to be numeric, but value was '{presenter.VisibleLineTexts[index]}'.");
             Assert.Equal(presenter.FirstVisibleLine + index + 1, parsedLineNumber);
+
+            var row = renderedRows[index];
+            Assert.True(row.RenderSize.X > 0f, $"Expected gutter row {index} to have a positive render width for line {parsedLineNumber}, but RenderSize.X={row.RenderSize.X:0.###}.");
+            Assert.InRange(row.RenderSize.Y, Math.Min(1f, presenter.LineHeight), presenter.LineHeight + 0.01f);
+            if (index > 0)
+            {
+                Assert.True(
+                    row.LayoutSlot.Y > renderedRows[index - 1].LayoutSlot.Y,
+                    $"Expected gutter rows to stay vertically ordered, but row {index - 1} Y={renderedRows[index - 1].LayoutSlot.Y:0.###} and row {index} Y={row.LayoutSlot.Y:0.###}.");
+            }
         }
     }
 

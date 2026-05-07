@@ -397,6 +397,24 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void SourceEditor_LoadLargeAppResources_DoesNotRescanWholeDocumentForEachTag()
+    {
+        var sourceEditorView = new InkkSlinger.Designer.DesignerSourceEditorView();
+        var largeResources = BuildLargeAppResources(styleCount: 1200);
+
+        sourceEditorView.SourceText = largeResources;
+
+        var snapshot = sourceEditorView.GetDesignerSourceEditorViewSnapshotForDiagnostics();
+        Assert.Equal(largeResources.Length, snapshot.LastRefreshHighlightedSourceDocumentTextLength);
+        Assert.True(
+            snapshot.LastRefreshHighlightedSourceDocumentOverviewMilliseconds <= 80d,
+            $"Expected document overview to use indexed line lookups. overviewMs={snapshot.LastRefreshHighlightedSourceDocumentOverviewMilliseconds:0.###}");
+        Assert.True(
+            snapshot.LastRefreshHighlightedSourceDocumentDisplayTextMilliseconds <= 140d,
+            $"Expected fold-range discovery to use indexed line lookups. displayTextMs={snapshot.LastRefreshHighlightedSourceDocumentDisplayTextMilliseconds:0.###}");
+    }
+
+    [Fact]
     public void SelectVisualNode_KnownNode_UpdatesInspectorState()
     {
         var controller = new InkkSlinger.Designer.DesignerController();
@@ -7893,6 +7911,28 @@ public class DesignerControllerTests
     {
         _ = elapsedMs;
         uiRoot.RunLayoutForTests(new Viewport(0, 0, width, height));
+    }
+
+    private static string BuildLargeAppResources(int styleCount)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("<Application xmlns=\"urn:inkkslinger-ui\"");
+        builder.AppendLine("             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">");
+        builder.AppendLine("    <Application.Resources>");
+        builder.AppendLine("        <ResourceDictionary>");
+        for (var index = 0; index < styleCount; index++)
+        {
+            builder.AppendLine($"            <Style x:Key=\"ButtonStyle{index:0000}\" TargetType=\"Button\">");
+            builder.AppendLine("                <Setter Property=\"Background\" Value=\"#223344\" />");
+            builder.AppendLine("                <Setter Property=\"Foreground\" Value=\"#F8FAFC\" />");
+            builder.AppendLine("                <Setter Property=\"Padding\" Value=\"12,6\" />");
+            builder.AppendLine("            </Style>");
+        }
+
+        builder.AppendLine("        </ResourceDictionary>");
+        builder.AppendLine("    </Application.Resources>");
+        builder.AppendLine("</Application>");
+        return builder.ToString();
     }
 
     private sealed class FakeDocumentFileStore : InkkSlinger.Designer.IDesignerDocumentFileStore

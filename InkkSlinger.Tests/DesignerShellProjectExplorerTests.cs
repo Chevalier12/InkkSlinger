@@ -59,6 +59,37 @@ public class DesignerShellProjectExplorerTests
     }
 
     [Fact]
+    public void SelectedEditorTabIndex_AppResourcesTab_LoadsProjectAppXmlWhenItExists()
+    {
+        var harness = CreateHarness();
+        harness.ProjectFiles.WriteAllText(
+            "C:/projects/Sample/App.xml",
+            "<Application>\r\n    <Application.Resources />\r\n</Application>");
+        harness.ProjectSession.Refresh();
+        var viewModel = harness.CreateShellViewModel();
+
+        viewModel.SelectedEditorTabIndex = 1;
+
+        Assert.Equal(
+            "<Application>\n    <Application.Resources />\n</Application>",
+            viewModel.AppResourcesText);
+    }
+
+    [Fact]
+    public void SelectedEditorTabIndex_AppResourcesTab_KeepsCurrentResourcesTextWhenProjectAppXmlIsMissing()
+    {
+        var harness = CreateHarness();
+        var viewModel = harness.CreateShellViewModel();
+        viewModel.AppResourcesText = "<Application>\n    <Application.Resources />\n</Application>";
+
+        viewModel.SelectedEditorTabIndex = 1;
+
+        Assert.Equal(
+            "<Application>\n    <Application.Resources />\n</Application>",
+            viewModel.AppResourcesText);
+    }
+
+    [Fact]
     public void ProjectExplorer_UsesPlainHeaders_AndOnlyShowsParentAffordancesForActualChildren()
     {
         var harness = CreateHarness();

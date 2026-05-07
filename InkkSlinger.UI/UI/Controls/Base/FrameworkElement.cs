@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using Microsoft.Xna.Framework;
 using InkkSlinger.UI.Telemetry;
@@ -269,6 +270,7 @@ public class FrameworkElement : UIElement
     private long _runtimeRaiseUnloadedCallCount;
     private long _runtimeRaiseUnloadedNoOpCount;
     private long _runtimeDependencyPropertyChangedCallCount;
+    private readonly Dictionary<string, long> _runtimeDependencyPropertyChangedByProperty = new(StringComparer.Ordinal);
     private long _runtimeVisibilityPropertyChangedCount;
     private long _runtimeStylePropertyChangedCount;
     private long _runtimeStyleDetachCount;
@@ -348,6 +350,9 @@ public class FrameworkElement : UIElement
     private static long _diagRaiseUnloadedCallCount;
     private static long _diagRaiseUnloadedNoOpCount;
     private static long _diagDependencyPropertyChangedCallCount;
+    private static readonly object DependencyPropertyChangedSummaryLock = new();
+    private static readonly Dictionary<string, long> DiagDependencyPropertyChangedByProperty = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, long> DiagDependencyPropertyChangedByElementType = new(StringComparer.Ordinal);
     private static long _diagVisibilityPropertyChangedCount;
     private static long _diagStylePropertyChangedCount;
     private static long _diagStyleDetachCount;
@@ -665,6 +670,7 @@ public class FrameworkElement : UIElement
             _runtimeRaiseUnloadedCallCount,
             _runtimeRaiseUnloadedNoOpCount,
             _runtimeDependencyPropertyChangedCallCount,
+            FormatTopCounts(_runtimeDependencyPropertyChangedByProperty, 8),
             _runtimeVisibilityPropertyChangedCount,
             _runtimeStylePropertyChangedCount,
             _runtimeStyleDetachCount,
@@ -749,6 +755,8 @@ public class FrameworkElement : UIElement
             ReadOrReset(ref _diagRaiseUnloadedCallCount, reset),
             ReadOrReset(ref _diagRaiseUnloadedNoOpCount, reset),
             ReadOrReset(ref _diagDependencyPropertyChangedCallCount, reset),
+            ReadTopDependencyPropertyChangedProperties(reset),
+            ReadTopDependencyPropertyChangedElementTypes(reset),
             ReadOrReset(ref _diagVisibilityPropertyChangedCount, reset),
             ReadOrReset(ref _diagStylePropertyChangedCount, reset),
             ReadOrReset(ref _diagStyleDetachCount, reset),
@@ -1547,6 +1555,7 @@ public class FrameworkElement : UIElement
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
         IncrementDiagnostic(ref _runtimeDependencyPropertyChangedCallCount, ref _diagDependencyPropertyChangedCallCount);
+        RecordDependencyPropertyChanged(args.Property);
         base.OnDependencyPropertyChanged(args);
 
         var metadata = args.Property.GetMetadata(this);
@@ -1591,6 +1600,66 @@ public class FrameworkElement : UIElement
                 newStyle.Apply(this);
             }
         }
+    }
+
+    private void RecordDependencyPropertyChanged(DependencyProperty property)
+    {
+        var propertyName = property.ToString();
+        IncrementSummary(_runtimeDependencyPropertyChangedByProperty, propertyName);
+        lock (DependencyPropertyChangedSummaryLock)
+        {
+            IncrementSummary(DiagDependencyPropertyChangedByProperty, propertyName);
+            IncrementSummary(DiagDependencyPropertyChangedByElementType, GetType().Name);
+        }
+    }
+
+    private static string ReadTopDependencyPropertyChangedProperties(bool reset)
+    {
+        lock (DependencyPropertyChangedSummaryLock)
+        {
+            return ReadTopCounts(DiagDependencyPropertyChangedByProperty, reset, 12);
+        }
+    }
+
+    private static string ReadTopDependencyPropertyChangedElementTypes(bool reset)
+    {
+        lock (DependencyPropertyChangedSummaryLock)
+        {
+            return ReadTopCounts(DiagDependencyPropertyChangedByElementType, reset, 12);
+        }
+    }
+
+    private static string ReadTopCounts(Dictionary<string, long> counts, bool reset, int limit)
+    {
+        var result = FormatTopCounts(counts, limit);
+        if (reset)
+        {
+            counts.Clear();
+        }
+
+        return result;
+    }
+
+    private static string FormatTopCounts(Dictionary<string, long> counts, int limit)
+    {
+        if (counts.Count == 0)
+        {
+            return "none";
+        }
+
+        return string.Join(
+            " | ",
+            counts
+                .OrderByDescending(static pair => pair.Value)
+                .ThenBy(static pair => pair.Key, StringComparer.Ordinal)
+                .Take(limit)
+                .Select(static pair => $"{pair.Key}:{pair.Value}"));
+    }
+
+    private static void IncrementSummary(Dictionary<string, long> counts, string key)
+    {
+        counts.TryGetValue(key, out var count);
+        counts[key] = count + 1;
     }
 
     protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)

@@ -47,6 +47,9 @@ public class Control : FrameworkElement, ICommandSource
     private static long _diagArrangeOverrideNoTemplateRootCount;
     private static long _diagDependencyPropertyChangedCallCount;
     private static long _diagDependencyPropertyChangedElapsedTicks;
+    private static readonly object DependencyPropertyChangedSummaryLock = new();
+    private static readonly Dictionary<string, long> DiagDependencyPropertyChangedByProperty = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, long> DiagDependencyPropertyChangedByElementType = new(StringComparer.Ordinal);
     private static long _diagDependencyPropertyChangedStylePropertyCount;
     private static long _diagDependencyPropertyChangedTemplatePropertyCount;
     private static long _diagDependencyPropertyChangedCommandPropertyCount;
@@ -261,6 +264,7 @@ public class Control : FrameworkElement, ICommandSource
     private long _runtimeArrangeOverrideNoTemplateRootCount;
     private long _runtimeDependencyPropertyChangedCallCount;
     private long _runtimeDependencyPropertyChangedElapsedTicks;
+    private readonly Dictionary<string, long> _runtimeDependencyPropertyChangedByProperty = new(StringComparer.Ordinal);
     private long _runtimeDependencyPropertyChangedStylePropertyCount;
     private long _runtimeDependencyPropertyChangedTemplatePropertyCount;
     private long _runtimeDependencyPropertyChangedCommandPropertyCount;
@@ -675,6 +679,7 @@ public class Control : FrameworkElement, ICommandSource
     {
         var start = Stopwatch.GetTimestamp();
         _runtimeDependencyPropertyChangedCallCount++;
+        RecordDependencyPropertyChanged(args.Property);
         base.OnDependencyPropertyChanged(args);
 
         try
@@ -1151,6 +1156,17 @@ public class Control : FrameworkElement, ICommandSource
         _templateTriggerEngine.Apply(Template.Triggers as IReadOnlyList<TriggerBase> ?? Template.Triggers.ToList());
     }
 
+    private void RecordDependencyPropertyChanged(DependencyProperty property)
+    {
+        var propertyName = property.ToString();
+        IncrementSummary(_runtimeDependencyPropertyChangedByProperty, propertyName);
+        lock (DependencyPropertyChangedSummaryLock)
+        {
+            IncrementSummary(DiagDependencyPropertyChangedByProperty, propertyName);
+            IncrementSummary(DiagDependencyPropertyChangedByElementType, GetType().Name);
+        }
+    }
+
     internal virtual UIElement ResolveTemplateTriggerInvalidationTarget(UIElement changedTarget)
     {
         return changedTarget;
@@ -1493,6 +1509,7 @@ public class Control : FrameworkElement, ICommandSource
             _runtimeArrangeOverrideNoTemplateRootCount,
             _runtimeDependencyPropertyChangedCallCount,
             TicksToMilliseconds(_runtimeDependencyPropertyChangedElapsedTicks),
+            FormatTopCounts(_runtimeDependencyPropertyChangedByProperty, 8),
             _runtimeDependencyPropertyChangedStylePropertyCount,
             _runtimeDependencyPropertyChangedTemplatePropertyCount,
             _runtimeDependencyPropertyChangedCommandPropertyCount,
@@ -1588,6 +1605,8 @@ public class Control : FrameworkElement, ICommandSource
             ReadOrReset(ref _diagArrangeOverrideNoTemplateRootCount, reset),
             ReadOrReset(ref _diagDependencyPropertyChangedCallCount, reset),
             TicksToMilliseconds(ReadOrReset(ref _diagDependencyPropertyChangedElapsedTicks, reset)),
+            ReadTopDependencyPropertyChangedProperties(reset),
+            ReadTopDependencyPropertyChangedElementTypes(reset),
             ReadOrReset(ref _diagDependencyPropertyChangedStylePropertyCount, reset),
             ReadOrReset(ref _diagDependencyPropertyChangedTemplatePropertyCount, reset),
             ReadOrReset(ref _diagDependencyPropertyChangedCommandPropertyCount, reset),
@@ -1622,6 +1641,55 @@ public class Control : FrameworkElement, ICommandSource
             ReadOrReset(ref _diagRestoreIsEnabledIfCommandDisabledItNoOpCount, reset),
             ReadOrReset(ref _diagRestoreIsEnabledIfCommandDisabledItClearValueCount, reset),
             ReadOrReset(ref _diagRestoreIsEnabledIfCommandDisabledItRestoreStoredValueCount, reset));
+    }
+
+    private static string ReadTopDependencyPropertyChangedProperties(bool reset)
+    {
+        lock (DependencyPropertyChangedSummaryLock)
+        {
+            return ReadTopCounts(DiagDependencyPropertyChangedByProperty, reset, 12);
+        }
+    }
+
+    private static string ReadTopDependencyPropertyChangedElementTypes(bool reset)
+    {
+        lock (DependencyPropertyChangedSummaryLock)
+        {
+            return ReadTopCounts(DiagDependencyPropertyChangedByElementType, reset, 12);
+        }
+    }
+
+    private static string ReadTopCounts(Dictionary<string, long> counts, bool reset, int limit)
+    {
+        var result = FormatTopCounts(counts, limit);
+        if (reset)
+        {
+            counts.Clear();
+        }
+
+        return result;
+    }
+
+    private static string FormatTopCounts(Dictionary<string, long> counts, int limit)
+    {
+        if (counts.Count == 0)
+        {
+            return "none";
+        }
+
+        return string.Join(
+            " | ",
+            counts
+                .OrderByDescending(static pair => pair.Value)
+                .ThenBy(static pair => pair.Key, StringComparer.Ordinal)
+                .Take(limit)
+                .Select(static pair => $"{pair.Key}:{pair.Value}"));
+    }
+
+    private static void IncrementSummary(Dictionary<string, long> counts, string key)
+    {
+        counts.TryGetValue(key, out var count);
+        counts[key] = count + 1;
     }
 
     private static void IncrementAggregate(ref long counter)

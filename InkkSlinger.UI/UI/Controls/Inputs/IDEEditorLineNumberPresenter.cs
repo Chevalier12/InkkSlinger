@@ -50,7 +50,7 @@ public sealed class IDEEditorLineNumberPresenter : Panel
             }
 
             _lineHeight = clamped;
-            InvalidateVisual();
+            InvalidateMeasure();
         }
     }
 
@@ -180,7 +180,7 @@ public sealed class IDEEditorLineNumberPresenter : Panel
         ApplyTextStyle();
         foreach (var textBlock in _lineTextBlocks)
         {
-            textBlock.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
+            textBlock.Measure(new Vector2(MathF.Max(0f, availableSize.X), LineHeight));
         }
 
         var measured = new Vector2(
@@ -202,11 +202,14 @@ public sealed class IDEEditorLineNumberPresenter : Panel
         for (var lineIndex = 0; lineIndex < _lineTextBlocks.Count; lineIndex++)
         {
             var textBlock = _lineTextBlocks[lineIndex];
-            var childSize = textBlock.DesiredSize;
-            var centeredYOffset = MathF.Max(0f, (LineHeight - childSize.Y) / 2f);
-            var x = LayoutSlot.X + MathF.Max(0f, finalSize.X - childSize.X);
-            var y = LayoutSlot.Y - VerticalLineOffset + (lineIndex * LineHeight) + centeredYOffset;
-            textBlock.Arrange(new LayoutRect(x, y, childSize.X, childSize.Y));
+            var textWidth = string.IsNullOrEmpty(textBlock.Text)
+                ? 0f
+                : UiTextRenderer.MeasureWidth(textBlock, textBlock.Text, FontSize);
+            var rowWidth = MathF.Min(MathF.Max(0f, finalSize.X), MathF.Max(0f, textWidth));
+            var x = LayoutSlot.X + MathF.Max(0f, finalSize.X - rowWidth);
+            var y = LayoutSlot.Y - VerticalLineOffset + (lineIndex * LineHeight);
+            var rowHeight = Math.Clamp((LayoutSlot.Y + finalSize.Y) - y, 0f, LineHeight);
+            textBlock.Arrange(new LayoutRect(x, y, rowWidth, rowHeight));
         }
 
         var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;

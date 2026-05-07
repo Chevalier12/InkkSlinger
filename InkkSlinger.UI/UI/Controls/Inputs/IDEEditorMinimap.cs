@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using InkkSlinger;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -21,6 +23,13 @@ public sealed class IDEEditorMinimap : Control, ITextInputControl, IUiRootUpdate
     private IReadOnlyList<string> _lines = new[] { string.Empty };
     private IReadOnlyList<IDEEditorXmlSyntaxToken> _syntaxTokens = Array.Empty<IDEEditorXmlSyntaxToken>();
     private int[] _lineStarts = new[] { 0 };
+    private int[] _lineTokenStartIndices = new[] { 0 };
+    private int[] _lineTokenEndIndices = new[] { 0 };
+    private int _runtimeRenderCallCount;
+    private long _runtimeRenderElapsedTicks;
+    private int _runtimeLastRenderVisibleLineCount;
+    private int _runtimeLastRenderTokenIterationCount;
+    private int _runtimeLastRenderSegmentDrawCount;
 
     public static readonly DependencyProperty SourceTextProperty =
         DependencyProperty.Register(
@@ -114,6 +123,18 @@ public sealed class IDEEditorMinimap : Control, ITextInputControl, IUiRootUpdate
     internal float MinimapVerticalOffsetForTests => ResolveMinimapVerticalOffset(GetContentRect(LayoutSlot));
 
     internal LayoutRect ViewportOverlayRectForTests => ResolveViewportOverlayRect(GetContentRect(LayoutSlot), ResolveMinimapVerticalOffset(GetContentRect(LayoutSlot)), _lines.Count);
+
+    internal IDEEditorMinimapRuntimeDiagnosticsSnapshot GetIDEEditorMinimapSnapshotForDiagnostics()
+    {
+        return new IDEEditorMinimapRuntimeDiagnosticsSnapshot(
+            RenderCallCount: _runtimeRenderCallCount,
+            RenderMilliseconds: TicksToMilliseconds(_runtimeRenderElapsedTicks),
+            LastRenderVisibleLineCount: _runtimeLastRenderVisibleLineCount,
+            LastRenderTokenIterationCount: _runtimeLastRenderTokenIterationCount,
+            LastRenderSegmentDrawCount: _runtimeLastRenderSegmentDrawCount,
+            LastLineCount: _lines.Count,
+            LastTokenCount: _syntaxTokens.Count);
+    }
 
     public bool HandleTextInputFromInput(char character)
     {
@@ -226,9 +247,16 @@ public sealed class IDEEditorMinimap : Control, ITextInputControl, IUiRootUpdate
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeRenderCallCount++;
+        _runtimeLastRenderVisibleLineCount = 0;
+        _runtimeLastRenderTokenIterationCount = 0;
+        _runtimeLastRenderSegmentDrawCount = 0;
+
         var slot = LayoutSlot;
         if (slot.Width <= 0f || slot.Height <= 0f)
         {
+            _runtimeRenderElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
@@ -238,12 +266,14 @@ public sealed class IDEEditorMinimap : Control, ITextInputControl, IUiRootUpdate
         var content = GetContentRect(slot);
         if (_lines.Count == 0 || content.Width <= 0f || content.Height <= 0f)
         {
+            _runtimeRenderElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
         var scrollOffset = ResolveMinimapVerticalOffset(content);
         DrawMiniatureText(spriteBatch, content, scrollOffset);
         DrawViewport(spriteBatch, content, scrollOffset, _lines.Count);
+        _runtimeRenderElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     protected override bool TryGetClipRect(out LayoutRect clipRect)
@@ -270,6 +300,7 @@ public sealed class IDEEditorMinimap : Control, ITextInputControl, IUiRootUpdate
 
             var y = content.Y + (lineIndex * MiniatureLineHeight) - scrollOffset + yOffset;
             DrawMiniatureLine(spriteBatch, content.X, y, line, lineIndex, MiniatureFontSize, approximateCharacterWidth, maxCharacters);
+            _runtimeLastRenderVisibleLineCount++;
         }
     }
 
@@ -292,8 +323,11 @@ public sealed class IDEEditorMinimap : Control, ITextInputControl, IUiRootUpdate
         var lineStart = _lineStarts[lineIndex];
         var lineEnd = lineStart + visibleLineLength;
         var cursor = lineStart;
-        for (var i = 0; i < _syntaxTokens.Count; i++)
+        var tokenStart = _lineTokenStartIndices.Length > lineIndex ? _lineTokenStartIndices[lineIndex] : 0;
+        var tokenEnd = _lineTokenEndIndices.Length > lineIndex ? _lineTokenEndIndices[lineIndex] : _syntaxTokens.Count;
+        for (var i = tokenStart; i < tokenEnd; i++)
         {
+            _runtimeLastRenderTokenIterationCount++;
             var token = _syntaxTokens[i];
             if (token.End <= lineStart)
             {
@@ -308,6 +342,7 @@ public sealed class IDEEditorMinimap : Control, ITextInputControl, IUiRootUpdate
             if (token.Start > cursor)
             {
                 DrawMiniatureSegment(spriteBatch, x, y, line, cursor - lineStart, token.Start - cursor, ResolveMiniatureColor(IDEEditorXmlSyntaxTokenKind.Text), fontSize, approximateCharacterWidth);
+                _runtimeLastRenderSegmentDrawCount++;
             }
 
             var highlightStart = Math.Max(token.Start, lineStart);
@@ -315,6 +350,7 @@ public sealed class IDEEditorMinimap : Control, ITextInputControl, IUiRootUpdate
             if (highlightEnd > highlightStart)
             {
                 DrawMiniatureSegment(spriteBatch, x, y, line, highlightStart - lineStart, highlightEnd - highlightStart, ResolveMiniatureColor(token.Kind), fontSize, approximateCharacterWidth);
+                _runtimeLastRenderSegmentDrawCount++;
             }
 
             cursor = Math.Max(cursor, highlightEnd);
@@ -323,6 +359,7 @@ public sealed class IDEEditorMinimap : Control, ITextInputControl, IUiRootUpdate
         if (cursor < lineEnd)
         {
             DrawMiniatureSegment(spriteBatch, x, y, line, cursor - lineStart, lineEnd - cursor, ResolveMiniatureColor(IDEEditorXmlSyntaxTokenKind.Text), fontSize, approximateCharacterWidth);
+            _runtimeLastRenderSegmentDrawCount++;
         }
     }
 
@@ -477,6 +514,7 @@ public sealed class IDEEditorMinimap : Control, ITextInputControl, IUiRootUpdate
         _lines = normalized.Split('\n');
         _syntaxTokens = IDEEditorXmlSyntaxClassifier.Classify(normalized);
         _lineStarts = ComputeLineStarts(_lines);
+        (_lineTokenStartIndices, _lineTokenEndIndices) = ComputeLineTokenRanges(_lineStarts, _lines, _syntaxTokens);
     }
 
     private static int[] ComputeLineStarts(IReadOnlyList<string> lines)
@@ -490,6 +528,41 @@ public sealed class IDEEditorMinimap : Control, ITextInputControl, IUiRootUpdate
         }
 
         return starts;
+    }
+
+    private static (int[] Starts, int[] Ends) ComputeLineTokenRanges(
+        IReadOnlyList<int> lineStarts,
+        IReadOnlyList<string> lines,
+        IReadOnlyList<IDEEditorXmlSyntaxToken> tokens)
+    {
+        var starts = new int[Math.Max(1, lines.Count)];
+        var ends = new int[Math.Max(1, lines.Count)];
+        var tokenIndex = 0;
+        for (var lineIndex = 0; lineIndex < lines.Count; lineIndex++)
+        {
+            var lineStart = lineStarts[lineIndex];
+            var lineEnd = lineStart + lines[lineIndex].Length;
+            while (tokenIndex < tokens.Count && tokens[tokenIndex].End <= lineStart)
+            {
+                tokenIndex++;
+            }
+
+            starts[lineIndex] = tokenIndex;
+            var lineTokenEnd = tokenIndex;
+            while (lineTokenEnd < tokens.Count && tokens[lineTokenEnd].Start < lineEnd)
+            {
+                lineTokenEnd++;
+            }
+
+            ends[lineIndex] = lineTokenEnd;
+        }
+
+        return (starts, ends);
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return ticks * 1000d / Stopwatch.Frequency;
     }
 
     private static Color ResolveMiniatureColor(IDEEditorXmlSyntaxTokenKind kind)

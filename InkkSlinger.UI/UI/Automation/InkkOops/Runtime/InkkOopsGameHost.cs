@@ -490,6 +490,8 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
                 builder.AppendLine($"frameworkArrangeMilliseconds={frameworkTelemetry.ArrangeMilliseconds:0.###}");
                 builder.AppendLine($"frameworkInvalidateMeasureCallCount={frameworkTelemetry.InvalidateMeasureCallCount}");
                 builder.AppendLine($"controlDependencyPropertyChangedCallCount={controlTelemetry.DependencyPropertyChangedCallCount}");
+                builder.AppendLine($"controlTopDependencyPropertyChangedProperties={controlTelemetry.TopDependencyPropertyChangedProperties}");
+                builder.AppendLine($"controlTopDependencyPropertyChangedElementTypes={controlTelemetry.TopDependencyPropertyChangedElementTypes}");
                 builder.AppendLine($"buttonRenderCallCount={buttonTelemetry.RenderCallCount}");
                 builder.AppendLine($"buttonRenderMilliseconds={buttonTelemetry.RenderMilliseconds:0.###}");
                 builder.AppendLine($"buttonTextLayoutCacheHitCount={buttonTelemetry.TextLayoutCacheHitCount}");

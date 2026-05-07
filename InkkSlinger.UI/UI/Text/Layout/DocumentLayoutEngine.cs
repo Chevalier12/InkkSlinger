@@ -350,6 +350,7 @@ public sealed class DocumentLayoutEngine
         private readonly List<DocumentLayoutHostedElement> _hostedElements = [];
         private readonly List<LayoutRect> _tableCellBounds = [];
         private readonly Dictionary<int, Vector2> _caretPositions = [];
+        private readonly Dictionary<StyledCharWidthKey, float> _styledCharWidthCache = [];
         private readonly int _paragraphCount;
         private int _paragraphIndex;
         private int _lineIndex;
@@ -606,9 +607,11 @@ public sealed class DocumentLayoutEngine
                     }
 
                     var logicalLineLength = nextNewlineIndex - logicalLineStart;
-                    var logicalLayoutLines = logicalLineLength == 0
-                        ? new[] { string.Empty }
-                        : TextLayout.Layout(plainText.Substring(logicalLineStart, logicalLineLength), _settings.Typography, width, _settings.Wrapping).Lines;
+                    var logicalLayoutLines = _settings.Wrapping == TextWrapping.NoWrap
+                        ? new[] { logicalLineLength == 0 ? string.Empty : plainText.Substring(logicalLineStart, logicalLineLength) }
+                        : logicalLineLength == 0
+                            ? new[] { string.Empty }
+                            : TextLayout.Layout(plainText.Substring(logicalLineStart, logicalLineLength), _settings.Typography, width, _settings.Wrapping).Lines;
                     if (_settings.Wrapping != TextWrapping.NoWrap &&
                         float.IsFinite(width) &&
                         logicalLineLength > 0 &&
@@ -630,6 +633,13 @@ public sealed class DocumentLayoutEngine
 
                         var globalLineStart = _offset + logicalLineStart + localScanIndex;
                         var lineY = y + (visualLineIndex * _settings.LineHeight);
+                        var prefixWidths = BuildPrefixWidths(
+                            segments,
+                            logicalLineStart + localScanIndex,
+                            lineText.Length,
+                            _settings.Typography,
+                            paragraphDefaultIncrementalTab,
+                            paragraphTabs);
                         var lineRuns = BuildLineRuns(
                             segments,
                             logicalLineStart + localScanIndex,
@@ -641,14 +651,8 @@ public sealed class DocumentLayoutEngine
                             _settings.LineHeight,
                             _settings.Typography,
                             paragraphDefaultIncrementalTab,
-                            paragraphTabs);
-                        var prefixWidths = BuildPrefixWidths(
-                            segments,
-                            logicalLineStart + localScanIndex,
-                            lineText.Length,
-                            _settings.Typography,
-                            paragraphDefaultIncrementalTab,
-                            paragraphTabs);
+                            paragraphTabs,
+                            prefixWidths);
                         var lineWidth = prefixWidths[prefixWidths.Length - 1];
                         var lineBounds = new LayoutRect(textStartX, lineY, Math.Max(lineWidth, markerWidth), _settings.LineHeight);
                         for (var runIndex = 0; runIndex < lineRuns.Count; runIndex++)
@@ -941,7 +945,8 @@ public sealed class DocumentLayoutEngine
             float lineHeight,
             UiTypography typography,
             double defaultIncrementalTab,
-            IList<TextTabProperties> tabs)
+            IList<TextTabProperties> tabs,
+            float[]? prefixWidths = null)
         {
             var runs = new List<DocumentLayoutRun>();
             if (length <= 0)
@@ -1003,7 +1008,9 @@ public sealed class DocumentLayoutEngine
                 }
 
                 var text = BuildText(chars, chunkStart, index - chunkStart);
-                var width = MeasureSegment(chars, chunkStart, index - chunkStart, typography, cursor - x, defaultIncrementalTab, tabs);
+                var width = prefixWidths != null
+                    ? prefixWidths[index - start] - prefixWidths[chunkStart - start]
+                    : MeasureSegment(chars, chunkStart, index - chunkStart, typography, cursor - x, defaultIncrementalTab, tabs);
                 var run = new DocumentLayoutRun
                 {
                     Text = text,
@@ -1021,7 +1028,7 @@ public sealed class DocumentLayoutEngine
             return runs;
         }
 
-        private static float[] BuildPrefixWidths(
+        private float[] BuildPrefixWidths(
             IReadOnlyList<StyledChar> chars,
             int start,
             int length,
@@ -1034,11 +1041,37 @@ public sealed class DocumentLayoutEngine
             var current = 0f;
             for (var index = 0; index < length; index++)
             {
-                current += MeasureChar(chars[start + index], typography, current, defaultIncrementalTab, tabs);
+                current += MeasureCharWithCache(chars[start + index], typography, current, defaultIncrementalTab, tabs);
                 widths[index + 1] = current;
             }
 
             return widths;
+        }
+
+        private float MeasureCharWithCache(
+            StyledChar value,
+            UiTypography typography,
+            float currentLineWidth,
+            double defaultIncrementalTab,
+            IList<TextTabProperties> tabs)
+        {
+            if (value.WidthOverride > 0f || value.Character == '\t')
+            {
+                return MeasureChar(value, typography, currentLineWidth, defaultIncrementalTab, tabs);
+            }
+
+            var character = value.Character == '\0' || value.Character == '\uFFFC'
+                ? ' '
+                : value.Character;
+            var key = new StyledCharWidthKey(character, value.Style);
+            if (_styledCharWidthCache.TryGetValue(key, out var width))
+            {
+                return width;
+            }
+
+            width = UiTextRenderer.MeasureWidth(typography, character.ToString(), ToStyleOverride(value.Style));
+            _styledCharWidthCache[key] = width;
+            return width;
         }
 
         private void MeasureHostedSegments(List<StyledChar> chars, float availableWidth)
@@ -1711,6 +1744,8 @@ public sealed class DocumentLayoutEngine
         private readonly record struct StyledLine(int Start, int Length, float Width, float Height);
 
         private readonly record struct TableCellPlacement(int RowIndex, int CellIndex, int StartColumn, int RowSpan, int ColumnSpan, TableCell Cell);
+
+        private readonly record struct StyledCharWidthKey(char Character, DocumentLayoutStyle Style);
     }
 }
 

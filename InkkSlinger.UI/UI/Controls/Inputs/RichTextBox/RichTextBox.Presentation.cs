@@ -126,14 +126,40 @@ public partial class RichTextBox
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        var measureStartTicks = Stopwatch.GetTimestamp();
+        _diagMeasureOverrideCallCount++;
+        _runtimeMeasureOverrideCallCount++;
+
+        var baseStartTicks = Stopwatch.GetTimestamp();
         var desired = base.MeasureOverride(availableSize);
+        var baseElapsedTicks = Stopwatch.GetTimestamp() - baseStartTicks;
+
         var textWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
             : Math.Max(0f, availableSize.X - Padding.Horizontal - (BorderThickness * 2f));
+        var layoutStartTicks = Stopwatch.GetTimestamp();
         var layout = BuildOrGetLayout(textWidth);
+        var layoutElapsedTicks = Stopwatch.GetTimestamp() - layoutStartTicks;
+
         _lastMeasuredLayout = layout;
         desired.X = Math.Max(desired.X, layout.ContentWidth + Padding.Horizontal + (BorderThickness * 2f));
         desired.Y = Math.Max(desired.Y, layout.ContentHeight + Padding.Vertical + (BorderThickness * 2f));
+
+        var elapsedTicks = Stopwatch.GetTimestamp() - measureStartTicks;
+        _diagMeasureOverrideElapsedTicks += elapsedTicks;
+        _diagMeasureOverrideBaseElapsedTicks += baseElapsedTicks;
+        _diagMeasureOverrideLayoutResolveElapsedTicks += layoutElapsedTicks;
+        _runtimeMeasureOverrideElapsedTicks += elapsedTicks;
+        _runtimeMeasureOverrideBaseElapsedTicks += baseElapsedTicks;
+        _runtimeMeasureOverrideLayoutResolveElapsedTicks += layoutElapsedTicks;
+        _runtimeLastMeasureOverrideElapsedTicks = elapsedTicks;
+        _runtimeLastMeasureOverrideBaseElapsedTicks = baseElapsedTicks;
+        _runtimeLastMeasureOverrideLayoutResolveElapsedTicks = layoutElapsedTicks;
+        _runtimeLastMeasureOverrideAvailableWidth = availableSize.X;
+        _runtimeLastMeasureOverrideTextWidth = textWidth;
+        _runtimeLastMeasureOverrideLayoutContentWidth = layout.ContentWidth;
+        _runtimeLastMeasureOverrideLayoutContentHeight = layout.ContentHeight;
+
         return desired;
     }
 
@@ -348,7 +374,11 @@ public partial class RichTextBox
             out _,
             out _,
             out _,
-            out _);
+            out _,
+            visibleHorizontalOffset: horizontalOffset,
+            visibleVerticalOffset: verticalOffset,
+            visibleWidth: textRect.Width,
+            visibleHeight: textRect.Height);
     }
 
     private void RenderDocumentSurface(
@@ -366,7 +396,11 @@ public partial class RichTextBox
         out double caretMs,
         out double hostedLayoutMs,
         out double hostedChildrenDrawMs,
-        out int hostedChildrenDrawCount)
+        out int hostedChildrenDrawCount,
+        float? visibleHorizontalOffset = null,
+        float? visibleVerticalOffset = null,
+        float? visibleWidth = null,
+        float? visibleHeight = null)
     {
         selectionMs = 0d;
         runsMs = 0d;
@@ -381,12 +415,21 @@ public partial class RichTextBox
         UiDrawing.PushClip(spriteBatch, textRect);
         try
         {
+            var runCullHorizontalOffset = visibleHorizontalOffset ?? horizontalOffset;
+            var runCullWidth = visibleWidth ?? textRect.Width;
+            var lineCullVerticalOffset = visibleVerticalOffset ?? verticalOffset;
+            var lineCullRect = new LayoutRect(
+                textRect.X,
+                textRect.Y,
+                runCullWidth,
+                visibleHeight ?? textRect.Height);
+
             var selectionStart = Stopwatch.GetTimestamp();
             DrawSelection(spriteBatch, textRect, layout, horizontalOffset, verticalOffset);
             selectionMs = Stopwatch.GetElapsedTime(selectionStart).TotalMilliseconds;
 
             var runsStart = Stopwatch.GetTimestamp();
-            if (TryGetVisibleLineRange(layout, textRect, verticalOffset, out var firstVisibleLineIndex, out var lastVisibleLineIndex))
+            if (TryGetVisibleLineRange(layout, lineCullRect, lineCullVerticalOffset, out var firstVisibleLineIndex, out var lastVisibleLineIndex))
             {
                 for (var lineIndex = firstVisibleLineIndex; lineIndex <= lastVisibleLineIndex; lineIndex++)
                 {
@@ -406,13 +449,26 @@ public partial class RichTextBox
                             continue;
                         }
 
+                        if (!TryResolveVisibleRunSegment(
+                            line,
+                            run,
+                            runCullHorizontalOffset,
+                            runCullWidth,
+                            out var segmentStartOffset,
+                            out var segmentLength,
+                            out var segmentX,
+                            out var segmentWidth))
+                        {
+                            continue;
+                        }
+
                         var color = ResolveRunColor(run.Style);
                         runCount++;
-                        runCharacterCount += run.Text.Length;
+                        runCharacterCount += segmentLength;
 
-                        var position = new Vector2(textRect.X + run.Bounds.X - horizontalOffset, textRect.Y + run.Bounds.Y - verticalOffset);
-                        DrawRunText(spriteBatch, run, position, color);
-                        DrawRunUnderline(spriteBatch, run, position, color);
+                        var position = new Vector2(textRect.X + segmentX - horizontalOffset, textRect.Y + run.Bounds.Y - verticalOffset);
+                        DrawRunTextSegment(spriteBatch, run, segmentStartOffset, segmentLength, position, color);
+                        DrawRunUnderlineSegment(spriteBatch, run, position, segmentWidth, color);
                     }
                 }
             }
@@ -886,22 +942,37 @@ public partial class RichTextBox
         return caretRect.Width > 0f && caretRect.Height > 0f;
     }
 
-    private void DrawRunText(SpriteBatch spriteBatch, DocumentLayoutRun run, Vector2 position, Color baseColor)
+    private void DrawRunTextSegment(
+        SpriteBatch spriteBatch,
+        DocumentLayoutRun run,
+        int segmentStartOffset,
+        int segmentLength,
+        Vector2 position,
+        Color baseColor)
     {
-        if (run.Text.Length == 0)
+        if (segmentLength <= 0)
         {
             return;
         }
 
-        var overlapStart = Math.Max(SelectionStart, run.StartOffset);
-        var overlapEnd = Math.Min(SelectionStart + SelectionLength, run.StartOffset + run.Length);
+        var localStart = segmentStartOffset - run.StartOffset;
+        if (localStart < 0 || localStart >= run.Text.Length)
+        {
+            return;
+        }
+
+        segmentLength = Math.Min(segmentLength, run.Text.Length - localStart);
+        var text = run.Text.Substring(localStart, segmentLength);
+        var segmentEndOffset = segmentStartOffset + segmentLength;
+        var overlapStart = Math.Max(SelectionStart, segmentStartOffset);
+        var overlapEnd = Math.Min(SelectionStart + SelectionLength, segmentEndOffset);
         var styleOverride = ToStyleOverride(run.Style);
         if (SelectionLength <= 0 || overlapEnd <= overlapStart)
         {
             UiTextRenderer.DrawString(
                 spriteBatch,
                 this,
-                run.Text,
+                text,
                 position,
                 baseColor * Opacity,
                 FontSize,
@@ -910,12 +981,12 @@ public partial class RichTextBox
             return;
         }
 
-        var prefixLength = overlapStart - run.StartOffset;
+        var prefixLength = overlapStart - segmentStartOffset;
         var selectedLength = overlapEnd - overlapStart;
-        var prefixText = prefixLength > 0 ? run.Text[..prefixLength] : string.Empty;
-        var selectedText = selectedLength > 0 ? run.Text.Substring(prefixLength, selectedLength) : string.Empty;
-        var suffixText = (prefixLength + selectedLength) < run.Text.Length
-            ? run.Text[(prefixLength + selectedLength)..]
+        var prefixText = prefixLength > 0 ? text[..prefixLength] : string.Empty;
+        var selectedText = selectedLength > 0 ? text.Substring(prefixLength, selectedLength) : string.Empty;
+        var suffixText = (prefixLength + selectedLength) < text.Length
+            ? text[(prefixLength + selectedLength)..]
             : string.Empty;
         var typography = UiTextRenderer.ResolveTypography(this, FontSize, styleOverride);
         var currentX = position.X;
@@ -938,9 +1009,9 @@ public partial class RichTextBox
         }
     }
 
-    private void DrawRunUnderline(SpriteBatch spriteBatch, DocumentLayoutRun run, Vector2 position, Color color)
+    private void DrawRunUnderlineSegment(SpriteBatch spriteBatch, DocumentLayoutRun run, Vector2 position, float width, Color color)
     {
-        if (!run.Style.IsUnderline)
+        if (!run.Style.IsUnderline || width <= 0f)
         {
             return;
         }
@@ -948,8 +1019,115 @@ public partial class RichTextBox
         var underlineY = position.Y + run.Bounds.Height - 1f;
         UiDrawing.DrawFilledRect(
             spriteBatch,
-            new LayoutRect(position.X, underlineY, Math.Max(1f, run.Bounds.Width), 1f),
+            new LayoutRect(position.X, underlineY, Math.Max(1f, width), 1f),
             color * Opacity);
+    }
+
+    private static bool TryResolveVisibleRunSegment(
+        DocumentLayoutLine line,
+        DocumentLayoutRun run,
+        float horizontalOffset,
+        float viewportWidth,
+        out int segmentStartOffset,
+        out int segmentLength,
+        out float segmentX,
+        out float segmentWidth)
+    {
+        segmentStartOffset = 0;
+        segmentLength = 0;
+        segmentX = 0f;
+        segmentWidth = 0f;
+        if (viewportWidth <= 0f || run.Length <= 0 || run.Bounds.Width <= 0f)
+        {
+            return false;
+        }
+
+        var visibleLeft = horizontalOffset;
+        var visibleRight = horizontalOffset + viewportWidth;
+        var runLeft = run.Bounds.X;
+        var runRight = run.Bounds.X + run.Bounds.Width;
+        if (runRight < visibleLeft || runLeft > visibleRight)
+        {
+            return false;
+        }
+
+        var runStartColumn = run.StartOffset - line.StartOffset;
+        if (line.PrefixWidths.Length <= 1 ||
+            runStartColumn < 0 ||
+            runStartColumn + run.Length >= line.PrefixWidths.Length)
+        {
+            segmentStartOffset = run.StartOffset;
+            segmentLength = run.Length;
+            segmentX = run.Bounds.X;
+            segmentWidth = run.Bounds.Width;
+            return true;
+        }
+
+        var lineVisibleLeft = MathF.Max(0f, visibleLeft - line.TextStartX);
+        var lineVisibleRight = MathF.Max(lineVisibleLeft, visibleRight - line.TextStartX);
+        var firstColumn = FindFirstColumnWithRightEdgeAfter(line.PrefixWidths, lineVisibleLeft);
+        var lastColumnExclusive = FindFirstColumnWithLeftEdgeAtOrAfter(line.PrefixWidths, lineVisibleRight);
+        if (lastColumnExclusive <= firstColumn)
+        {
+            return false;
+        }
+
+        var segmentStartColumn = Math.Max(runStartColumn, firstColumn);
+        var segmentEndColumn = Math.Min(runStartColumn + run.Length, lastColumnExclusive);
+        if (segmentEndColumn <= segmentStartColumn)
+        {
+            return false;
+        }
+
+        segmentStartOffset = line.StartOffset + segmentStartColumn;
+        segmentLength = segmentEndColumn - segmentStartColumn;
+        segmentX = line.TextStartX + line.PrefixWidths[segmentStartColumn];
+        segmentWidth = line.PrefixWidths[segmentEndColumn] - line.PrefixWidths[segmentStartColumn];
+        return segmentWidth > 0f;
+    }
+
+    private static int FindFirstColumnWithRightEdgeAfter(float[] prefixWidths, float x)
+    {
+        var low = 0;
+        var high = prefixWidths.Length - 2;
+        var result = prefixWidths.Length - 1;
+        while (low <= high)
+        {
+            var mid = low + ((high - low) / 2);
+            if (prefixWidths[mid + 1] >= x)
+            {
+                result = mid;
+                high = mid - 1;
+            }
+            else
+            {
+                low = mid + 1;
+            }
+        }
+
+        return result;
+    }
+
+    private static int FindFirstColumnWithLeftEdgeAtOrAfter(float[] prefixWidths, float x)
+    {
+        var low = 0;
+        var high = prefixWidths.Length - 1;
+        var result = prefixWidths.Length - 1;
+        while (low <= high)
+        {
+            var mid = low + ((high - low) / 2);
+            if (prefixWidths[mid] >= x)
+            {
+                result = mid;
+                high = mid - 1;
+            }
+            else
+            {
+                low = mid + 1;
+            }
+        }
+
+        return Math.Max(1, result);
     }
 
     private static bool TryGetVisibleLineRange(

@@ -299,8 +299,9 @@ internal static class DesignerXmlEditorLanguageService
     public static IReadOnlyList<DesignerXmlFoldRange> GetFoldRanges(string text)
     {
         var normalized = IDEEditorTextCommandService.Normalize(text);
+        var lineIndex = XmlLineIndex.Create(normalized);
         var ranges = new List<DesignerXmlFoldRange>();
-        AddElementFoldRanges(normalized, ranges);
+        AddElementFoldRanges(normalized, lineIndex, ranges);
         AddRegionCommentFoldRanges(normalized, ranges);
         return ranges
             .Where(static range => range.EndLine > range.StartLine)
@@ -312,6 +313,7 @@ internal static class DesignerXmlEditorLanguageService
     public static IReadOnlyList<DesignerXmlDocumentOverviewItem> GetDocumentOverview(string text)
     {
         var normalized = IDEEditorTextCommandService.Normalize(text);
+        var lineIndex = XmlLineIndex.Create(normalized);
         var items = new List<DesignerXmlDocumentOverviewItem>();
         foreach (var tag in EnumerateTags(normalized))
         {
@@ -320,8 +322,8 @@ internal static class DesignerXmlEditorLanguageService
                 continue;
             }
 
-            var line = GetLineNumber(normalized, tag.Start);
-            var indentLevel = CountLeadingWhitespace(GetLineTextAtOffset(normalized, tag.Start)) / Math.Max(1, Indent.Length);
+            var line = lineIndex.GetLineNumber(tag.Start);
+            var indentLevel = lineIndex.CountLeadingWhitespaceAtOffset(tag.Start) / Math.Max(1, Indent.Length);
             items.Add(new DesignerXmlDocumentOverviewItem(tag.Name, line, tag.Start, indentLevel));
         }
 
@@ -482,7 +484,7 @@ internal static class DesignerXmlEditorLanguageService
         return delta;
     }
 
-    private static void AddElementFoldRanges(string text, List<DesignerXmlFoldRange> ranges)
+    private static void AddElementFoldRanges(string text, XmlLineIndex lineIndex, List<DesignerXmlFoldRange> ranges)
     {
         var stack = new Stack<XmlTagSpan>();
         foreach (var tag in EnumerateTags(text))
@@ -506,8 +508,8 @@ internal static class DesignerXmlEditorLanguageService
                     continue;
                 }
 
-                var startLine = GetLineNumber(text, open.Start);
-                var endLine = GetLineNumber(text, tag.Start);
+                var startLine = lineIndex.GetLineNumber(open.Start);
+                var endLine = lineIndex.GetLineNumber(tag.Start);
                 if (endLine > startLine)
                 {
                     var hiddenStart = open.End;
@@ -971,6 +973,67 @@ internal static class DesignerXmlEditorLanguageService
         }
 
         return count;
+    }
+
+    private readonly struct XmlLineIndex
+    {
+        private readonly string _text;
+        private readonly int[] _lineStarts;
+
+        private XmlLineIndex(string text, int[] lineStarts)
+        {
+            _text = text;
+            _lineStarts = lineStarts;
+        }
+
+        public static XmlLineIndex Create(string text)
+        {
+            var lineStarts = new List<int> { 0 };
+            for (var index = 0; index < text.Length; index++)
+            {
+                if (text[index] == '\n' && index + 1 < text.Length)
+                {
+                    lineStarts.Add(index + 1);
+                }
+            }
+
+            return new XmlLineIndex(text, lineStarts.ToArray());
+        }
+
+        public int GetLineNumber(int offset)
+        {
+            var lineIndex = GetLineIndex(offset);
+            return lineIndex + 1;
+        }
+
+        public int CountLeadingWhitespaceAtOffset(int offset)
+        {
+            var lineStart = _lineStarts[GetLineIndex(offset)];
+            var count = 0;
+            var clampedOffset = Math.Clamp(offset, 0, _text.Length);
+            for (var index = lineStart; index < clampedOffset; index++)
+            {
+                var current = _text[index];
+                if (current is '\r' or '\n' || !char.IsWhiteSpace(current))
+                {
+                    break;
+                }
+            }
+
+            return count;
+        }
+
+        private int GetLineIndex(int offset)
+        {
+            var clamped = Math.Max(0, offset);
+            var index = Array.BinarySearch(_lineStarts, clamped);
+            if (index >= 0)
+            {
+                return index;
+            }
+
+            return Math.Max(0, ~index - 1);
+        }
     }
 
     private readonly record struct XmlTagSpan(

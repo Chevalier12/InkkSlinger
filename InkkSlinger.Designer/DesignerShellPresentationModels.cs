@@ -22,38 +22,6 @@ public sealed record DesignerRootTemplateViewModel(
     string ElementName,
     Type ElementType);
 
-public sealed class DesignerSourceLineNumberViewModel : INotifyPropertyChanged
-{
-    private string _numberText;
-
-    public DesignerSourceLineNumberViewModel(string numberText)
-    {
-        _numberText = numberText;
-    }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    public string NumberText
-    {
-        get => _numberText;
-        set
-        {
-            if (string.Equals(_numberText, value, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            _numberText = value;
-            OnPropertyChanged();
-        }
-    }
-
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-}
-
 public sealed class DesignerVisualTreeNodeViewModel : INotifyPropertyChanged
 {
     private static readonly Color DefaultForeground = new(229, 231, 234);

@@ -42,6 +42,18 @@ public sealed class IDE_Editor : Control, ITextInputControl
     private static int _diagBuildIndentGuideSnapshotSuccessCount;
     private static int _diagBuildIndentGuideSnapshotSegmentTotal;
     private static long _diagBuildIndentGuideSnapshotElapsedTicks;
+    private static int _diagMeasureOverrideCallCount;
+    private static long _diagMeasureOverrideElapsedTicks;
+    private static long _diagMeasureOverrideBaseElapsedTicks;
+    private static long _diagMeasureOverrideRichTextBoxElapsedTicks;
+    private static long _diagMeasureOverrideLineNumberPresenterElapsedTicks;
+    private static int _diagArrangeOverrideCallCount;
+    private static long _diagArrangeOverrideElapsedTicks;
+    private static long _diagArrangeOverrideBaseElapsedTicks;
+    private static long _diagArrangeOverrideRichTextBoxElapsedTicks;
+    private static long _diagArrangeOverrideLineNumberPresenterElapsedTicks;
+    private static int _diagRenderCallCount;
+    private static long _diagRenderElapsedTicks;
 
     public static readonly DependencyProperty DocumentProperty =
         DependencyProperty.Register(
@@ -250,6 +262,27 @@ public sealed class IDE_Editor : Control, ITextInputControl
     private int _runtimeBuildIndentGuideSnapshotSuccessCount;
     private int _runtimeBuildIndentGuideSnapshotSegmentTotal;
     private long _runtimeBuildIndentGuideSnapshotElapsedTicks;
+    private int _runtimeMeasureOverrideCallCount;
+    private long _runtimeMeasureOverrideElapsedTicks;
+    private long _runtimeMeasureOverrideBaseElapsedTicks;
+    private long _runtimeMeasureOverrideRichTextBoxElapsedTicks;
+    private long _runtimeMeasureOverrideLineNumberPresenterElapsedTicks;
+    private long _runtimeLastMeasureOverrideElapsedTicks;
+    private long _runtimeLastMeasureOverrideBaseElapsedTicks;
+    private long _runtimeLastMeasureOverrideRichTextBoxElapsedTicks;
+    private long _runtimeLastMeasureOverrideLineNumberPresenterElapsedTicks;
+    private int _runtimeArrangeOverrideCallCount;
+    private long _runtimeArrangeOverrideElapsedTicks;
+    private long _runtimeArrangeOverrideBaseElapsedTicks;
+    private long _runtimeArrangeOverrideRichTextBoxElapsedTicks;
+    private long _runtimeArrangeOverrideLineNumberPresenterElapsedTicks;
+    private long _runtimeLastArrangeOverrideElapsedTicks;
+    private long _runtimeLastArrangeOverrideBaseElapsedTicks;
+    private long _runtimeLastArrangeOverrideRichTextBoxElapsedTicks;
+    private long _runtimeLastArrangeOverrideLineNumberPresenterElapsedTicks;
+    private int _runtimeRenderCallCount;
+    private long _runtimeRenderElapsedTicks;
+    private long _runtimeLastRenderElapsedTicks;
     private int _deferredPresentationRefreshVersion;
     private bool _hasDeferredPresentationRefreshPending;
     private bool _suppressEditorChangeEventsForPresentationUpdate;
@@ -427,6 +460,86 @@ public sealed class IDE_Editor : Control, ITextInputControl
     protected override Style? GetFallbackStyle()
     {
         return DefaultStyle.Value;
+    }
+
+    protected override Vector2 MeasureOverride(Vector2 availableSize)
+    {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagMeasureOverrideCallCount++;
+        _runtimeMeasureOverrideCallCount++;
+        var richTextBefore = _editor?.GetRichTextBoxSnapshotForDiagnostics() ?? default;
+        var lineNumberBefore = CaptureLineNumberPresenterRuntimeSnapshot();
+
+        var baseStartTicks = Stopwatch.GetTimestamp();
+        var desired = base.MeasureOverride(availableSize);
+        var baseElapsedTicks = Stopwatch.GetTimestamp() - baseStartTicks;
+
+        var richTextAfter = _editor?.GetRichTextBoxSnapshotForDiagnostics() ?? default;
+        var lineNumberAfter = CaptureLineNumberPresenterRuntimeSnapshot();
+        var richTextDeltaTicks = MillisecondsToTicks(Math.Max(0d, richTextAfter.MeasureOverrideMilliseconds - richTextBefore.MeasureOverrideMilliseconds));
+        var lineNumberDeltaTicks = MillisecondsToTicks(Math.Max(0d, lineNumberAfter.MeasureOverrideMilliseconds - lineNumberBefore.MeasureOverrideMilliseconds));
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+
+        _diagMeasureOverrideElapsedTicks += elapsedTicks;
+        _diagMeasureOverrideBaseElapsedTicks += baseElapsedTicks;
+        _diagMeasureOverrideRichTextBoxElapsedTicks += richTextDeltaTicks;
+        _diagMeasureOverrideLineNumberPresenterElapsedTicks += lineNumberDeltaTicks;
+        _runtimeMeasureOverrideElapsedTicks += elapsedTicks;
+        _runtimeMeasureOverrideBaseElapsedTicks += baseElapsedTicks;
+        _runtimeMeasureOverrideRichTextBoxElapsedTicks += richTextDeltaTicks;
+        _runtimeMeasureOverrideLineNumberPresenterElapsedTicks += lineNumberDeltaTicks;
+        _runtimeLastMeasureOverrideElapsedTicks = elapsedTicks;
+        _runtimeLastMeasureOverrideBaseElapsedTicks = baseElapsedTicks;
+        _runtimeLastMeasureOverrideRichTextBoxElapsedTicks = richTextDeltaTicks;
+        _runtimeLastMeasureOverrideLineNumberPresenterElapsedTicks = lineNumberDeltaTicks;
+
+        return desired;
+    }
+
+    protected override Vector2 ArrangeOverride(Vector2 finalSize)
+    {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagArrangeOverrideCallCount++;
+        _runtimeArrangeOverrideCallCount++;
+        var richTextBefore = _editor?.GetRichTextBoxSnapshotForDiagnostics() ?? default;
+        var lineNumberBefore = CaptureLineNumberPresenterRuntimeSnapshot();
+
+        var baseStartTicks = Stopwatch.GetTimestamp();
+        var arranged = base.ArrangeOverride(finalSize);
+        var baseElapsedTicks = Stopwatch.GetTimestamp() - baseStartTicks;
+
+        var richTextAfter = _editor?.GetRichTextBoxSnapshotForDiagnostics() ?? default;
+        var lineNumberAfter = CaptureLineNumberPresenterRuntimeSnapshot();
+        var richTextDeltaTicks = MillisecondsToTicks(Math.Max(0d, richTextAfter.HostedScrollContentArrangeMilliseconds - richTextBefore.HostedScrollContentArrangeMilliseconds));
+        var lineNumberDeltaTicks = MillisecondsToTicks(Math.Max(0d, lineNumberAfter.ArrangeOverrideMilliseconds - lineNumberBefore.ArrangeOverrideMilliseconds));
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+
+        _diagArrangeOverrideElapsedTicks += elapsedTicks;
+        _diagArrangeOverrideBaseElapsedTicks += baseElapsedTicks;
+        _diagArrangeOverrideRichTextBoxElapsedTicks += richTextDeltaTicks;
+        _diagArrangeOverrideLineNumberPresenterElapsedTicks += lineNumberDeltaTicks;
+        _runtimeArrangeOverrideElapsedTicks += elapsedTicks;
+        _runtimeArrangeOverrideBaseElapsedTicks += baseElapsedTicks;
+        _runtimeArrangeOverrideRichTextBoxElapsedTicks += richTextDeltaTicks;
+        _runtimeArrangeOverrideLineNumberPresenterElapsedTicks += lineNumberDeltaTicks;
+        _runtimeLastArrangeOverrideElapsedTicks = elapsedTicks;
+        _runtimeLastArrangeOverrideBaseElapsedTicks = baseElapsedTicks;
+        _runtimeLastArrangeOverrideRichTextBoxElapsedTicks = richTextDeltaTicks;
+        _runtimeLastArrangeOverrideLineNumberPresenterElapsedTicks = lineNumberDeltaTicks;
+
+        return arranged;
+    }
+
+    protected override void OnRender(SpriteBatch spriteBatch)
+    {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagRenderCallCount++;
+        _runtimeRenderCallCount++;
+        base.OnRender(spriteBatch);
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _diagRenderElapsedTicks += elapsedTicks;
+        _runtimeRenderElapsedTicks += elapsedTicks;
+        _runtimeLastRenderElapsedTicks = elapsedTicks;
     }
 
     public override void OnApplyTemplate()
@@ -843,7 +956,28 @@ public sealed class IDE_Editor : Control, ITextInputControl
             ViewportWidth: metrics.ViewportWidth,
             ViewportHeight: metrics.ViewportHeight,
             ExtentWidth: metrics.ExtentWidth,
-            ExtentHeight: metrics.ExtentHeight);
+            ExtentHeight: metrics.ExtentHeight,
+            MeasureOverrideCallCount: _runtimeMeasureOverrideCallCount,
+            MeasureOverrideMilliseconds: TicksToMilliseconds(_runtimeMeasureOverrideElapsedTicks),
+            MeasureOverrideBaseMilliseconds: TicksToMilliseconds(_runtimeMeasureOverrideBaseElapsedTicks),
+            MeasureOverrideRichTextBoxMilliseconds: TicksToMilliseconds(_runtimeMeasureOverrideRichTextBoxElapsedTicks),
+            MeasureOverrideLineNumberPresenterMilliseconds: TicksToMilliseconds(_runtimeMeasureOverrideLineNumberPresenterElapsedTicks),
+            LastMeasureOverrideMilliseconds: TicksToMilliseconds(_runtimeLastMeasureOverrideElapsedTicks),
+            LastMeasureOverrideBaseMilliseconds: TicksToMilliseconds(_runtimeLastMeasureOverrideBaseElapsedTicks),
+            LastMeasureOverrideRichTextBoxMilliseconds: TicksToMilliseconds(_runtimeLastMeasureOverrideRichTextBoxElapsedTicks),
+            LastMeasureOverrideLineNumberPresenterMilliseconds: TicksToMilliseconds(_runtimeLastMeasureOverrideLineNumberPresenterElapsedTicks),
+            ArrangeOverrideCallCount: _runtimeArrangeOverrideCallCount,
+            ArrangeOverrideMilliseconds: TicksToMilliseconds(_runtimeArrangeOverrideElapsedTicks),
+            ArrangeOverrideBaseMilliseconds: TicksToMilliseconds(_runtimeArrangeOverrideBaseElapsedTicks),
+            ArrangeOverrideRichTextBoxMilliseconds: TicksToMilliseconds(_runtimeArrangeOverrideRichTextBoxElapsedTicks),
+            ArrangeOverrideLineNumberPresenterMilliseconds: TicksToMilliseconds(_runtimeArrangeOverrideLineNumberPresenterElapsedTicks),
+            LastArrangeOverrideMilliseconds: TicksToMilliseconds(_runtimeLastArrangeOverrideElapsedTicks),
+            LastArrangeOverrideBaseMilliseconds: TicksToMilliseconds(_runtimeLastArrangeOverrideBaseElapsedTicks),
+            LastArrangeOverrideRichTextBoxMilliseconds: TicksToMilliseconds(_runtimeLastArrangeOverrideRichTextBoxElapsedTicks),
+            LastArrangeOverrideLineNumberPresenterMilliseconds: TicksToMilliseconds(_runtimeLastArrangeOverrideLineNumberPresenterElapsedTicks),
+            RenderCallCount: _runtimeRenderCallCount,
+            RenderMilliseconds: TicksToMilliseconds(_runtimeRenderElapsedTicks),
+            LastRenderMilliseconds: TicksToMilliseconds(_runtimeLastRenderElapsedTicks));
     }
 
     internal new static IDEEditorTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
@@ -1269,23 +1403,15 @@ public sealed class IDE_Editor : Control, ITextInputControl
             return;
         }
 
-        var lineCount = Math.Max(1, _cachedLineCount);
-        var lineHeight = EstimateLineHeight(lineCount);
-        var viewportHeight = Math.Max(lineHeight, ResolveLineNumberViewportHeight());
-        var gutterMaxHeight = ResolveLineNumberGutterMaxHeight();
-        var verticalOffset = Math.Max(0f, _editor.VerticalOffset);
-        var approximateVisibleLineCount = Math.Clamp((int)MathF.Floor((viewportHeight + (verticalOffset % lineHeight)) / lineHeight), 1, Math.Max(1, lineCount));
-        var firstVisibleLine = GetFirstVisibleLine(lineCount, approximateVisibleLineCount, lineHeight, verticalOffset);
-        var visibleLineCount = Math.Clamp(approximateVisibleLineCount, 1, Math.Max(1, lineCount - firstVisibleLine));
-        var lineOffset = verticalOffset - (firstVisibleLine * lineHeight);
+        var metrics = ResolveLineNumberGutterMetrics();
 
         if (!force &&
-            lineCount == _lastRenderedLineCount &&
-            firstVisibleLine == _lastRenderedFirstVisibleLine &&
-            visibleLineCount == _lastRenderedVisibleLineCount &&
-            Math.Abs(lineOffset - _lastRenderedLineOffset) <= 0.01f &&
-            Math.Abs(lineHeight - _lastRenderedLineHeight) <= 0.01f &&
-            AreLineNumberGutterMaxHeightsEquivalent(gutterMaxHeight, _lastRenderedLineNumberGutterMaxHeight))
+            metrics.LineCount == _lastRenderedLineCount &&
+            metrics.FirstVisibleLine == _lastRenderedFirstVisibleLine &&
+            metrics.VisibleLineCount == _lastRenderedVisibleLineCount &&
+            Math.Abs(metrics.LineOffset - _lastRenderedLineOffset) <= 0.01f &&
+            Math.Abs(metrics.LineHeight - _lastRenderedLineHeight) <= 0.01f &&
+            AreLineNumberGutterMaxHeightsEquivalent(metrics.GutterMaxHeight, _lastRenderedLineNumberGutterMaxHeight))
         {
             _diagUpdateLineNumberGutterNoOpCount++;
             _runtimeUpdateLineNumberGutterNoOpCount++;
@@ -1297,29 +1423,59 @@ public sealed class IDE_Editor : Control, ITextInputControl
 
         if (_lineNumberBorder != null)
         {
-            _lineNumberBorder.MaxHeight = gutterMaxHeight;
+            _lineNumberBorder.MaxHeight = metrics.GutterMaxHeight;
         }
 
-        _lineNumberPresenter.LineHeight = lineHeight;
+        _lineNumberPresenter.LineHeight = metrics.LineHeight;
         _lineNumberPresenter.FontSize = FontSize;
-        _lineNumberPresenter.VerticalLineOffset = lineOffset;
-        _lineNumberPresenter.UpdateVisibleRange(firstVisibleLine, visibleLineCount);
+        _lineNumberPresenter.VerticalLineOffset = metrics.LineOffset;
+        _lineNumberPresenter.UpdateVisibleRange(metrics.FirstVisibleLine, metrics.VisibleLineCount);
 
         _diagUpdateLineNumberGutterAppliedCount++;
         _runtimeUpdateLineNumberGutterAppliedCount++;
-        _diagUpdateLineNumberGutterVisibleLineTotal += visibleLineCount;
-        _runtimeUpdateLineNumberGutterVisibleLineTotal += visibleLineCount;
+        _diagUpdateLineNumberGutterVisibleLineTotal += metrics.VisibleLineCount;
+        _runtimeUpdateLineNumberGutterVisibleLineTotal += metrics.VisibleLineCount;
 
-        _lastRenderedLineCount = lineCount;
-        _lastRenderedFirstVisibleLine = firstVisibleLine;
-        _lastRenderedVisibleLineCount = visibleLineCount;
-        _lastRenderedLineOffset = lineOffset;
-        _lastRenderedLineHeight = lineHeight;
-        _lastRenderedLineNumberGutterMaxHeight = gutterMaxHeight;
+        _lastRenderedLineCount = metrics.LineCount;
+        _lastRenderedFirstVisibleLine = metrics.FirstVisibleLine;
+        _lastRenderedVisibleLineCount = metrics.VisibleLineCount;
+        _lastRenderedLineOffset = metrics.LineOffset;
+        _lastRenderedLineHeight = metrics.LineHeight;
+        _lastRenderedLineNumberGutterMaxHeight = metrics.GutterMaxHeight;
 
         var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
         _diagUpdateLineNumberGutterElapsedTicks += elapsedTicks;
         _runtimeUpdateLineNumberGutterElapsedTicks += elapsedTicks;
+    }
+
+    private LineNumberGutterMetrics ResolveLineNumberGutterMetrics()
+    {
+        var lineCount = Math.Max(1, _cachedLineCount);
+        var lineHeight = EstimateLineHeight(lineCount);
+        var viewportHeight = Math.Max(0f, ResolveLineNumberViewportHeight());
+        var gutterMaxHeight = ResolveLineNumberGutterMaxHeight();
+        var verticalOffset = Math.Max(0f, _editor?.VerticalOffset ?? 0f);
+        var visibleLineCountForViewport = Math.Clamp(
+            (int)MathF.Ceiling((viewportHeight + (verticalOffset % lineHeight)) / lineHeight),
+            1,
+            Math.Max(1, lineCount));
+        var firstVisibleLine = Math.Clamp(
+            (int)MathF.Floor(verticalOffset / lineHeight),
+            0,
+            Math.Max(0, lineCount - 1));
+        var visibleLineCount = Math.Clamp(
+            visibleLineCountForViewport,
+            1,
+            Math.Max(1, lineCount - firstVisibleLine));
+        var lineOffset = verticalOffset - (firstVisibleLine * lineHeight);
+
+        return new LineNumberGutterMetrics(
+            lineCount,
+            firstVisibleLine,
+            visibleLineCount,
+            lineHeight,
+            lineOffset,
+            gutterMaxHeight);
     }
 
     private float ResolveLineNumberViewportHeight()
@@ -1409,7 +1565,19 @@ public sealed class IDE_Editor : Control, ITextInputControl
             BuildIndentGuideSnapshotCallCount: _diagBuildIndentGuideSnapshotCallCount,
             BuildIndentGuideSnapshotSuccessCount: _diagBuildIndentGuideSnapshotSuccessCount,
             BuildIndentGuideSnapshotSegmentTotal: _diagBuildIndentGuideSnapshotSegmentTotal,
-            BuildIndentGuideSnapshotMilliseconds: TicksToMilliseconds(_diagBuildIndentGuideSnapshotElapsedTicks));
+            BuildIndentGuideSnapshotMilliseconds: TicksToMilliseconds(_diagBuildIndentGuideSnapshotElapsedTicks),
+            MeasureOverrideCallCount: _diagMeasureOverrideCallCount,
+            MeasureOverrideMilliseconds: TicksToMilliseconds(_diagMeasureOverrideElapsedTicks),
+            MeasureOverrideBaseMilliseconds: TicksToMilliseconds(_diagMeasureOverrideBaseElapsedTicks),
+            MeasureOverrideRichTextBoxMilliseconds: TicksToMilliseconds(_diagMeasureOverrideRichTextBoxElapsedTicks),
+            MeasureOverrideLineNumberPresenterMilliseconds: TicksToMilliseconds(_diagMeasureOverrideLineNumberPresenterElapsedTicks),
+            ArrangeOverrideCallCount: _diagArrangeOverrideCallCount,
+            ArrangeOverrideMilliseconds: TicksToMilliseconds(_diagArrangeOverrideElapsedTicks),
+            ArrangeOverrideBaseMilliseconds: TicksToMilliseconds(_diagArrangeOverrideBaseElapsedTicks),
+            ArrangeOverrideRichTextBoxMilliseconds: TicksToMilliseconds(_diagArrangeOverrideRichTextBoxElapsedTicks),
+            ArrangeOverrideLineNumberPresenterMilliseconds: TicksToMilliseconds(_diagArrangeOverrideLineNumberPresenterElapsedTicks),
+            RenderCallCount: _diagRenderCallCount,
+            RenderMilliseconds: TicksToMilliseconds(_diagRenderElapsedTicks));
 
         if (reset)
         {
@@ -1436,6 +1604,18 @@ public sealed class IDE_Editor : Control, ITextInputControl
             _diagBuildIndentGuideSnapshotSuccessCount = 0;
             _diagBuildIndentGuideSnapshotSegmentTotal = 0;
             _diagBuildIndentGuideSnapshotElapsedTicks = 0;
+            _diagMeasureOverrideCallCount = 0;
+            _diagMeasureOverrideElapsedTicks = 0;
+            _diagMeasureOverrideBaseElapsedTicks = 0;
+            _diagMeasureOverrideRichTextBoxElapsedTicks = 0;
+            _diagMeasureOverrideLineNumberPresenterElapsedTicks = 0;
+            _diagArrangeOverrideCallCount = 0;
+            _diagArrangeOverrideElapsedTicks = 0;
+            _diagArrangeOverrideBaseElapsedTicks = 0;
+            _diagArrangeOverrideRichTextBoxElapsedTicks = 0;
+            _diagArrangeOverrideLineNumberPresenterElapsedTicks = 0;
+            _diagRenderCallCount = 0;
+            _diagRenderElapsedTicks = 0;
         }
 
         return snapshot;
@@ -1449,6 +1629,11 @@ public sealed class IDE_Editor : Control, ITextInputControl
     private static double TicksToMilliseconds(long ticks)
     {
         return ticks * 1000d / Stopwatch.Frequency;
+    }
+
+    private static long MillisecondsToTicks(double milliseconds)
+    {
+        return (long)Math.Round(milliseconds * Stopwatch.Frequency / 1000d);
     }
 
     private IEnumerable<IDEEditorIndentGuideSegmentSnapshot> BuildIndentGuideSegments(RichTextBoxViewportLayoutSnapshot viewport)
@@ -1879,16 +2064,6 @@ public sealed class IDE_Editor : Control, ITextInputControl
         return Math.Max(1f, FontSize * 1.35f);
     }
 
-    private int GetFirstVisibleLine(int lineCount, int approximateVisibleLineCount, float lineHeight, float verticalOffset)
-    {
-        if (_editor == null)
-        {
-            return 0;
-        }
-
-        return Math.Clamp((int)MathF.Floor(verticalOffset / lineHeight), 0, Math.Max(0, lineCount - 1));
-    }
-
     private static int CountLines(FlowDocument? document)
     {
         if (document == null)
@@ -1961,6 +2136,14 @@ public sealed class IDE_Editor : Control, ITextInputControl
         document.Blocks.Add(new Paragraph());
         return document;
     }
+
+    private readonly record struct LineNumberGutterMetrics(
+        int LineCount,
+        int FirstVisibleLine,
+        int VisibleLineCount,
+        float LineHeight,
+        float LineOffset,
+        float GutterMaxHeight);
 
     private static Style BuildDefaultStyle()
     {

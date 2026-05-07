@@ -23,7 +23,19 @@ internal readonly record struct IDEEditorTelemetrySnapshot(
     int BuildIndentGuideSnapshotCallCount,
     int BuildIndentGuideSnapshotSuccessCount,
     int BuildIndentGuideSnapshotSegmentTotal,
-    double BuildIndentGuideSnapshotMilliseconds);
+    double BuildIndentGuideSnapshotMilliseconds,
+    int MeasureOverrideCallCount,
+    double MeasureOverrideMilliseconds,
+    double MeasureOverrideBaseMilliseconds,
+    double MeasureOverrideRichTextBoxMilliseconds,
+    double MeasureOverrideLineNumberPresenterMilliseconds,
+    int ArrangeOverrideCallCount,
+    double ArrangeOverrideMilliseconds,
+    double ArrangeOverrideBaseMilliseconds,
+    double ArrangeOverrideRichTextBoxMilliseconds,
+    double ArrangeOverrideLineNumberPresenterMilliseconds,
+    int RenderCallCount,
+    double RenderMilliseconds);
 
 internal readonly record struct IDEEditorRuntimeDiagnosticsSnapshot(
     int UpdateLineNumberGutterCallCount,
@@ -68,7 +80,28 @@ internal readonly record struct IDEEditorRuntimeDiagnosticsSnapshot(
     float ViewportWidth,
     float ViewportHeight,
     float ExtentWidth,
-    float ExtentHeight);
+    float ExtentHeight,
+    int MeasureOverrideCallCount,
+    double MeasureOverrideMilliseconds,
+    double MeasureOverrideBaseMilliseconds,
+    double MeasureOverrideRichTextBoxMilliseconds,
+    double MeasureOverrideLineNumberPresenterMilliseconds,
+    double LastMeasureOverrideMilliseconds,
+    double LastMeasureOverrideBaseMilliseconds,
+    double LastMeasureOverrideRichTextBoxMilliseconds,
+    double LastMeasureOverrideLineNumberPresenterMilliseconds,
+    int ArrangeOverrideCallCount,
+    double ArrangeOverrideMilliseconds,
+    double ArrangeOverrideBaseMilliseconds,
+    double ArrangeOverrideRichTextBoxMilliseconds,
+    double ArrangeOverrideLineNumberPresenterMilliseconds,
+    double LastArrangeOverrideMilliseconds,
+    double LastArrangeOverrideBaseMilliseconds,
+    double LastArrangeOverrideRichTextBoxMilliseconds,
+    double LastArrangeOverrideLineNumberPresenterMilliseconds,
+    int RenderCallCount,
+    double RenderMilliseconds,
+    double LastRenderMilliseconds);
 
 internal readonly record struct IDEEditorLineNumberPresenterTelemetrySnapshot(
     int UpdateVisibleRangeCallCount,
@@ -110,3 +143,12 @@ internal readonly record struct IDEEditorIndentGuideOverlayRuntimeDiagnosticsSna
     int RenderSegmentTotal,
     double RenderMilliseconds,
     bool HasOwner);
+
+internal readonly record struct IDEEditorMinimapRuntimeDiagnosticsSnapshot(
+    int RenderCallCount,
+    double RenderMilliseconds,
+    int LastRenderVisibleLineCount,
+    int LastRenderTokenIterationCount,
+    int LastRenderSegmentDrawCount,
+    int LastLineCount,
+    int LastTokenCount);

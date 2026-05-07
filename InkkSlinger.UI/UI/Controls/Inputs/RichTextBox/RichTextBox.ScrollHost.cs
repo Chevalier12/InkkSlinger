@@ -59,6 +59,10 @@ public partial class RichTextBox
     private static long _diagFlushPendingViewportChangedNotificationNotifyElapsedTicks;
     private static int _diagHostedScrollContentMeasureCallCount;
     private static long _diagHostedScrollContentMeasureElapsedTicks;
+    private static int _diagMeasureOverrideCallCount;
+    private static long _diagMeasureOverrideElapsedTicks;
+    private static long _diagMeasureOverrideBaseElapsedTicks;
+    private static long _diagMeasureOverrideLayoutResolveElapsedTicks;
     private static int _diagHostedScrollContentArrangeCallCount;
     private static long _diagHostedScrollContentArrangeElapsedTicks;
     private static int _diagHostedRootRenderCallCount;
@@ -68,6 +72,15 @@ public partial class RichTextBox
     private static long _diagHostedScrollContentRenderElapsedTicks;
     private static long _diagHostedScrollContentRenderLayoutResolveElapsedTicks;
     private static long _diagHostedScrollContentRenderDocumentSurfaceElapsedTicks;
+    private static long _diagHostedScrollContentRenderSelectionElapsedTicks;
+    private static long _diagHostedScrollContentRenderRunsElapsedTicks;
+    private static int _diagHostedScrollContentRenderRunCount;
+    private static int _diagHostedScrollContentRenderRunCharacterCount;
+    private static long _diagHostedScrollContentRenderTableBordersElapsedTicks;
+    private static long _diagHostedScrollContentRenderCaretElapsedTicks;
+    private static long _diagHostedScrollContentRenderHostedLayoutElapsedTicks;
+    private static long _diagHostedScrollContentRenderHostedChildrenElapsedTicks;
+    private static int _diagHostedScrollContentRenderHostedChildrenCount;
     private static int _diagCanReuseHostedContentMeasureCallCount;
     private static int _diagCanReuseHostedContentMeasureTrueCount;
     private static int _diagCanReuseHostedContentMeasureEquivalentWidthTrueCount;
@@ -133,6 +146,17 @@ public partial class RichTextBox
     private long _runtimeFlushPendingViewportChangedNotificationNotifyElapsedTicks;
     private int _runtimeHostedScrollContentMeasureCallCount;
     private long _runtimeHostedScrollContentMeasureElapsedTicks;
+    private int _runtimeMeasureOverrideCallCount;
+    private long _runtimeMeasureOverrideElapsedTicks;
+    private long _runtimeMeasureOverrideBaseElapsedTicks;
+    private long _runtimeMeasureOverrideLayoutResolveElapsedTicks;
+    private long _runtimeLastMeasureOverrideElapsedTicks;
+    private long _runtimeLastMeasureOverrideBaseElapsedTicks;
+    private long _runtimeLastMeasureOverrideLayoutResolveElapsedTicks;
+    private float _runtimeLastMeasureOverrideAvailableWidth;
+    private float _runtimeLastMeasureOverrideTextWidth;
+    private float _runtimeLastMeasureOverrideLayoutContentWidth;
+    private float _runtimeLastMeasureOverrideLayoutContentHeight;
     private float _runtimeLastHostedScrollContentMeasureAvailableWidth;
     private float _runtimeLastHostedScrollContentMeasureLayoutWidth;
     private float _runtimeLastHostedScrollContentMeasureDesiredWidth;
@@ -147,6 +171,15 @@ public partial class RichTextBox
     private long _runtimeHostedScrollContentRenderElapsedTicks;
     private long _runtimeHostedScrollContentRenderLayoutResolveElapsedTicks;
     private long _runtimeHostedScrollContentRenderDocumentSurfaceElapsedTicks;
+    private long _runtimeHostedScrollContentRenderSelectionElapsedTicks;
+    private long _runtimeHostedScrollContentRenderRunsElapsedTicks;
+    private int _runtimeHostedScrollContentRenderRunCount;
+    private int _runtimeHostedScrollContentRenderRunCharacterCount;
+    private long _runtimeHostedScrollContentRenderTableBordersElapsedTicks;
+    private long _runtimeHostedScrollContentRenderCaretElapsedTicks;
+    private long _runtimeHostedScrollContentRenderHostedLayoutElapsedTicks;
+    private long _runtimeHostedScrollContentRenderHostedChildrenElapsedTicks;
+    private int _runtimeHostedScrollContentRenderHostedChildrenCount;
     private int _runtimeCanReuseHostedContentMeasureCallCount;
     private int _runtimeCanReuseHostedContentMeasureTrueCount;
     private int _runtimeCanReuseHostedContentMeasureEquivalentWidthTrueCount;
@@ -709,11 +742,41 @@ public partial class RichTextBox
         _diagHostedScrollContentRenderLayoutResolveElapsedTicks += layoutResolveElapsedTicks;
         _runtimeHostedScrollContentRenderLayoutResolveElapsedTicks += layoutResolveElapsedTicks;
 
+        var metrics = GetScrollMetrics();
         var drawStartTicks = Stopwatch.GetTimestamp();
-        RenderDocumentSurface(spriteBatch, slot, layout, 0f, 0f, includeHostedChildren: false);
+        RenderDocumentSurface(
+            spriteBatch,
+            slot,
+            layout,
+            0f,
+            0f,
+            includeHostedChildren: false,
+            out var selectionMs,
+            out var runsMs,
+            out var runCount,
+            out var runCharacterCount,
+            out var tableBordersMs,
+            out var caretMs,
+            out var hostedLayoutMs,
+            out var hostedChildrenMs,
+            out var hostedChildrenCount,
+            visibleHorizontalOffset: metrics.HorizontalOffset,
+            visibleVerticalOffset: metrics.VerticalOffset,
+            visibleWidth: metrics.ViewportWidth,
+            visibleHeight: metrics.ViewportHeight);
         var drawElapsedTicks = Stopwatch.GetTimestamp() - drawStartTicks;
         _diagHostedScrollContentRenderDocumentSurfaceElapsedTicks += drawElapsedTicks;
         _runtimeHostedScrollContentRenderDocumentSurfaceElapsedTicks += drawElapsedTicks;
+        AddHostedScrollContentRenderBreakdown(
+            selectionMs,
+            runsMs,
+            runCount,
+            runCharacterCount,
+            tableBordersMs,
+            caretMs,
+            hostedLayoutMs,
+            hostedChildrenMs,
+            hostedChildrenCount);
 
         var renderElapsedTicks = Stopwatch.GetTimestamp() - renderStartTicks;
         _diagHostedScrollContentRenderElapsedTicks += renderElapsedTicks;
@@ -820,6 +883,17 @@ public partial class RichTextBox
             FlushPendingViewportChangedNotificationNotifyMilliseconds: TicksToMilliseconds(_runtimeFlushPendingViewportChangedNotificationNotifyElapsedTicks),
             HostedScrollContentMeasureCallCount: _runtimeHostedScrollContentMeasureCallCount,
             HostedScrollContentMeasureMilliseconds: TicksToMilliseconds(_runtimeHostedScrollContentMeasureElapsedTicks),
+            MeasureOverrideCallCount: _runtimeMeasureOverrideCallCount,
+            MeasureOverrideMilliseconds: TicksToMilliseconds(_runtimeMeasureOverrideElapsedTicks),
+            MeasureOverrideBaseMilliseconds: TicksToMilliseconds(_runtimeMeasureOverrideBaseElapsedTicks),
+            MeasureOverrideLayoutResolveMilliseconds: TicksToMilliseconds(_runtimeMeasureOverrideLayoutResolveElapsedTicks),
+            LastMeasureOverrideMilliseconds: TicksToMilliseconds(_runtimeLastMeasureOverrideElapsedTicks),
+            LastMeasureOverrideBaseMilliseconds: TicksToMilliseconds(_runtimeLastMeasureOverrideBaseElapsedTicks),
+            LastMeasureOverrideLayoutResolveMilliseconds: TicksToMilliseconds(_runtimeLastMeasureOverrideLayoutResolveElapsedTicks),
+            LastMeasureOverrideAvailableWidth: _runtimeLastMeasureOverrideAvailableWidth,
+            LastMeasureOverrideTextWidth: _runtimeLastMeasureOverrideTextWidth,
+            LastMeasureOverrideLayoutContentWidth: _runtimeLastMeasureOverrideLayoutContentWidth,
+            LastMeasureOverrideLayoutContentHeight: _runtimeLastMeasureOverrideLayoutContentHeight,
             LastHostedScrollContentMeasureAvailableWidth: _runtimeLastHostedScrollContentMeasureAvailableWidth,
             LastHostedScrollContentMeasureLayoutWidth: _runtimeLastHostedScrollContentMeasureLayoutWidth,
             LastHostedScrollContentMeasureDesiredWidth: _runtimeLastHostedScrollContentMeasureDesiredWidth,
@@ -834,6 +908,15 @@ public partial class RichTextBox
             HostedScrollContentRenderMilliseconds: TicksToMilliseconds(_runtimeHostedScrollContentRenderElapsedTicks),
             HostedScrollContentRenderLayoutResolveMilliseconds: TicksToMilliseconds(_runtimeHostedScrollContentRenderLayoutResolveElapsedTicks),
             HostedScrollContentRenderDocumentSurfaceMilliseconds: TicksToMilliseconds(_runtimeHostedScrollContentRenderDocumentSurfaceElapsedTicks),
+            HostedScrollContentRenderSelectionMilliseconds: TicksToMilliseconds(_runtimeHostedScrollContentRenderSelectionElapsedTicks),
+            HostedScrollContentRenderRunsMilliseconds: TicksToMilliseconds(_runtimeHostedScrollContentRenderRunsElapsedTicks),
+            HostedScrollContentRenderRunCount: _runtimeHostedScrollContentRenderRunCount,
+            HostedScrollContentRenderRunCharacterCount: _runtimeHostedScrollContentRenderRunCharacterCount,
+            HostedScrollContentRenderTableBordersMilliseconds: TicksToMilliseconds(_runtimeHostedScrollContentRenderTableBordersElapsedTicks),
+            HostedScrollContentRenderCaretMilliseconds: TicksToMilliseconds(_runtimeHostedScrollContentRenderCaretElapsedTicks),
+            HostedScrollContentRenderHostedLayoutMilliseconds: TicksToMilliseconds(_runtimeHostedScrollContentRenderHostedLayoutElapsedTicks),
+            HostedScrollContentRenderHostedChildrenMilliseconds: TicksToMilliseconds(_runtimeHostedScrollContentRenderHostedChildrenElapsedTicks),
+            HostedScrollContentRenderHostedChildrenCount: _runtimeHostedScrollContentRenderHostedChildrenCount,
             CanReuseHostedContentMeasureCallCount: _runtimeCanReuseHostedContentMeasureCallCount,
             CanReuseHostedContentMeasureTrueCount: _runtimeCanReuseHostedContentMeasureTrueCount,
             CanReuseHostedContentMeasureEquivalentWidthTrueCount: _runtimeCanReuseHostedContentMeasureEquivalentWidthTrueCount,
@@ -911,6 +994,10 @@ public partial class RichTextBox
             FlushPendingViewportChangedNotificationNotifyMilliseconds: TicksToMilliseconds(_diagFlushPendingViewportChangedNotificationNotifyElapsedTicks),
             HostedScrollContentMeasureCallCount: _diagHostedScrollContentMeasureCallCount,
             HostedScrollContentMeasureMilliseconds: TicksToMilliseconds(_diagHostedScrollContentMeasureElapsedTicks),
+            MeasureOverrideCallCount: _diagMeasureOverrideCallCount,
+            MeasureOverrideMilliseconds: TicksToMilliseconds(_diagMeasureOverrideElapsedTicks),
+            MeasureOverrideBaseMilliseconds: TicksToMilliseconds(_diagMeasureOverrideBaseElapsedTicks),
+            MeasureOverrideLayoutResolveMilliseconds: TicksToMilliseconds(_diagMeasureOverrideLayoutResolveElapsedTicks),
             HostedScrollContentArrangeCallCount: _diagHostedScrollContentArrangeCallCount,
             HostedScrollContentArrangeMilliseconds: TicksToMilliseconds(_diagHostedScrollContentArrangeElapsedTicks),
             HostedRootRenderCallCount: _diagHostedRootRenderCallCount,
@@ -920,6 +1007,15 @@ public partial class RichTextBox
             HostedScrollContentRenderMilliseconds: TicksToMilliseconds(_diagHostedScrollContentRenderElapsedTicks),
             HostedScrollContentRenderLayoutResolveMilliseconds: TicksToMilliseconds(_diagHostedScrollContentRenderLayoutResolveElapsedTicks),
             HostedScrollContentRenderDocumentSurfaceMilliseconds: TicksToMilliseconds(_diagHostedScrollContentRenderDocumentSurfaceElapsedTicks),
+            HostedScrollContentRenderSelectionMilliseconds: TicksToMilliseconds(_diagHostedScrollContentRenderSelectionElapsedTicks),
+            HostedScrollContentRenderRunsMilliseconds: TicksToMilliseconds(_diagHostedScrollContentRenderRunsElapsedTicks),
+            HostedScrollContentRenderRunCount: _diagHostedScrollContentRenderRunCount,
+            HostedScrollContentRenderRunCharacterCount: _diagHostedScrollContentRenderRunCharacterCount,
+            HostedScrollContentRenderTableBordersMilliseconds: TicksToMilliseconds(_diagHostedScrollContentRenderTableBordersElapsedTicks),
+            HostedScrollContentRenderCaretMilliseconds: TicksToMilliseconds(_diagHostedScrollContentRenderCaretElapsedTicks),
+            HostedScrollContentRenderHostedLayoutMilliseconds: TicksToMilliseconds(_diagHostedScrollContentRenderHostedLayoutElapsedTicks),
+            HostedScrollContentRenderHostedChildrenMilliseconds: TicksToMilliseconds(_diagHostedScrollContentRenderHostedChildrenElapsedTicks),
+            HostedScrollContentRenderHostedChildrenCount: _diagHostedScrollContentRenderHostedChildrenCount,
             CanReuseHostedContentMeasureCallCount: _diagCanReuseHostedContentMeasureCallCount,
             CanReuseHostedContentMeasureTrueCount: _diagCanReuseHostedContentMeasureTrueCount,
             CanReuseHostedContentMeasureEquivalentWidthTrueCount: _diagCanReuseHostedContentMeasureEquivalentWidthTrueCount,
@@ -974,6 +1070,10 @@ public partial class RichTextBox
             _diagFlushPendingViewportChangedNotificationNotifyElapsedTicks = 0;
             _diagHostedScrollContentMeasureCallCount = 0;
             _diagHostedScrollContentMeasureElapsedTicks = 0;
+            _diagMeasureOverrideCallCount = 0;
+            _diagMeasureOverrideElapsedTicks = 0;
+            _diagMeasureOverrideBaseElapsedTicks = 0;
+            _diagMeasureOverrideLayoutResolveElapsedTicks = 0;
             _diagHostedScrollContentArrangeCallCount = 0;
             _diagHostedScrollContentArrangeElapsedTicks = 0;
             _diagHostedRootRenderCallCount = 0;
@@ -983,6 +1083,15 @@ public partial class RichTextBox
             _diagHostedScrollContentRenderElapsedTicks = 0;
             _diagHostedScrollContentRenderLayoutResolveElapsedTicks = 0;
             _diagHostedScrollContentRenderDocumentSurfaceElapsedTicks = 0;
+            _diagHostedScrollContentRenderSelectionElapsedTicks = 0;
+            _diagHostedScrollContentRenderRunsElapsedTicks = 0;
+            _diagHostedScrollContentRenderRunCount = 0;
+            _diagHostedScrollContentRenderRunCharacterCount = 0;
+            _diagHostedScrollContentRenderTableBordersElapsedTicks = 0;
+            _diagHostedScrollContentRenderCaretElapsedTicks = 0;
+            _diagHostedScrollContentRenderHostedLayoutElapsedTicks = 0;
+            _diagHostedScrollContentRenderHostedChildrenElapsedTicks = 0;
+            _diagHostedScrollContentRenderHostedChildrenCount = 0;
             _diagCanReuseHostedContentMeasureCallCount = 0;
             _diagCanReuseHostedContentMeasureTrueCount = 0;
             _diagCanReuseHostedContentMeasureEquivalentWidthTrueCount = 0;
@@ -1160,6 +1269,51 @@ public partial class RichTextBox
     private static double TicksToMilliseconds(long ticks)
     {
         return (double)ticks * 1000d / Stopwatch.Frequency;
+    }
+
+    private void AddHostedScrollContentRenderBreakdown(
+        double selectionMs,
+        double runsMs,
+        int runCount,
+        int runCharacterCount,
+        double tableBordersMs,
+        double caretMs,
+        double hostedLayoutMs,
+        double hostedChildrenMs,
+        int hostedChildrenCount)
+    {
+        var selectionTicks = MillisecondsToTicks(selectionMs);
+        var runsTicks = MillisecondsToTicks(runsMs);
+        var tableBordersTicks = MillisecondsToTicks(tableBordersMs);
+        var caretTicks = MillisecondsToTicks(caretMs);
+        var hostedLayoutTicks = MillisecondsToTicks(hostedLayoutMs);
+        var hostedChildrenTicks = MillisecondsToTicks(hostedChildrenMs);
+
+        _diagHostedScrollContentRenderSelectionElapsedTicks += selectionTicks;
+        _diagHostedScrollContentRenderRunsElapsedTicks += runsTicks;
+        _diagHostedScrollContentRenderRunCount += runCount;
+        _diagHostedScrollContentRenderRunCharacterCount += runCharacterCount;
+        _diagHostedScrollContentRenderTableBordersElapsedTicks += tableBordersTicks;
+        _diagHostedScrollContentRenderCaretElapsedTicks += caretTicks;
+        _diagHostedScrollContentRenderHostedLayoutElapsedTicks += hostedLayoutTicks;
+        _diagHostedScrollContentRenderHostedChildrenElapsedTicks += hostedChildrenTicks;
+        _diagHostedScrollContentRenderHostedChildrenCount += hostedChildrenCount;
+        _runtimeHostedScrollContentRenderSelectionElapsedTicks += selectionTicks;
+        _runtimeHostedScrollContentRenderRunsElapsedTicks += runsTicks;
+        _runtimeHostedScrollContentRenderRunCount += runCount;
+        _runtimeHostedScrollContentRenderRunCharacterCount += runCharacterCount;
+        _runtimeHostedScrollContentRenderTableBordersElapsedTicks += tableBordersTicks;
+        _runtimeHostedScrollContentRenderCaretElapsedTicks += caretTicks;
+        _runtimeHostedScrollContentRenderHostedLayoutElapsedTicks += hostedLayoutTicks;
+        _runtimeHostedScrollContentRenderHostedChildrenElapsedTicks += hostedChildrenTicks;
+        _runtimeHostedScrollContentRenderHostedChildrenCount += hostedChildrenCount;
+    }
+
+    private static long MillisecondsToTicks(double milliseconds)
+    {
+        return milliseconds <= 0d
+            ? 0
+            : (long)(milliseconds * Stopwatch.Frequency / 1000d);
     }
 
     private sealed class RichTextBoxScrollContentPresenter : FrameworkElement, IHyperlinkHoverHost, IScrollViewerMeasureConstraintProvider

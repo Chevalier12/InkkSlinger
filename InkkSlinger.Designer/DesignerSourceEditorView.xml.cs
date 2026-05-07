@@ -110,6 +110,15 @@ public partial class DesignerSourceEditorView : UserControl
     private static long _diagSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks;
     private static long _diagSourceEditorTextChangedRefreshCompletionCallCount;
     private static long _diagSourceEditorTextChangedRefreshCompletionElapsedTicks;
+    private static long _diagSourceTextChangedCallCount;
+    private static long _diagSourceTextChangedElapsedTicks;
+    private static long _diagRefreshHighlightedSourceDocumentCallCount;
+    private static long _diagRefreshHighlightedSourceDocumentElapsedTicks;
+    private static long _diagRefreshHighlightedSourceDocumentOverviewElapsedTicks;
+    private static long _diagRefreshHighlightedSourceDocumentDisplayTextElapsedTicks;
+    private static long _diagRefreshHighlightedSourceDocumentUpdatePresentationElapsedTicks;
+    private static long _diagRefreshHighlightedSourceDocumentSyntaxPopulateElapsedTicks;
+    private static long _diagRefreshHighlightedSourceDocumentRestoreStateElapsedTicks;
     private long _runtimeSourceEditorTextChangedCallCount;
     private long _runtimeSourceEditorTextChangedElapsedTicks;
     private long _runtimeSourceEditorTextChangedRefreshHighlightedCallCount;
@@ -124,6 +133,23 @@ public partial class DesignerSourceEditorView : UserControl
     private long _runtimeLastSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks;
     private bool _runtimeLastSourceEditorTextChangedRefreshedCompletion;
     private long _runtimeLastSourceEditorTextChangedRefreshCompletionElapsedTicks;
+    private long _runtimeSourceTextChangedCallCount;
+    private long _runtimeSourceTextChangedElapsedTicks;
+    private long _runtimeLastSourceTextChangedElapsedTicks;
+    private long _runtimeRefreshHighlightedSourceDocumentCallCount;
+    private long _runtimeRefreshHighlightedSourceDocumentElapsedTicks;
+    private long _runtimeRefreshHighlightedSourceDocumentOverviewElapsedTicks;
+    private long _runtimeRefreshHighlightedSourceDocumentDisplayTextElapsedTicks;
+    private long _runtimeRefreshHighlightedSourceDocumentUpdatePresentationElapsedTicks;
+    private long _runtimeRefreshHighlightedSourceDocumentSyntaxPopulateElapsedTicks;
+    private long _runtimeRefreshHighlightedSourceDocumentRestoreStateElapsedTicks;
+    private long _runtimeLastRefreshHighlightedSourceDocumentElapsedTicks;
+    private long _runtimeLastRefreshHighlightedSourceDocumentOverviewElapsedTicks;
+    private long _runtimeLastRefreshHighlightedSourceDocumentDisplayTextElapsedTicks;
+    private long _runtimeLastRefreshHighlightedSourceDocumentUpdatePresentationElapsedTicks;
+    private long _runtimeLastRefreshHighlightedSourceDocumentSyntaxPopulateElapsedTicks;
+    private long _runtimeLastRefreshHighlightedSourceDocumentRestoreStateElapsedTicks;
+    private int _runtimeLastRefreshHighlightedSourceDocumentTextLength;
 
     public DesignerSourceEditorView()
     {
@@ -222,7 +248,19 @@ public partial class DesignerSourceEditorView : UserControl
             LastSourceEditorTextChangedRefreshHighlightedMilliseconds: TicksToMilliseconds(_runtimeLastSourceEditorTextChangedRefreshHighlightedElapsedTicks),
             LastSourceEditorTextChangedRefreshPropertyInspectorMilliseconds: TicksToMilliseconds(_runtimeLastSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks),
             LastSourceEditorTextChangedRefreshedCompletion: _runtimeLastSourceEditorTextChangedRefreshedCompletion,
-            LastSourceEditorTextChangedRefreshCompletionMilliseconds: TicksToMilliseconds(_runtimeLastSourceEditorTextChangedRefreshCompletionElapsedTicks));
+            LastSourceEditorTextChangedRefreshCompletionMilliseconds: TicksToMilliseconds(_runtimeLastSourceEditorTextChangedRefreshCompletionElapsedTicks),
+            SourceTextChangedCallCount: _runtimeSourceTextChangedCallCount,
+            SourceTextChangedMilliseconds: TicksToMilliseconds(_runtimeSourceTextChangedElapsedTicks),
+            LastSourceTextChangedMilliseconds: TicksToMilliseconds(_runtimeLastSourceTextChangedElapsedTicks),
+            RefreshHighlightedSourceDocumentCallCount: _runtimeRefreshHighlightedSourceDocumentCallCount,
+            RefreshHighlightedSourceDocumentMilliseconds: TicksToMilliseconds(_runtimeRefreshHighlightedSourceDocumentElapsedTicks),
+            LastRefreshHighlightedSourceDocumentMilliseconds: TicksToMilliseconds(_runtimeLastRefreshHighlightedSourceDocumentElapsedTicks),
+            LastRefreshHighlightedSourceDocumentOverviewMilliseconds: TicksToMilliseconds(_runtimeLastRefreshHighlightedSourceDocumentOverviewElapsedTicks),
+            LastRefreshHighlightedSourceDocumentDisplayTextMilliseconds: TicksToMilliseconds(_runtimeLastRefreshHighlightedSourceDocumentDisplayTextElapsedTicks),
+            LastRefreshHighlightedSourceDocumentUpdatePresentationMilliseconds: TicksToMilliseconds(_runtimeLastRefreshHighlightedSourceDocumentUpdatePresentationElapsedTicks),
+            LastRefreshHighlightedSourceDocumentSyntaxPopulateMilliseconds: TicksToMilliseconds(_runtimeLastRefreshHighlightedSourceDocumentSyntaxPopulateElapsedTicks),
+            LastRefreshHighlightedSourceDocumentRestoreStateMilliseconds: TicksToMilliseconds(_runtimeLastRefreshHighlightedSourceDocumentRestoreStateElapsedTicks),
+            LastRefreshHighlightedSourceDocumentTextLength: _runtimeLastRefreshHighlightedSourceDocumentTextLength);
     }
 
     public new static DesignerSourceEditorViewTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
@@ -620,9 +658,17 @@ public partial class DesignerSourceEditorView : UserControl
             return;
         }
 
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeSourceTextChangedCallCount++;
+        _diagSourceTextChangedCallCount++;
+
         var documentText = DocumentEditing.GetText(SourceEditor.Document);
         if (string.Equals(documentText, newText, StringComparison.Ordinal))
         {
+            var unchangedElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _runtimeSourceTextChangedElapsedTicks += unchangedElapsedTicks;
+            _runtimeLastSourceTextChangedElapsedTicks = unchangedElapsedTicks;
+            _diagSourceTextChangedElapsedTicks += unchangedElapsedTicks;
             return;
         }
 
@@ -630,6 +676,11 @@ public partial class DesignerSourceEditorView : UserControl
         ClearCollapsedXmlFolds();
         RefreshHighlightedSourceDocument(previousText: null, currentText: newText, dismissCompletionPopup: false);
         RefreshSourcePropertyInspector();
+
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _runtimeSourceTextChangedElapsedTicks += elapsedTicks;
+        _runtimeLastSourceTextChangedElapsedTicks = elapsedTicks;
+        _diagSourceTextChangedElapsedTicks += elapsedTicks;
     }
 
     private void LoadDocumentIntoEditor(string? text)
@@ -639,14 +690,27 @@ public partial class DesignerSourceEditorView : UserControl
 
     private void RefreshHighlightedSourceDocument(string? previousText, string? currentText, bool dismissCompletionPopup)
     {
+        var refreshStartTicks = Stopwatch.GetTimestamp();
+        long overviewElapsedTicks = 0;
+        long displayTextElapsedTicks = 0;
+        long updatePresentationElapsedTicks = 0;
+        long syntaxPopulateElapsedTicks = 0;
+        long restoreStateElapsedTicks = 0;
+        var normalizedText = currentText ?? string.Empty;
+
         if (dismissCompletionPopup)
         {
             DismissCompletionPopup();
         }
 
-        var normalizedText = currentText ?? string.Empty;
+        var overviewStartTicks = Stopwatch.GetTimestamp();
         RefreshSourceOverview(normalizedText);
+        overviewElapsedTicks = Stopwatch.GetTimestamp() - overviewStartTicks;
+
+        var displayTextStartTicks = Stopwatch.GetTimestamp();
         var displayText = CreateSourceEditorDisplayText(normalizedText);
+        displayTextElapsedTicks = Stopwatch.GetTimestamp() - displayTextStartTicks;
+
         var selectionStart = SourceEditor.SelectionStart;
         var selectionLength = SourceEditor.SelectionLength;
         var horizontalOffset = SourceEditor.HorizontalOffset;
@@ -655,8 +719,10 @@ public partial class DesignerSourceEditorView : UserControl
         _suppressSourceEditorChanges = true;
         try
         {
+            var updatePresentationStartTicks = Stopwatch.GetTimestamp();
             SourceEditor.UpdateDocumentPresentation(document =>
             {
+                var syntaxPopulateStartTicks = Stopwatch.GetTimestamp();
                 var refreshedIncrementally = _collapsedXmlFoldRangeKeys.Count == 0 &&
                     !string.IsNullOrEmpty(previousText) &&
                     DesignerXmlSyntaxHighlighter.TryPopulateDocumentIncrementally(document, previousText, displayText);
@@ -664,8 +730,11 @@ public partial class DesignerSourceEditorView : UserControl
                 {
                     DesignerXmlSyntaxHighlighter.PopulateDocument(document, displayText);
                 }
+                syntaxPopulateElapsedTicks = Stopwatch.GetTimestamp() - syntaxPopulateStartTicks;
             });
+            updatePresentationElapsedTicks = Stopwatch.GetTimestamp() - updatePresentationStartTicks;
 
+            var restoreStateStartTicks = Stopwatch.GetTimestamp();
             var updatedTextLength = DocumentEditing.GetText(SourceEditor.Document).Length;
             var clampedSelectionStart = Math.Clamp(selectionStart, 0, updatedTextLength);
             var clampedSelectionLength = Math.Clamp(selectionLength, 0, updatedTextLength - clampedSelectionStart);
@@ -674,11 +743,35 @@ public partial class DesignerSourceEditorView : UserControl
             SourceEditor.ScrollToVerticalOffset(verticalOffset);
             SourceEditor.IsReadOnly = _collapsedXmlFoldRangeKeys.Count > 0;
             SourceEditor.PreserveCurrentScrollOffsetsOnNextLayout();
+            restoreStateElapsedTicks = Stopwatch.GetTimestamp() - restoreStateStartTicks;
         }
         finally
         {
             _suppressSourceEditorChanges = false;
         }
+
+        var elapsedTicks = Stopwatch.GetTimestamp() - refreshStartTicks;
+        _runtimeRefreshHighlightedSourceDocumentCallCount++;
+        _runtimeRefreshHighlightedSourceDocumentElapsedTicks += elapsedTicks;
+        _runtimeRefreshHighlightedSourceDocumentOverviewElapsedTicks += overviewElapsedTicks;
+        _runtimeRefreshHighlightedSourceDocumentDisplayTextElapsedTicks += displayTextElapsedTicks;
+        _runtimeRefreshHighlightedSourceDocumentUpdatePresentationElapsedTicks += updatePresentationElapsedTicks;
+        _runtimeRefreshHighlightedSourceDocumentSyntaxPopulateElapsedTicks += syntaxPopulateElapsedTicks;
+        _runtimeRefreshHighlightedSourceDocumentRestoreStateElapsedTicks += restoreStateElapsedTicks;
+        _runtimeLastRefreshHighlightedSourceDocumentElapsedTicks = elapsedTicks;
+        _runtimeLastRefreshHighlightedSourceDocumentOverviewElapsedTicks = overviewElapsedTicks;
+        _runtimeLastRefreshHighlightedSourceDocumentDisplayTextElapsedTicks = displayTextElapsedTicks;
+        _runtimeLastRefreshHighlightedSourceDocumentUpdatePresentationElapsedTicks = updatePresentationElapsedTicks;
+        _runtimeLastRefreshHighlightedSourceDocumentSyntaxPopulateElapsedTicks = syntaxPopulateElapsedTicks;
+        _runtimeLastRefreshHighlightedSourceDocumentRestoreStateElapsedTicks = restoreStateElapsedTicks;
+        _runtimeLastRefreshHighlightedSourceDocumentTextLength = normalizedText.Length;
+        _diagRefreshHighlightedSourceDocumentCallCount++;
+        _diagRefreshHighlightedSourceDocumentElapsedTicks += elapsedTicks;
+        _diagRefreshHighlightedSourceDocumentOverviewElapsedTicks += overviewElapsedTicks;
+        _diagRefreshHighlightedSourceDocumentDisplayTextElapsedTicks += displayTextElapsedTicks;
+        _diagRefreshHighlightedSourceDocumentUpdatePresentationElapsedTicks += updatePresentationElapsedTicks;
+        _diagRefreshHighlightedSourceDocumentSyntaxPopulateElapsedTicks += syntaxPopulateElapsedTicks;
+        _diagRefreshHighlightedSourceDocumentRestoreStateElapsedTicks += restoreStateElapsedTicks;
     }
 
     private void NavigateToLine(int oneBasedLineNumber)
@@ -1853,7 +1946,16 @@ public partial class DesignerSourceEditorView : UserControl
             SourceEditorTextChangedRefreshPropertyInspectorCallCount: _diagSourceEditorTextChangedRefreshPropertyInspectorCallCount,
             SourceEditorTextChangedRefreshPropertyInspectorMilliseconds: TicksToMilliseconds(_diagSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks),
             SourceEditorTextChangedRefreshCompletionCallCount: _diagSourceEditorTextChangedRefreshCompletionCallCount,
-            SourceEditorTextChangedRefreshCompletionMilliseconds: TicksToMilliseconds(_diagSourceEditorTextChangedRefreshCompletionElapsedTicks));
+            SourceEditorTextChangedRefreshCompletionMilliseconds: TicksToMilliseconds(_diagSourceEditorTextChangedRefreshCompletionElapsedTicks),
+            SourceTextChangedCallCount: _diagSourceTextChangedCallCount,
+            SourceTextChangedMilliseconds: TicksToMilliseconds(_diagSourceTextChangedElapsedTicks),
+            RefreshHighlightedSourceDocumentCallCount: _diagRefreshHighlightedSourceDocumentCallCount,
+            RefreshHighlightedSourceDocumentMilliseconds: TicksToMilliseconds(_diagRefreshHighlightedSourceDocumentElapsedTicks),
+            RefreshHighlightedSourceDocumentOverviewMilliseconds: TicksToMilliseconds(_diagRefreshHighlightedSourceDocumentOverviewElapsedTicks),
+            RefreshHighlightedSourceDocumentDisplayTextMilliseconds: TicksToMilliseconds(_diagRefreshHighlightedSourceDocumentDisplayTextElapsedTicks),
+            RefreshHighlightedSourceDocumentUpdatePresentationMilliseconds: TicksToMilliseconds(_diagRefreshHighlightedSourceDocumentUpdatePresentationElapsedTicks),
+            RefreshHighlightedSourceDocumentSyntaxPopulateMilliseconds: TicksToMilliseconds(_diagRefreshHighlightedSourceDocumentSyntaxPopulateElapsedTicks),
+            RefreshHighlightedSourceDocumentRestoreStateMilliseconds: TicksToMilliseconds(_diagRefreshHighlightedSourceDocumentRestoreStateElapsedTicks));
 
         if (reset)
         {
@@ -1865,6 +1967,15 @@ public partial class DesignerSourceEditorView : UserControl
             _diagSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks = 0;
             _diagSourceEditorTextChangedRefreshCompletionCallCount = 0;
             _diagSourceEditorTextChangedRefreshCompletionElapsedTicks = 0;
+            _diagSourceTextChangedCallCount = 0;
+            _diagSourceTextChangedElapsedTicks = 0;
+            _diagRefreshHighlightedSourceDocumentCallCount = 0;
+            _diagRefreshHighlightedSourceDocumentElapsedTicks = 0;
+            _diagRefreshHighlightedSourceDocumentOverviewElapsedTicks = 0;
+            _diagRefreshHighlightedSourceDocumentDisplayTextElapsedTicks = 0;
+            _diagRefreshHighlightedSourceDocumentUpdatePresentationElapsedTicks = 0;
+            _diagRefreshHighlightedSourceDocumentSyntaxPopulateElapsedTicks = 0;
+            _diagRefreshHighlightedSourceDocumentRestoreStateElapsedTicks = 0;
         }
 
         return snapshot;

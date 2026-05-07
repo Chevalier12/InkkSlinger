@@ -8,7 +8,16 @@ public readonly record struct DesignerSourceEditorViewTelemetrySnapshot(
     long SourceEditorTextChangedRefreshPropertyInspectorCallCount,
     double SourceEditorTextChangedRefreshPropertyInspectorMilliseconds,
     long SourceEditorTextChangedRefreshCompletionCallCount,
-    double SourceEditorTextChangedRefreshCompletionMilliseconds);
+    double SourceEditorTextChangedRefreshCompletionMilliseconds,
+    long SourceTextChangedCallCount,
+    double SourceTextChangedMilliseconds,
+    long RefreshHighlightedSourceDocumentCallCount,
+    double RefreshHighlightedSourceDocumentMilliseconds,
+    double RefreshHighlightedSourceDocumentOverviewMilliseconds,
+    double RefreshHighlightedSourceDocumentDisplayTextMilliseconds,
+    double RefreshHighlightedSourceDocumentUpdatePresentationMilliseconds,
+    double RefreshHighlightedSourceDocumentSyntaxPopulateMilliseconds,
+    double RefreshHighlightedSourceDocumentRestoreStateMilliseconds);
 
 public readonly record struct DesignerSourceEditorViewRuntimeDiagnosticsSnapshot(
     long SourceEditorTextChangedCallCount,
@@ -24,4 +33,16 @@ public readonly record struct DesignerSourceEditorViewRuntimeDiagnosticsSnapshot
     double LastSourceEditorTextChangedRefreshHighlightedMilliseconds,
     double LastSourceEditorTextChangedRefreshPropertyInspectorMilliseconds,
     bool LastSourceEditorTextChangedRefreshedCompletion,
-    double LastSourceEditorTextChangedRefreshCompletionMilliseconds);
+    double LastSourceEditorTextChangedRefreshCompletionMilliseconds,
+    long SourceTextChangedCallCount,
+    double SourceTextChangedMilliseconds,
+    double LastSourceTextChangedMilliseconds,
+    long RefreshHighlightedSourceDocumentCallCount,
+    double RefreshHighlightedSourceDocumentMilliseconds,
+    double LastRefreshHighlightedSourceDocumentMilliseconds,
+    double LastRefreshHighlightedSourceDocumentOverviewMilliseconds,
+    double LastRefreshHighlightedSourceDocumentDisplayTextMilliseconds,
+    double LastRefreshHighlightedSourceDocumentUpdatePresentationMilliseconds,
+    double LastRefreshHighlightedSourceDocumentSyntaxPopulateMilliseconds,
+    double LastRefreshHighlightedSourceDocumentRestoreStateMilliseconds,
+    int LastRefreshHighlightedSourceDocumentTextLength);

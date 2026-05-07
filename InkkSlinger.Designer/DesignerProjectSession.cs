@@ -131,6 +131,19 @@ public sealed class DesignerProjectSession
         return FindNode(normalizedPath) ?? new DesignerProjectNode(GetName(normalizedPath), normalizedPath, isFolder: false);
     }
 
+    public bool TryReadAppXml(out string text)
+    {
+        var appXmlPath = CombinePath(RootPath, "App.xml");
+        if (!_fileStore.FileExists(appXmlPath))
+        {
+            text = string.Empty;
+            return false;
+        }
+
+        text = _fileStore.ReadAllText(appXmlPath);
+        return true;
+    }
+
     private DesignerProjectNode BuildNode(string path, bool isFolder)
     {
         var normalizedPath = NormalizePath(path);
