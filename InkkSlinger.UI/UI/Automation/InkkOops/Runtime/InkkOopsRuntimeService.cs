@@ -321,13 +321,18 @@ public sealed class InkkOopsRuntimeService : IDisposable
                     PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous);
                 await pipe.WaitForConnectionAsync(_shutdown.Token).ConfigureAwait(false);
-                var payload = await ReadPipeMessageAsync(pipe).ConfigureAwait(false);
+                var payload = await ReadPipeMessageOrNullAsync(pipe).ConfigureAwait(false);
+                if (payload == null)
+                {
+                    continue;
+                }
+
                 var request = string.IsNullOrWhiteSpace(payload)
                     ? new InkkOopsPipeRequest()
                     : JsonSerializer.Deserialize<InkkOopsPipeRequest>(payload) ?? new InkkOopsPipeRequest();
                 var response = await SubmitRequestAsync(request, _shutdown.Token).ConfigureAwait(false);
                 var json = JsonSerializer.Serialize(response);
-                await WritePipeMessageAsync(pipe, json).ConfigureAwait(false);
+                await TryWritePipeMessageAsync(pipe, json).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -341,20 +346,36 @@ public sealed class InkkOopsRuntimeService : IDisposable
         }
     }
 
-    private static async Task WritePipeMessageAsync(Stream stream, string payload)
+    private static async Task<bool> TryWritePipeMessageAsync(Stream stream, string payload)
     {
-        var bytes = Encoding.UTF8.GetBytes(payload ?? string.Empty);
-        var lengthPrefix = new byte[sizeof(int)];
-        BinaryPrimitives.WriteInt32LittleEndian(lengthPrefix, bytes.Length);
-        await stream.WriteAsync(lengthPrefix).ConfigureAwait(false);
-        await stream.WriteAsync(bytes).ConfigureAwait(false);
-        await stream.FlushAsync().ConfigureAwait(false);
+        try
+        {
+            var bytes = Encoding.UTF8.GetBytes(payload ?? string.Empty);
+            var lengthPrefix = new byte[sizeof(int)];
+            BinaryPrimitives.WriteInt32LittleEndian(lengthPrefix, bytes.Length);
+            await stream.WriteAsync(lengthPrefix).ConfigureAwait(false);
+            await stream.WriteAsync(bytes).ConfigureAwait(false);
+            await stream.FlushAsync().ConfigureAwait(false);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
     }
 
-    private static async Task<string> ReadPipeMessageAsync(Stream stream)
+    private static async Task<string?> ReadPipeMessageOrNullAsync(Stream stream)
     {
         var lengthPrefix = new byte[sizeof(int)];
-        await ReadExactlyAsync(stream, lengthPrefix).ConfigureAwait(false);
+        if (!await TryReadExactlyAsync(stream, lengthPrefix).ConfigureAwait(false))
+        {
+            return null;
+        }
+
         var length = BinaryPrimitives.ReadInt32LittleEndian(lengthPrefix);
         if (length <= 0)
         {
@@ -362,11 +383,15 @@ public sealed class InkkOopsRuntimeService : IDisposable
         }
 
         var payload = new byte[length];
-        await ReadExactlyAsync(stream, payload).ConfigureAwait(false);
+        if (!await TryReadExactlyAsync(stream, payload).ConfigureAwait(false))
+        {
+            return null;
+        }
+
         return Encoding.UTF8.GetString(payload);
     }
 
-    private static async Task ReadExactlyAsync(Stream stream, byte[] buffer)
+    private static async Task<bool> TryReadExactlyAsync(Stream stream, byte[] buffer)
     {
         var offset = 0;
         while (offset < buffer.Length)
@@ -374,11 +399,13 @@ public sealed class InkkOopsRuntimeService : IDisposable
             var read = await stream.ReadAsync(buffer.AsMemory(offset, buffer.Length - offset)).ConfigureAwait(false);
             if (read <= 0)
             {
-                throw new EndOfStreamException("The pipe closed before the full message was received.");
+                return false;
             }
 
             offset += read;
         }
+
+        return true;
     }
 
     private readonly record struct PendingRunRequest(

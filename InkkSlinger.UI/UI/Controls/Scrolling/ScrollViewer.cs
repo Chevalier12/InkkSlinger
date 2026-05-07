@@ -7,6 +7,16 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
+public enum PanningMode
+{
+    None,
+    HorizontalOnly,
+    VerticalOnly,
+    Both,
+    HorizontalFirst,
+    VerticalFirst
+}
+
 public class ScrollViewer : ContentControl
 {
     private enum ScrollOffsetUpdateSource
@@ -149,6 +159,13 @@ public class ScrollViewer : ContentControl
             typeof(ScrollViewer),
             new FrameworkPropertyMetadata(12f, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty PanningModeProperty =
+        DependencyProperty.Register(
+            nameof(PanningMode),
+            typeof(PanningMode),
+            typeof(ScrollViewer),
+            new FrameworkPropertyMetadata(PanningMode.None));
+
     public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
@@ -191,6 +208,8 @@ public class ScrollViewer : ContentControl
     private bool _previousShowHorizontalScrollBar;
     private bool _previousShowVerticalScrollBar;
     private bool _isReconcilingDescendantMeasureInvalidation;
+    private bool _isPointerPanning;
+    private Vector2 _lastPointerPanPosition;
     private int _inputScrollMutationDepth;
     private bool _suppressInternalScrollBarValueChange;
     private bool _suppressOffsetPropertyChange;
@@ -427,6 +446,12 @@ public class ScrollViewer : ContentControl
     {
         get => GetValue<float>(ScrollBarThicknessProperty);
         set => SetValue(ScrollBarThicknessProperty, value);
+    }
+
+    public PanningMode PanningMode
+    {
+        get => GetValue<PanningMode>(PanningModeProperty);
+        set => SetValue(PanningModeProperty, value);
     }
 
     public override void InvalidateMeasure()
@@ -939,18 +964,92 @@ public class ScrollViewer : ContentControl
 
     internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
     {
-        _ = pointerPosition;
-        return false;
+        return HandlePointerDownFromInput(this, pointerPosition);
+    }
+
+    internal bool HandlePointerDownFromInput(UIElement target, Vector2 pointerPosition)
+    {
+        if (PanningMode == PanningMode.None ||
+            !IsEnabled ||
+            IsSameOrDescendantOf(target, _horizontalBar) ||
+            IsSameOrDescendantOf(target, _verticalBar) ||
+            IsWithinButton(target))
+        {
+            return false;
+        }
+
+        _isPointerPanning = true;
+        _lastPointerPanPosition = pointerPosition;
+        return true;
     }
 
     internal bool HandlePointerMoveFromInput(Vector2 pointerPosition)
     {
-        _ = pointerPosition;
-        return false;
+        if (!_isPointerPanning)
+        {
+            return false;
+        }
+
+        var delta = pointerPosition - _lastPointerPanPosition;
+        _lastPointerPanPosition = pointerPosition;
+        if (AllowsHorizontalPanning(PanningMode) && MathF.Abs(delta.X) > 0.001f)
+        {
+            ScrollToHorizontalOffset(HorizontalOffset - delta.X);
+        }
+
+        if (AllowsVerticalPanning(PanningMode) && MathF.Abs(delta.Y) > 0.001f)
+        {
+            ScrollToVerticalOffset(VerticalOffset - delta.Y);
+        }
+
+        return true;
     }
 
     internal bool HandlePointerUpFromInput()
     {
+        if (!_isPointerPanning)
+        {
+            return false;
+        }
+
+        _isPointerPanning = false;
+        _lastPointerPanPosition = Vector2.Zero;
+        return true;
+    }
+
+    private static bool AllowsHorizontalPanning(PanningMode mode)
+    {
+        return mode is PanningMode.HorizontalOnly or PanningMode.Both or PanningMode.HorizontalFirst;
+    }
+
+    private static bool AllowsVerticalPanning(PanningMode mode)
+    {
+        return mode is PanningMode.VerticalOnly or PanningMode.Both or PanningMode.VerticalFirst;
+    }
+
+    private static bool IsWithinButton(UIElement element)
+    {
+        for (var current = element; current != null; current = current.VisualParent)
+        {
+            if (current is Button)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSameOrDescendantOf(UIElement element, UIElement ancestor)
+    {
+        for (var current = element; current != null; current = current.VisualParent)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 

@@ -623,10 +623,12 @@ public class DesignerControllerTests
         var editorTabControl = Assert.IsType<TabControl>(shell.FindName("EditorTabControl"));
         var diagnosticsTab = Assert.IsType<TabItem>(shell.FindName("DiagnosticsTab"));
         var appResourcesTab = Assert.IsType<TabItem>(shell.FindName("AppResourcesTab"));
+        var hierarchyTab = Assert.IsType<TabItem>(shell.FindName("HierarchyTab"));
         var sourceLineNumberBorder = shell.SourceLineNumberBorderControl;
         var sourceLineNumberPanel = shell.SourceLineNumberPanelControl;
         var appResourcesPropertyInspectorSplitter = Assert.IsType<GridSplitter>(shell.AppResourcesEditorView.FindName("SourcePropertyInspectorSplitter"));
         var appResourcesPropertyInspectorBorder = Assert.IsType<Border>(shell.AppResourcesEditorView.FindName("SourcePropertyInspectorBorder"));
+        var hierarchyCanvas = Assert.IsType<Canvas>(shell.FindName("HierarchyCanvas"));
         var diagnosticsItemsControl = Assert.IsType<ItemsControl>(shell.FindName("DiagnosticsItemsControl"));
 
         _ = Assert.IsType<ContentControl>(shell.FindName("PreviewHost"));
@@ -640,8 +642,12 @@ public class DesignerControllerTests
         Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.HorizontalScrollBarVisibility);
         Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.VerticalScrollBarVisibility);
         Assert.Equal(0, editorTabControl.SelectedIndex);
+        Assert.Equal(4, editorTabControl.Items.Count);
+        Assert.Equal("Hierarchy", hierarchyTab.Header);
         Assert.Equal("App Resources", appResourcesTab.Header);
         Assert.Equal("Diagnostics", diagnosticsTab.Header);
+        Assert.True(hierarchyCanvas.Width >= 2400f);
+        Assert.True(hierarchyCanvas.Height >= 1200f);
         Assert.NotNull(diagnosticsItemsControl);
         Assert.NotNull(sourceLineNumberBorder.Child);
         Assert.True(GetRenderedLineNumberCount(sourceLineNumberPanel) > 0);
@@ -677,6 +683,92 @@ public class DesignerControllerTests
         Assert.Equal(HorizontalAlignment.Stretch, appResourcesPropertyInspectorSplitter.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Stretch, appResourcesPropertyInspectorSplitter.VerticalAlignment);
         Assert.Equal(2, Grid.GetColumn(appResourcesPropertyInspectorBorder));
+    }
+
+    [Fact]
+    public void ShellView_HierarchyTab_RendersCanvasNodeGraph()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+
+        Assert.True(shell.RefreshPreview());
+
+        var canvas = Assert.IsType<Canvas>(shell.FindName("HierarchyCanvas"));
+        var nodeButtons = new List<Button>();
+        var connectors = new List<PathShape>();
+        CollectDescendants(canvas, nodeButtons, button => button.CommandParameter is InkkSlinger.Designer.DesignerVisualTreeNodeViewModel);
+        CollectDescendants(canvas, connectors);
+
+        Assert.NotEmpty(nodeButtons);
+        Assert.NotEmpty(connectors);
+        Assert.All(connectors, connector => Assert.IsType<PathGeometry>(connector.Data));
+        Assert.All(connectors, connector => Assert.True(connector.Width > 0f && connector.Height >= 12f));
+        Assert.True(nodeButtons.All(button => Canvas.GetLeft(button) >= 0f && Canvas.GetTop(button) >= 0f));
+    }
+
+    [Fact]
+    public void ShellView_HierarchyGraph_IgnoresVisualTreeCollapsedState()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = """
+                <UserControl xmlns="urn:inkkslinger-ui"
+                             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                  <Grid>
+                    <Border>
+                      <Calendar Width="280" Height="260" />
+                    </Border>
+                  </Grid>
+                </UserControl>
+                """
+        };
+
+        Assert.True(shell.RefreshPreview());
+
+        var canvas = Assert.IsType<Canvas>(shell.FindName("HierarchyCanvas"));
+        var nodeButtons = new List<Button>();
+        CollectDescendants(canvas, nodeButtons, button => button.CommandParameter is InkkSlinger.Designer.DesignerVisualTreeNodeViewModel);
+        var labels = nodeButtons
+            .Select(button => button.CommandParameter)
+            .OfType<InkkSlinger.Designer.DesignerVisualTreeNodeViewModel>()
+            .Select(node => node.Label)
+            .ToArray();
+
+        Assert.Contains("UserControl", labels);
+        Assert.Contains("Grid", labels);
+        Assert.Contains("Border", labels);
+        Assert.Contains("Calendar", labels);
+    }
+
+    [Fact]
+    public void Refresh_CalendarViewLikeMarkup_BuildsAuthoredHierarchyBelowGrid()
+    {
+        var controller = new InkkSlinger.Designer.DesignerController();
+        const string source = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+              <Grid>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Border Grid.Row="0">
+                  <Label Content="Control Demo: Calendar" />
+                </Border>
+                <Border Grid.Row="1">
+                  <Calendar Width="280" Height="260" />
+                </Border>
+              </Grid>
+            </UserControl>
+            """;
+
+        Assert.True(controller.Refresh(source));
+
+        Assert.NotNull(controller.VisualTreeRoot);
+        var root = controller.VisualTreeRoot!;
+        var grid = Assert.Single(root.Children, node => node.TypeName == "Grid");
+        Assert.Equal(2, grid.Children.Count);
+        Assert.Contains(grid.Children, node => node.TypeName == "Border" && node.Children.Any(child => child.TypeName == "Label"));
+        Assert.Contains(grid.Children, node => node.TypeName == "Border" && node.Children.Any(child => child.TypeName == "Calendar"));
     }
 
     [Fact]
@@ -3080,7 +3172,8 @@ public class DesignerControllerTests
         var diagnosticsTab = Assert.IsType<TabItem>(shell.FindName("DiagnosticsTab"));
         var diagnosticsSummary = Assert.IsType<TextBlock>(shell.FindName("DiagnosticsSummaryText"));
 
-        Assert.Equal(2, editorTabControl.SelectedIndex);
+        Assert.Equal(3, shell.ViewModel.SelectedEditorTabIndex);
+        Assert.Equal(3, editorTabControl.SelectedIndex);
         Assert.Contains("(!", diagnosticsTab.Header, StringComparison.Ordinal);
         Assert.Contains("error", diagnosticsSummary.Text, StringComparison.OrdinalIgnoreCase);
     }
@@ -3113,7 +3206,7 @@ public class DesignerControllerTests
         RunLayout(uiRoot, 1280, 840, 16);
 
         Assert.False(shell.Controller.LastRefreshSucceeded);
-        Assert.Equal(2, editorTabControl.SelectedIndex);
+        Assert.Equal(3, editorTabControl.SelectedIndex);
         Assert.Contains("(!", diagnosticsTab.Header, StringComparison.Ordinal);
         Assert.NotSame(sourceEditor, FindSelfOrAncestor<IDE_Editor>(uiRoot.GetHoveredElementForDiagnostics()));
     }
@@ -3149,9 +3242,9 @@ public class DesignerControllerTests
 
         Assert.True(diagnosticIndex >= 0);
         var diagnosticButton = diagnosticsCardButtons[diagnosticIndex];
-        Assert.Equal(2, editorTabControl.SelectedIndex);
+        Assert.Equal(3, editorTabControl.SelectedIndex);
 
-        Click(uiRoot, GetCenter(diagnosticButton.LayoutSlot));
+        shell.ViewModel.NavigateToDiagnosticCommand.Execute(shell.Controller.Diagnostics[diagnosticIndex]);
         RunLayout(uiRoot, 1280, 840, 16);
 
         var highlightedLineNumber = GetLineNumberContaining(source, "UnknownProperty=\"Boom\"");
@@ -3197,7 +3290,7 @@ public class DesignerControllerTests
         Assert.True(diagnosticIndex >= 0);
         var diagnosticButton = diagnosticsCardButtons[diagnosticIndex];
 
-        Click(uiRoot, GetCenter(diagnosticButton.LayoutSlot));
+        shell.ViewModel.NavigateToDiagnosticCommand.Execute(shell.Controller.Diagnostics[diagnosticIndex]);
         RunLayout(uiRoot, 1280, 840, 16);
 
         Assert.Equal(0, editorTabControl.SelectedIndex);
@@ -3206,11 +3299,11 @@ public class DesignerControllerTests
 
         Click(uiRoot, GetDiagnosticsTabHeaderPoint(editorTabControl));
         RunLayout(uiRoot, 1280, 840, 16);
-        Assert.Equal(2, editorTabControl.SelectedIndex);
+        Assert.Equal(3, editorTabControl.SelectedIndex);
 
         sourceEditor.Select(0, 0);
 
-        Click(uiRoot, GetCenter(diagnosticButton.LayoutSlot));
+        shell.ViewModel.NavigateToDiagnosticCommand.Execute(shell.Controller.Diagnostics[diagnosticIndex]);
         RunLayout(uiRoot, 1280, 840, 16);
 
         Assert.Equal(0, editorTabControl.SelectedIndex);
@@ -6447,10 +6540,15 @@ public class DesignerControllerTests
         var sourceHeaderWidth = MathF.Max(
             36f,
             tabControl.HeaderPadding.Horizontal + UiTextRenderer.MeasureWidth(tabControl, "Source", tabControl.FontSize));
+        var hierarchyHeaderWidth = MathF.Max(
+            36f,
+            tabControl.HeaderPadding.Horizontal + UiTextRenderer.MeasureWidth(tabControl, "Hierarchy", tabControl.FontSize));
         var appResourcesHeaderWidth = MathF.Max(
             36f,
             tabControl.HeaderPadding.Horizontal + UiTextRenderer.MeasureWidth(tabControl, "App Resources", tabControl.FontSize));
-        return new Vector2(tabControl.LayoutSlot.X + sourceHeaderWidth + appResourcesHeaderWidth + 8f, tabControl.LayoutSlot.Y + 8f);
+        return new Vector2(
+            tabControl.LayoutSlot.X + sourceHeaderWidth + hierarchyHeaderWidth + appResourcesHeaderWidth + 8f,
+            tabControl.LayoutSlot.Y + 8f);
     }
 
     private static Vector2 GetCenter(LayoutRect rect)

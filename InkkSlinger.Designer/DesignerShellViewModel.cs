@@ -12,8 +12,8 @@ namespace InkkSlinger.Designer;
 public sealed class DesignerShellViewModel : INotifyPropertyChanged
 {
     private const int SourceEditorTabIndex = 0;
-    private const int AppResourcesEditorTabIndex = 1;
-    private const int DiagnosticsEditorTabIndex = 2;
+    private const int AppResourcesEditorTabIndex = 2;
+    private const int DiagnosticsEditorTabIndex = 3;
 
     private static readonly HashSet<string> InspectorIdentityPropertyNames =
         new(StringComparer.Ordinal)
@@ -389,6 +389,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     {
         var succeeded = Controller.Refresh(DocumentController.CurrentText, AppResourcesText);
         RefreshPresentationState(selectDiagnosticsOnError: true);
+        OnPropertyChanged(nameof(SelectedEditorTabIndex));
         RefreshCommandStates();
         return succeeded;
     }

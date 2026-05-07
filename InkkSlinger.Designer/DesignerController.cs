@@ -294,8 +294,8 @@ public sealed class DesignerController
     {
         _elementsByNodeId[nodeId] = element;
 
-        var children = element
-            .GetVisualChildren()
+        var hierarchyChildren = GetDesignerHierarchyChildren(element);
+        var children = hierarchyChildren
             .Select((child, index) => BuildVisualTree(child, string.Create(CultureInfo.InvariantCulture, $"{nodeId}.{index}")))
             .ToArray();
 
@@ -313,6 +313,57 @@ public sealed class DesignerController
             children);
     }
 
+    private static IReadOnlyList<UIElement> GetDesignerHierarchyChildren(UIElement element)
+    {
+        var children = new List<UIElement>();
+
+        switch (element)
+        {
+            case UserControl userControl when userControl.Content != null:
+                AddUnique(children, userControl.Content);
+                break;
+            case Decorator { Child: not null } decorator:
+                AddUnique(children, decorator.Child);
+                break;
+            case Panel panel:
+                foreach (var child in panel.Children)
+                {
+                    AddUnique(children, child);
+                }
+
+                break;
+            case ContentControl { Content: UIElement contentElement }:
+                AddUnique(children, contentElement);
+                break;
+        }
+
+        if (children.Count == 0)
+        {
+            foreach (var child in element.GetLogicalChildren())
+            {
+                AddUnique(children, child);
+            }
+        }
+
+        if (children.Count == 0)
+        {
+            foreach (var child in element.GetVisualChildren())
+            {
+                AddUnique(children, child);
+            }
+        }
+
+        return children;
+    }
+
+    private static void AddUnique(List<UIElement> children, UIElement child)
+    {
+        if (!children.Contains(child))
+        {
+            children.Add(child);
+        }
+    }
+
     private static DesignerInspectorModel BuildInspector(string nodeId, UIElement element)
     {
         var typeName = element.GetType().Name;
@@ -324,7 +375,7 @@ public sealed class DesignerController
             new("Node", nodeId),
             new("Type", typeName),
             new("Name", elementName),
-            new("Visual Children", element.GetVisualChildren().Count().ToString(CultureInfo.InvariantCulture)),
+            new("Visual Children", GetDesignerHierarchyChildren(element).Count.ToString(CultureInfo.InvariantCulture)),
             new("Is Enabled", element.IsEnabled ? "True" : "False")
         };
 

@@ -1546,11 +1546,47 @@ public sealed partial class UiRoot
             SetFocus(textInputTarget);
             CapturePointer(textInputTarget);
         }
+        else if (button == MouseButton.Left &&
+                 TryFindPanningScrollViewerAtPoint(pointerPosition, out var panningScrollViewer) &&
+                 panningScrollViewer != null &&
+                 panningScrollViewer.HandlePointerDownFromInput(panningScrollViewer, pointerPosition))
+        {
+            CapturePointer(panningScrollViewer);
+        }
+        else if (button == MouseButton.Left &&
+                 target != null &&
+                 TryFindAncestor<ScrollViewer>(target, out var ancestorScrollViewer) &&
+                 ancestorScrollViewer != null &&
+                 ancestorScrollViewer.HandlePointerDownFromInput(target, pointerPosition))
+        {
+            CapturePointer(ancestorScrollViewer);
+        }
         else if (button == MouseButton.Left && target is ScrollViewer scrollViewer &&
                  scrollViewer.HandlePointerDownFromInput(pointerPosition))
         {
             CapturePointer(scrollViewer);
         }
+    }
+
+    private bool TryFindPanningScrollViewerAtPoint(Vector2 pointerPosition, out ScrollViewer? scrollViewer)
+    {
+        if (_visualRoot == null)
+        {
+            scrollViewer = null;
+            return false;
+        }
+
+        if (VisualTreeHelper.HitTest(_visualRoot, pointerPosition, static element => element is Button) is Button)
+        {
+            scrollViewer = null;
+            return false;
+        }
+
+        scrollViewer = VisualTreeHelper.HitTest(
+            _visualRoot,
+            pointerPosition,
+            static element => element is ScrollViewer { PanningMode: not PanningMode.None }) as ScrollViewer;
+        return scrollViewer != null;
     }
 
     private void DispatchMouseUp(UIElement? target, Vector2 pointerPosition, MouseButton button)
@@ -1741,12 +1777,18 @@ public sealed partial class UiRoot
         _lastInputPointerEventCount++;
         if (HasWheelRoutedEventHandlers(resolvedTarget))
         {
+            var wheelArgs = new MouseWheelRoutedEventArgs(UIElement.PreviewMouseWheelEvent, pointerPosition, delta);
             _lastInputRoutedEventCount += 2;
             RaisePreviewBubbleRoutedEvent(
                 resolvedTarget,
                 UIElement.PreviewMouseWheelEvent,
                 UIElement.MouseWheelEvent,
-                new MouseWheelRoutedEventArgs(UIElement.PreviewMouseWheelEvent, pointerPosition, delta));
+                wheelArgs);
+            if (wheelArgs.Handled)
+            {
+                TrackWheelPointerPosition(pointerPosition);
+                return;
+            }
         }
 
         if (TryFindOpenContextMenu(out var openContextMenu) &&

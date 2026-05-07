@@ -1,5 +1,7 @@
 using System;
 using System.ComponentModel;
+using System.Linq;
+using System.Reflection;
 using InkkSlinger;
 using Microsoft.Xna.Framework.Input;
 
@@ -29,6 +31,7 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         ProjectExplorerTree.SelectedItemChanged += OnProjectExplorerSelectedItemChanged;
+        ResynchronizeEditorTabs();
         RebuildProjectExplorerTree();
         InputBindings.Add(new KeyBinding
         {
@@ -71,7 +74,9 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
 
     public bool RefreshPreview()
     {
-        return _viewModel.RefreshPreview();
+        var succeeded = _viewModel.RefreshPreview();
+        SyncSelectedEditorTab();
+        return succeeded;
     }
 
     public bool TryRequestAppExit()
@@ -89,7 +94,48 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
         if (args.PropertyName == nameof(DesignerShellViewModel.ProjectRootNode))
         {
             RebuildProjectExplorerTree();
+            return;
         }
+
+        if (args.PropertyName == nameof(DesignerShellViewModel.SelectedEditorTabIndex))
+        {
+            SyncSelectedEditorTab();
+            return;
+        }
+
+        if (args.PropertyName == nameof(DesignerShellViewModel.SourceNavigationRequest))
+        {
+            SyncEditorTabIndex(0);
+            return;
+        }
+
+        if (args.PropertyName == nameof(DesignerShellViewModel.AppResourcesNavigationRequest))
+        {
+            SyncEditorTabIndex(2);
+        }
+    }
+
+    private void SyncSelectedEditorTab()
+    {
+        ResynchronizeEditorTabs();
+        SyncEditorTabIndex(_viewModel.SelectedEditorTabIndex);
+    }
+
+    private void SyncEditorTabIndex(int selectedIndex)
+    {
+        var setSelectedIndex = typeof(Selector).GetMethod(
+            "SetSelectedIndexInternal",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        setSelectedIndex?.Invoke(EditorTabControl, new object[] { selectedIndex });
+    }
+
+    private void ResynchronizeEditorTabs()
+    {
+        var replaceSelectionItems = typeof(Selector).GetMethod(
+            "ReplaceSelectionItemsInternal",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        replaceSelectionItems?.Invoke(EditorTabControl, new object[] { EditorTabControl.Items.Cast<object?>() });
+        EditorTabControl.SelectedIndex = _viewModel.SelectedEditorTabIndex;
     }
 
     private void OnProjectExplorerSelectedItemChanged(object? sender, RoutedSimpleEventArgs args)

@@ -5,7 +5,7 @@ using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
-public class Canvas : Panel
+public class Canvas : Panel, IScrollTransformContent
 {
     private static int _diagMeasureCallCount;
     private static long _diagMeasureElapsedTicks;

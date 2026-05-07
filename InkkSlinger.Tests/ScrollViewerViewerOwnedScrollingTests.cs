@@ -340,6 +340,50 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
+    public void PlainCanvas_DefaultViewerScrolling_UsesTransformPathWithoutRearrangingContent()
+    {
+        var root = new Panel();
+        var canvas = new Canvas
+        {
+            Width = 1800f,
+            Height = 1200f
+        };
+        canvas.AddChild(new Border { Width = 120f, Height = 80f });
+
+        var viewer = new ScrollViewer
+        {
+            Width = 320f,
+            Height = 200f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = canvas
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 640, 480, 16);
+        var canvasBefore = canvas.GetFrameworkElementSnapshotForDiagnostics();
+        var viewerBefore = viewer.GetScrollViewerSnapshotForDiagnostics();
+
+        viewer.ScrollToHorizontalOffset(240f);
+        viewer.ScrollToVerticalOffset(180f);
+
+        var canvasAfter = canvas.GetFrameworkElementSnapshotForDiagnostics();
+        var viewerAfter = viewer.GetScrollViewerSnapshotForDiagnostics();
+        var transformPathDelta =
+            viewerAfter.SetOffsetsTransformInvalidationPathCount -
+            viewerBefore.SetOffsetsTransformInvalidationPathCount;
+        var manualPathDelta =
+            viewerAfter.SetOffsetsManualArrangePathCount -
+            viewerBefore.SetOffsetsManualArrangePathCount;
+
+        Assert.Equal(2, transformPathDelta);
+        Assert.Equal(0, manualPathDelta);
+        Assert.Equal(canvasBefore.ArrangeCallCount, canvasAfter.ArrangeCallCount);
+        Assert.True(canvas.HasLocalRenderTransform());
+    }
+
+    [Fact]
     public void TransformDefault_RepeatedOffsetChangesBeforeNextFrame_KeepsViewportDirtyHintActive()
     {
         var root = new Panel();
@@ -453,6 +497,35 @@ public class ScrollViewerViewerOwnedScrollingTests
 
         Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
         RetainedRenderingAssert.AssertRetainedDrawOrderMatchesImmediateTraversal(uiRoot, clip);
+    }
+
+    [Fact]
+    public void TransformDefault_LargeScrollViewportDamage_StillUsesPartialDirtyDrawDecision()
+    {
+        var root = new Panel();
+        var viewer = new ScrollViewer
+        {
+            Name = "ViewportOwner",
+            Width = 320f,
+            Height = 200f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 320f, 200f));
+        uiRoot.NotifyScrollViewportChanged(viewer, new LayoutRect(0f, 0f, 320f, 200f));
+        var coverage = uiRoot.GetDirtyCoverageForTests();
+        var decision = uiRoot.ResolveDirtyDrawDecisionAfterRetainedSyncForTests();
+
+        Assert.True(coverage > uiRoot.DirtyRegionCoverageFallbackThreshold);
+        Assert.Equal(UiDirtyDrawDecisionReason.Partial, decision.AfterSyncReason);
+        Assert.Contains(
+            uiRoot.GetDirtyBoundsEventTraceForTests(),
+            entry => entry.Contains(":scroll-viewport:", System.StringComparison.Ordinal));
     }
 
     [Fact]

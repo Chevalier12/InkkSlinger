@@ -1163,10 +1163,24 @@ public sealed partial class UiRoot
                 return false;
             }
 
+            if (DirtyRegions.RegionCount == 1 &&
+                IsViewportScopedScrollDirtyRegionReason(_lastDirtyRegionAddReason))
+            {
+                return true;
+            }
+
             var coverageThreshold = DirtyRegions.RegionCount == 1
                 ? thresholds.SingleRegionCoverageFallbackThreshold
                 : thresholds.MultipleRegionCoverageFallbackThreshold;
             return DirtyRegions.GetDirtyAreaCoverage() <= coverageThreshold;
+        }
+
+        private static bool IsViewportScopedScrollDirtyRegionReason(string reason)
+        {
+            return string.Equals(reason, "scroll-viewport", StringComparison.Ordinal) ||
+                   string.Equals(reason, "scroll-clip-hint", StringComparison.Ordinal) ||
+                   string.Equals(reason, "ancestor-scroll-clip-hint", StringComparison.Ordinal) ||
+                   string.Equals(reason, "scroll-clip-hint-delta", StringComparison.Ordinal);
         }
 
         internal static bool AreRectsEqual(LayoutRect left, LayoutRect right)

@@ -794,6 +794,11 @@
                                       NavigationRequest="{Binding SourceNavigationRequest}" />
           </TabItem>
 
+          <TabItem x:Name="HierarchyTab"
+                   Header="Hierarchy">
+            <DesignerHierarchyView x:Name="HierarchyPane" />
+          </TabItem>
+
           <TabItem x:Name="AppResourcesTab"
                    Header="App Resources">
             <DesignerSourceEditorView x:Name="AppResourcesEditorPane"
