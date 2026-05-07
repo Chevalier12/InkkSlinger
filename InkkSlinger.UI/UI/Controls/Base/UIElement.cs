@@ -223,6 +223,7 @@ public class UIElement : DependencyObject
     public static readonly RoutedEvent TextInputEvent = new(nameof(TextInputEvent), RoutingStrategy.Bubble);
     public static readonly RoutedEvent GotFocusEvent = new(nameof(GotFocusEvent), RoutingStrategy.Bubble);
     public static readonly RoutedEvent LostFocusEvent = new(nameof(LostFocusEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent RequestBringIntoViewEvent = new(nameof(RequestBringIntoViewEvent), RoutingStrategy.Bubble);
 
     public UIElement? VisualParent { get; private set; }
 
@@ -763,6 +764,18 @@ public class UIElement : DependencyObject
                 break;
             }
         }
+    }
+
+    public void BringIntoView()
+    {
+        BringIntoView(LayoutSlot);
+    }
+
+    public void BringIntoView(LayoutRect targetRect)
+    {
+        RaiseRoutedEvent(
+            RequestBringIntoViewEvent,
+            new RequestBringIntoViewEventArgs(RequestBringIntoViewEvent, this, targetRect));
     }
 
     internal void SetVisualParent(UIElement? parent)
@@ -1368,6 +1381,13 @@ public class UIElement : DependencyObject
     private bool TryGetTransformFromThisToRoot(out Matrix transform)
     {
         return TryGetTransformFromThisToRoot(this, out transform);
+    }
+
+    internal LayoutRect TransformRectToRoot(LayoutRect rect)
+    {
+        return TryGetTransformFromThisToRoot(out var transform)
+            ? TransformRect(rect, transform)
+            : rect;
     }
 
     private static bool TryGetTransformFromThisToRoot(UIElement? element, out Matrix transform)

@@ -308,6 +308,8 @@ public class ScrollBar : RangeBase
 
     internal bool IsThumbDragInProgress => _isThumbDragInProgress;
 
+    internal event EventHandler? ThumbDragCompleted;
+
     internal float GetActiveThumbDragValue()
     {
         if (!_isThumbDragInProgress || _track == null)
@@ -485,6 +487,7 @@ public class ScrollBar : RangeBase
         _isThumbDragInProgress = false;
         _thumbDragOriginTravel = 0f;
         _thumbDragAccumulatedDelta = 0f;
+        ThumbDragCompleted?.Invoke(this, EventArgs.Empty);
         args.Handled = true;
     }
 

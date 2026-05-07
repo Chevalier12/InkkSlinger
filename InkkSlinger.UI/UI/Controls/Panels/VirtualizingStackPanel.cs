@@ -7,7 +7,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
-public class VirtualizingStackPanel : Panel
+public class VirtualizingStackPanel : Panel, IScrollInfo
 {
     private enum ViewerOwnedOffsetChangeHandling
     {
@@ -237,6 +237,8 @@ public class VirtualizingStackPanel : Panel
     public float HorizontalOffset => _horizontalOffset;
 
     public float VerticalOffset => _verticalOffset;
+
+    public ScrollViewer? ScrollOwner { get; set; }
 
     public static bool GetIsVirtualizing(UIElement element)
     {
@@ -834,6 +836,8 @@ public class VirtualizingStackPanel : Panel
             _runtimeSetHorizontalOffsetVisualOnlyCount++;
             InvalidateVisual();
         }
+
+        ScrollOwner?.InvalidateScrollInfo();
     }
 
     internal bool RequiresMeasureForViewerOwnedOffsetChange(
@@ -1029,6 +1033,8 @@ public class VirtualizingStackPanel : Panel
             _runtimeSetVerticalOffsetVisualOnlyCount++;
             InvalidateVisual();
         }
+
+        ScrollOwner?.InvalidateScrollInfo();
     }
 
     public LayoutRect MakeVisible(UIElement visual, LayoutRect rectangle)

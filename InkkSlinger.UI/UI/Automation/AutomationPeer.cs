@@ -574,6 +574,14 @@ internal sealed class GenericAutomationPeer : ControlAutomationPeer,
         }
     }
 
+    public float HorizontalViewSize => TryGetScrollViewer(out var viewer)
+        ? ResolveScrollViewSize(viewer.ViewportWidth, viewer.ExtentWidth)
+        : 100f;
+
+    public float VerticalViewSize => TryGetScrollViewer(out var viewer)
+        ? ResolveScrollViewSize(viewer.ViewportHeight, viewer.ExtentHeight)
+        : 100f;
+
     public void SetScrollPercent(float horizontalPercent, float verticalPercent)
     {
         if (!TryGetScrollViewer(out var viewer))
@@ -624,6 +632,16 @@ internal sealed class GenericAutomationPeer : ControlAutomationPeer,
     private bool SupportsScroll()
     {
         return TryGetScrollViewer(out _);
+    }
+
+    private static float ResolveScrollViewSize(float viewport, float extent)
+    {
+        if (extent <= 0.01f)
+        {
+            return 100f;
+        }
+
+        return MathF.Max(0f, MathF.Min(100f, (viewport / extent) * 100f));
     }
 
     private bool TryGetScrollViewer(out ScrollViewer viewer)
@@ -839,6 +857,14 @@ internal sealed class DataGridAutomationPeer : ControlAutomationPeer,
         }
     }
 
+    public float HorizontalViewSize => TryGetScrollViewer(out var viewer)
+        ? ResolveScrollViewSize(viewer.ViewportWidth, viewer.ExtentWidth)
+        : 100f;
+
+    public float VerticalViewSize => TryGetScrollViewer(out var viewer)
+        ? ResolveScrollViewSize(viewer.ViewportHeight, viewer.ExtentHeight)
+        : 100f;
+
     public void SetScrollPercent(float horizontalPercent, float verticalPercent)
     {
         if (!TryGetScrollViewer(out var viewer))
@@ -854,6 +880,16 @@ internal sealed class DataGridAutomationPeer : ControlAutomationPeer,
 
         viewer.ScrollToHorizontalOffset((clampedHorizontal / 100f) * horizontalRange);
         viewer.ScrollToVerticalOffset((clampedVertical / 100f) * verticalRange);
+    }
+
+    private static float ResolveScrollViewSize(float viewport, float extent)
+    {
+        if (extent <= 0.01f)
+        {
+            return 100f;
+        }
+
+        return MathF.Max(0f, MathF.Min(100f, (viewport / extent) * 100f));
     }
 
     private void AddSelectedRows(List<AutomationPeer> peers)
@@ -1124,6 +1160,14 @@ internal sealed class RichTextBoxAutomationPeer : ControlAutomationPeer, IValueP
         }
     }
 
+    public float HorizontalViewSize => HorizontallyScrollable
+        ? MathF.Max(0f, MathF.Min(100f, (Editor.ViewportWidth / MathF.Max(Editor.ExtentWidth, 0.01f)) * 100f))
+        : 100f;
+
+    public float VerticalViewSize => VerticallyScrollable
+        ? MathF.Max(0f, MathF.Min(100f, (Editor.ViewportHeight / MathF.Max(Editor.ExtentHeight, 0.01f)) * 100f))
+        : 100f;
+
     public void SetScrollPercent(float horizontalPercent, float verticalPercent)
     {
         var clampedHorizontal = MathF.Max(0f, MathF.Min(100f, horizontalPercent));
@@ -1209,6 +1253,14 @@ internal sealed class IDE_EditorAutomationPeer : ControlAutomationPeer, IValuePr
             return (Editor.VerticalOffset / MathF.Max(Editor.ScrollableHeight, 0.01f)) * 100f;
         }
     }
+
+    public float HorizontalViewSize => HorizontallyScrollable
+        ? MathF.Max(0f, MathF.Min(100f, (Editor.ViewportWidth / MathF.Max(Editor.ExtentWidth, 0.01f)) * 100f))
+        : 100f;
+
+    public float VerticalViewSize => VerticallyScrollable
+        ? MathF.Max(0f, MathF.Min(100f, (Editor.ViewportHeight / MathF.Max(Editor.ExtentHeight, 0.01f)) * 100f))
+        : 100f;
 
     public void SetScrollPercent(float horizontalPercent, float verticalPercent)
     {

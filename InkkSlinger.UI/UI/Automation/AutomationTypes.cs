@@ -247,5 +247,9 @@ public interface IScrollProvider
 
     float VerticalScrollPercent { get; }
 
+    float HorizontalViewSize { get; }
+
+    float VerticalViewSize { get; }
+
     void SetScrollPercent(float horizontalPercent, float verticalPercent);
 }
