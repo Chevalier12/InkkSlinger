@@ -570,6 +570,35 @@ public class Border : Decorator
         }
     }
 
+    internal override void RecordVisual(VisualRecordingContext context)
+    {
+        var slot = new LayoutRect(0f, 0f, LayoutSlot.Width, LayoutSlot.Height);
+        if (slot.Width <= 0f || slot.Height <= 0f)
+        {
+            return;
+        }
+
+        var renderState = ResolveRenderState();
+        var cornerRadius = CornerRadius;
+        if (HasAnyCornerRadius(cornerRadius))
+        {
+            context.Unsupported("Border rounded corners");
+            return;
+        }
+
+        if (renderState.HasVisibleBackground)
+        {
+            context.DrawFilledRect(slot, renderState.BackgroundColor, Opacity);
+        }
+
+        if (!renderState.HasVisibleBorder)
+        {
+            return;
+        }
+
+        RecordBorderSides(context, slot, renderState.BorderThickness, renderState.BorderColor, Opacity);
+    }
+
     private Thickness GetChromeThickness()
     {
         var border = BorderThickness;
@@ -579,6 +608,40 @@ public class Border : Decorator
             border.Top + padding.Top,
             border.Right + padding.Right,
             border.Bottom + padding.Bottom);
+    }
+
+    private static void RecordBorderSides(
+        VisualRecordingContext context,
+        LayoutRect slot,
+        Thickness borderThickness,
+        Color borderColor,
+        float opacity)
+    {
+        if (borderThickness.Left > 0f)
+        {
+            context.DrawFilledRect(new LayoutRect(slot.X, slot.Y, borderThickness.Left, slot.Height), borderColor, opacity);
+        }
+
+        if (borderThickness.Right > 0f)
+        {
+            context.DrawFilledRect(
+                new LayoutRect(slot.X + slot.Width - borderThickness.Right, slot.Y, borderThickness.Right, slot.Height),
+                borderColor,
+                opacity);
+        }
+
+        if (borderThickness.Top > 0f)
+        {
+            context.DrawFilledRect(new LayoutRect(slot.X, slot.Y, slot.Width, borderThickness.Top), borderColor, opacity);
+        }
+
+        if (borderThickness.Bottom > 0f)
+        {
+            context.DrawFilledRect(
+                new LayoutRect(slot.X, slot.Y + slot.Height - borderThickness.Bottom, slot.Width, borderThickness.Bottom),
+                borderColor,
+                opacity);
+        }
     }
 
     private Thickness GetRenderBorderThickness()

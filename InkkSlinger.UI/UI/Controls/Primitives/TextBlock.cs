@@ -715,6 +715,19 @@ public class TextBlock : FrameworkElement
         }
     }
 
+    internal override void RecordVisual(VisualRecordingContext context)
+    {
+        var layoutText = GetLayoutText();
+        if (string.IsNullOrEmpty(layoutText) ||
+            ShouldCollapseWrappedMeasure(RenderSize.X) ||
+            RenderSize.Y <= 0.01f)
+        {
+            return;
+        }
+
+        context.DrawTextPlaceholder(new LayoutRect(0f, 0f, RenderSize.X, RenderSize.Y), layoutText, Foreground, Opacity);
+    }
+
     protected virtual void OnRenderTextDecorations(SpriteBatch spriteBatch, TextLayout.TextLayoutResult layout, float lineSpacing)
     {
         _ = spriteBatch;

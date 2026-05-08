@@ -144,6 +144,8 @@ public sealed partial class UiRoot
     private int _lastMenuScopeBuildCount;
     private int _lastOverlayRegistryScanCount;
     private int _lastOverlayRegistryHitCount;
+    private RenderInvalidationKind _lastRenderInvalidationKind = RenderInvalidationKind.Content;
+    private string _lastRenderInvalidationKindName = "none";
     private UIElement? _lastRenderInvalidationRequestedSourceElement;
     private string _lastRenderInvalidationRequestedSourceType = "none";
     private string _lastRenderInvalidationRequestedSourceName = string.Empty;
@@ -446,6 +448,8 @@ public sealed partial class UiRoot
 
     public int RetainedRenderNodeCount => _retainedRender.NodeCount;
 
+    internal int CompositionNodeCount => _retainedRender.CompositionNodeCount;
+
     public int VisualStructureChangeCount => _visualStructureChangeCount;
 
     public int RetainedFullRebuildCount => _retainedFullRebuildCount;
@@ -572,9 +576,20 @@ public sealed partial class UiRoot
         return _retainedRender.GetTelemetrySnapshot();
     }
 
+    internal void UpdateVisualRecordsForTests()
+    {
+        _retainedRender.UpdateVisualRecordsForTests();
+    }
+
+    internal VisualCommandList GetVisualRecordForTests(UIElement visual)
+    {
+        return _retainedRender.GetVisualRecordForTests(visual);
+    }
+
     internal UiRenderInvalidationDebugSnapshot GetRenderInvalidationDebugSnapshotForTests()
     {
         return new UiRenderInvalidationDebugSnapshot(
+            _lastRenderInvalidationKindName,
             _lastRenderInvalidationRequestedSourceType,
             _lastRenderInvalidationRequestedSourceName,
             GetLastRenderInvalidationSummary(_lastRenderInvalidationRequestedSourceElement),
@@ -717,6 +732,8 @@ public sealed partial class UiRoot
         _telemetryResetUpdatePhaseStateCallCount = 0;
         _retainedSyncChangedDirtyDecisionCount = 0;
         _fullRetainedDrawWithoutFullClearCount = 0;
+        _lastRenderInvalidationKind = RenderInvalidationKind.Content;
+        _lastRenderInvalidationKindName = "none";
         _retainedRender.ResetTelemetry();
     }
 
@@ -822,12 +839,13 @@ public sealed partial class UiRoot
 
     internal void NotifyScrollViewportChanged(ScrollViewer viewer, LayoutRect viewport)
     {
-        RecordRenderInvalidationSources(viewer, viewer);
+        RecordRenderInvalidationSources(viewer, viewer, RenderInvalidationKind.Transform);
         _hasRenderInvalidation = true;
         _mustDrawNextFrame = true;
         RenderInvalidationCount++;
         _renderStateVersion++;
         BumpPointerResolveStateVersion();
+        RefreshPointerTargetsAfterLayoutMutation();
         _retainedRender.NotifyScrollViewportChanged(viewer, viewport);
     }
 
@@ -900,6 +918,16 @@ public sealed partial class UiRoot
     internal IReadOnlyList<UIElement> GetRetainedVisualOrderForTests()
     {
         return _retainedRender.GetRetainedVisualOrderSnapshot();
+    }
+
+    internal IReadOnlyList<UIElement> GetCompositionVisualOrderForTests()
+    {
+        return _retainedRender.GetCompositionVisualOrderSnapshot();
+    }
+
+    internal RetainedCompositionGraph GetCompositionGraphForTests()
+    {
+        return _retainedRender.GetCompositionGraphSnapshot();
     }
 
     internal IReadOnlyList<UIElement> GetDirtyRenderQueueSnapshotForTests()

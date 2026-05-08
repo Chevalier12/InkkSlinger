@@ -134,6 +134,8 @@ InkkSlinger.Tests/
   MenuParityInputTests.cs
   MouseEnterLeavePhase3Tests.cs
   MouseWheelWpfParityTests.cs
+  MimisbrunnrCompositorTests.cs
+  MimisbrunnrVisualRecordingTests.cs
   MultiBindingTests.cs
   MultiMenuParityInputTests.cs
   MultiTriggerTests.cs
@@ -157,6 +159,8 @@ InkkSlinger.Tests/
   RenderTransformPhase1Tests.cs
   ResizeGripInputTests.cs
   ResourceDictionaryMergedSemanticsTests.cs
+  RetainedCompositionModelTests.cs
+  RetainedCompositionFrameTelemetryTests.cs
   RetainedDrawPipelineReviewTests.cs
   RetainedRenderSyncRegressionTests.cs
   RetainedRenderWakeUpTests.cs
@@ -228,7 +232,7 @@ InkkSlinger.Tests/
   UserControlTemplateParityTests.cs
   ViewportResizeInputRegressionTests.cs
   VirtualizingStackPanelReviewReproTests.cs
-  VisualLayerCachingTests.cs
+  VisualTransformHitTestingTests.cs
   VisualStateManagerTemplateTests.cs
   VisualTreeHelperOptimizationTests.cs
   WindowImplicitStyleParityTests.cs

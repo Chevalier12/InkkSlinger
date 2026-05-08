@@ -29,6 +29,7 @@ public sealed partial class UiRoot
         private List<UIElement> _lastCoalescedDirtyRenderRoots => LastCoalescedDirtyRenderRoots;
         private List<UIElement> _dirtyRenderCompactionBuffer => DirtyRenderCompactionBuffer;
         private DirtyRegionTracker _dirtyRegions => DirtyRegions;
+        private Dictionary<UIElement, RenderInvalidationKind> _pendingCompositionMetadataUpdates => PendingCompositionMetadataUpdates;
         private bool _hasViewportBounds { get => _root._hasViewportBounds; set => _root._hasViewportBounds = value; }
         private LayoutRect _lastViewportBounds { get => _root._lastViewportBounds; set => _root._lastViewportBounds = value; }
         private bool _mustDrawNextFrame { get => _root._mustDrawNextFrame; set => _root._mustDrawNextFrame = value; }
@@ -352,6 +353,7 @@ public sealed partial class UiRoot
             _dirtyRenderWorkItems.Clear();
             _dirtyRenderCandidates.Clear();
             _pendingAncestorMetadataRefreshRoots.Clear();
+            _pendingCompositionMetadataUpdates.Clear();
             _lastCoalescedDirtyRenderRoots.Clear();
         }
 
@@ -365,6 +367,7 @@ public sealed partial class UiRoot
         internal void SynchronizeRetainedRenderList()
         {
             ResetRetainedSyncTrackingState();
+            _lastCompositionMetadataOnlySyncSucceeded = false;
             _lastAncestorMetadataRefreshNodeCount = 0;
             _pendingAncestorMetadataRefreshRoots.Clear();
             CompactDirtyRenderQueueForSync();
@@ -384,9 +387,12 @@ public sealed partial class UiRoot
 
             if (_dirtyRenderWorkItems.Count == 0)
             {
+                var hadMetadataUpdates = _pendingCompositionMetadataUpdates.Count > 0;
+                _lastCompositionMetadataOnlySyncSucceeded = hadMetadataUpdates && ApplyPendingCompositionMetadataUpdates();
                 return;
             }
 
+            var compositionMetadataOnlySync = IsCompositionMetadataOnlySync();
             for (var i = 0; i < _dirtyRenderWorkItems.Count; i++)
             {
                 var dirtyItem = _dirtyRenderWorkItems[i];
@@ -441,6 +447,35 @@ public sealed partial class UiRoot
 
             _dirtyRenderWorkItems.Clear();
             _dirtyRenderSet.Clear();
+            if (!compositionMetadataOnlySync)
+            {
+                SynchronizeCompositionTreeFromRetainedList();
+            }
+
+            var appliedCompositionMetadata = ApplyPendingCompositionMetadataUpdates();
+            _lastCompositionMetadataOnlySyncSucceeded = compositionMetadataOnlySync && appliedCompositionMetadata;
+        }
+
+        private bool IsCompositionMetadataOnlySync()
+        {
+            if (_dirtyRenderWorkItems.Count == 0 ||
+                _pendingCompositionMetadataUpdates.Count == 0)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < _dirtyRenderWorkItems.Count; i++)
+            {
+                var item = _dirtyRenderWorkItems[i];
+                if (item.RequiresDeepSync ||
+                    item.AllowsSubtreeRebuild ||
+                    !HasPendingCompositionMetadataUpdate(item.Visual))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static bool IsDescendantOfAny(UIElement element, IReadOnlyList<UIElement> roots)
@@ -509,8 +544,14 @@ public sealed partial class UiRoot
 
             _ = BuildRenderSubtree(_visualRoot, traversalOrder: 0, depth: 0, parentNode: null);
             _renderListNeedsFullRebuild = false;
+            SynchronizeCompositionTreeFromRetainedList();
             MarkFullFrameDirty(UiFullDirtyReason.RetainedRebuild);
             ClearDirtyRenderQueue();
+        }
+
+        private void SynchronizeCompositionTreeFromRetainedList()
+        {
+            CompositionTreeIndex.BuildFromRetainedList(_retainedRenderList);
         }
 
         private (int TraversalOrder, SubtreeMetadata Metadata) BuildRenderSubtree(UIElement visual, int traversalOrder, int depth, RenderNode? parentNode)
@@ -1253,6 +1294,111 @@ public sealed partial class UiRoot
                     $"retainedSubtree={FormatRectForDiagnostics(retained.HasSubtreeBoundsSnapshot, retained.SubtreeBoundsSnapshot)} " +
                     $"currentSubtree={FormatRectForDiagnostics(current.HasSubtreeBoundsSnapshot, current.SubtreeBoundsSnapshot)}");
             }
+        }
+
+        private bool TryRefreshRetainedRenderMetadata(UIElement visual)
+        {
+            if (!RenderNodeIndices.TryGetValue(visual, out var nodeIndex) ||
+                (uint)nodeIndex >= (uint)RetainedRenderList.Count)
+            {
+                return false;
+            }
+
+            var parentIndex = FindRetainedParentIndex(nodeIndex);
+            var parentNode = parentIndex >= 0 ? RetainedRenderList[parentIndex] : (RenderNode?)null;
+            _ = RefreshRetainedRenderMetadataSubtree(nodeIndex, parentNode);
+            RefreshRetainedAncestorSubtreeMetadata(parentIndex);
+            return true;
+        }
+
+        private RenderNode RefreshRetainedRenderMetadataSubtree(int nodeIndex, RenderNode? parentNode)
+        {
+            var previous = RetainedRenderList[nodeIndex];
+            var refreshed = CreateRenderNode(
+                previous.Visual,
+                previous.TraversalOrder,
+                previous.Depth,
+                previous.SubtreeEndIndexExclusive,
+                parentNode);
+            var metadata = CreateSubtreeMetadataForNode(refreshed);
+
+            for (var childIndex = nodeIndex + 1;
+                 childIndex < previous.SubtreeEndIndexExclusive &&
+                 childIndex < RetainedRenderList.Count;)
+            {
+                var child = RetainedRenderList[childIndex];
+                if (child.Depth != previous.Depth + 1)
+                {
+                    childIndex++;
+                    continue;
+                }
+
+                var refreshedChild = RefreshRetainedRenderMetadataSubtree(childIndex, refreshed);
+                metadata = MergeSubtreeMetadata(metadata, CreateSubtreeMetadataFromSubtreeNode(refreshedChild));
+                childIndex = refreshedChild.SubtreeEndIndexExclusive;
+            }
+
+            refreshed = refreshed.WithSubtreeMetadata(
+                previous.SubtreeEndIndexExclusive,
+                metadata.HasBoundsSnapshot,
+                metadata.BoundsSnapshot,
+                metadata.VisualCount,
+                metadata.HighCostVisualCount,
+                metadata.RenderVersionStamp,
+                metadata.LayoutVersionStamp);
+            RetainedRenderList[nodeIndex] = refreshed;
+            return refreshed;
+        }
+
+        private void RefreshRetainedAncestorSubtreeMetadata(int nodeIndex)
+        {
+            for (var currentIndex = nodeIndex; currentIndex >= 0; currentIndex = FindRetainedParentIndex(currentIndex))
+            {
+                var current = RetainedRenderList[currentIndex];
+                var metadata = CreateSubtreeMetadataForNode(current);
+                for (var childIndex = currentIndex + 1;
+                     childIndex < current.SubtreeEndIndexExclusive &&
+                     childIndex < RetainedRenderList.Count;)
+                {
+                    var child = RetainedRenderList[childIndex];
+                    if (child.Depth != current.Depth + 1)
+                    {
+                        childIndex++;
+                        continue;
+                    }
+
+                    metadata = MergeSubtreeMetadata(metadata, CreateSubtreeMetadataFromSubtreeNode(child));
+                    childIndex = child.SubtreeEndIndexExclusive;
+                }
+
+                RetainedRenderList[currentIndex] = current.WithSubtreeMetadata(
+                    current.SubtreeEndIndexExclusive,
+                    metadata.HasBoundsSnapshot,
+                    metadata.BoundsSnapshot,
+                    metadata.VisualCount,
+                    metadata.HighCostVisualCount,
+                    metadata.RenderVersionStamp,
+                    metadata.LayoutVersionStamp);
+            }
+        }
+
+        private int FindRetainedParentIndex(int nodeIndex)
+        {
+            if ((uint)nodeIndex >= (uint)RetainedRenderList.Count)
+            {
+                return -1;
+            }
+
+            var depth = RetainedRenderList[nodeIndex].Depth;
+            for (var candidateIndex = nodeIndex - 1; candidateIndex >= 0; candidateIndex--)
+            {
+                if (RetainedRenderList[candidateIndex].Depth == depth - 1)
+                {
+                    return candidateIndex;
+                }
+            }
+
+            return -1;
         }
 
         private static string FormatRectForDiagnostics(bool hasRect, LayoutRect rect)

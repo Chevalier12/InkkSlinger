@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.HierarchyLabView"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#18191B">
+  <Border Background="#18191B"
+          BorderBrush="#2B2D31"
+          BorderThickness="1"
+          Padding="0">
+    <ScrollViewer x:Name="HierarchyLabScrollViewer"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Auto"
+                  PanningMode="Both"
+                  Padding="24">
+      <HierarchyLabWorkspaceCanvas x:Name="HierarchyLabWorkspace"
+                                   Background="#18191B" />
+    </ScrollViewer>
+  </Border>
+</UserControl>

@@ -224,22 +224,9 @@ public static class VisualTreeHelper
                 {
                     _transformedBoundsHitCount++;
                     collector?.RecordTraversal("TransformedBounds");
-                    var probePoint = position;
-                    if (MathF.Abs(accumulatedHorizontalOffset) > 0.01f ||
-                        MathF.Abs(accumulatedVerticalOffset) > 0.01f)
-                    {
-                        probePoint = new Vector2(
-                            position.X + accumulatedHorizontalOffset,
-                            position.Y + accumulatedVerticalOffset);
-                    }
-
-                    var transformedBounds = frameworkElement.LayoutSlot;
-                    if (hasNextAncestorTransformToRoot)
-                    {
-                        transformedBounds = TransformRect(transformedBounds, nextAncestorTransformToRoot);
-                    }
-
-                    isWithinSelfBounds = ContainsPoint(transformedBounds, probePoint);
+                    isWithinSelfBounds = hasTransformInChain
+                        ? TransformedBoundsHit(frameworkElement, position, nextAncestorTransformToRoot, hasNextAncestorTransformToRoot)
+                        : FastBoundsHit(frameworkElement, position, accumulatedHorizontalOffset, accumulatedVerticalOffset, excludeDisabledElements);
                 }
 
                 if (!isWithinSelfBounds && !canOverflowToChildren)
@@ -1044,17 +1031,9 @@ public static class VisualTreeHelper
         var canUseSimpleSlotHit = !hasTransformInChain && !hasClipInChain;
         var isWithinChildBounds = canUseSimpleSlotHit
             ? FastBoundsHit(frameworkChild, position, childHorizontalOffset, childVerticalOffset, excludeDisabledElements)
-            : ContainsPoint(
-                hasLocalTransform && hasAncestorTransformToRoot
-                    ? TransformRect(frameworkChild.LayoutSlot, localTransform * ancestorTransformToRoot)
-                    : hasLocalTransform
-                        ? TransformRect(frameworkChild.LayoutSlot, localTransform)
-                        : hasAncestorTransformToRoot
-                            ? TransformRect(frameworkChild.LayoutSlot, ancestorTransformToRoot)
-                            : frameworkChild.LayoutSlot,
-                canUseSimpleSlotHit
-                    ? position
-                    : new Vector2(position.X + childHorizontalOffset, position.Y + childVerticalOffset));
+            : hasTransformInChain
+                ? TransformedChildBoundsHit(frameworkChild, position, ancestorTransformToRoot, hasAncestorTransformToRoot, localTransform, hasLocalTransform)
+                : FastBoundsHit(frameworkChild, position, childHorizontalOffset, childVerticalOffset, excludeDisabledElements);
 
         if (isWithinChildBounds)
         {
@@ -1418,6 +1397,39 @@ public static class VisualTreeHelper
         var maxY = MathF.Max(MathF.Max(topLeft.Y, topRight.Y), MathF.Max(bottomLeft.Y, bottomRight.Y));
 
         return new LayoutRect(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    private static bool TransformedBoundsHit(
+        FrameworkElement element,
+        Vector2 pointerPosition,
+        Matrix transformToRoot,
+        bool hasTransformToRoot)
+    {
+        var bounds = hasTransformToRoot
+            ? TransformRect(element.LayoutSlot, transformToRoot)
+            : element.LayoutSlot;
+        return ContainsPoint(bounds, pointerPosition);
+    }
+
+    private static bool TransformedChildBoundsHit(
+        FrameworkElement child,
+        Vector2 pointerPosition,
+        Matrix ancestorTransformToRoot,
+        bool hasAncestorTransformToRoot,
+        Matrix localTransform,
+        bool hasLocalTransform)
+    {
+        var transformToRoot = ancestorTransformToRoot;
+        var hasTransformToRoot = hasAncestorTransformToRoot;
+        if (hasLocalTransform)
+        {
+            transformToRoot = hasAncestorTransformToRoot
+                ? localTransform * ancestorTransformToRoot
+                : localTransform;
+            hasTransformToRoot = true;
+        }
+
+        return TransformedBoundsHit(child, pointerPosition, transformToRoot, hasTransformToRoot);
     }
 
     private static bool ContainsPoint(LayoutRect rect, Vector2 point)

@@ -601,7 +601,7 @@ public partial class DesignerHierarchyView : UserControl
         }
     }
 
-    private sealed class GraphLayerCanvas : Canvas
+    internal sealed class GraphLayerCanvas : Canvas
     {
         private float _zoom = 1f;
         private int _renderCallCount;
@@ -621,7 +621,7 @@ public partial class DesignerHierarchyView : UserControl
                 }
 
                 _zoom = coerced;
-                InvalidateVisual();
+                InvalidateTransformMetadata();
             }
         }
 
@@ -663,6 +663,18 @@ public partial class DesignerHierarchyView : UserControl
                 Matrix.CreateTranslation(originX, originY, 0f);
             _localRenderTransformActiveCount++;
             return true;
+        }
+
+        private void InvalidateTransformMetadata()
+        {
+            var uiRoot = UiRoot.Current;
+            if (uiRoot == null)
+            {
+                InvalidateVisual();
+                return;
+            }
+
+            uiRoot.NotifyDirectRenderInvalidation(this, RenderInvalidationKind.Transform);
         }
 
         internal DesignerHierarchyGraphLayerRuntimeDiagnosticsSnapshot GetDesignerHierarchyGraphLayerSnapshotForDiagnostics()

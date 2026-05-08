@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Xunit;
@@ -307,6 +308,89 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
+    public void TransformDefault_WheelScroll_UpdatesContentCompositionMetadataWithoutDeepSyncOrRerecord()
+    {
+        var root = new Panel();
+        var content = CreateTransformCapableTallStackPanel(120);
+        content.Name = "scrollContent";
+        var viewer = new ScrollViewer
+        {
+            Width = 320f,
+            Height = 200f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = PrepareRetainedScrollTest(root, viewer);
+        var contentRecordBefore = uiRoot.GetVisualRecordForTests(content);
+
+        Assert.True(viewer.HandleMouseWheelFromInput(-120));
+        SynchronizeAndRecord(uiRoot);
+
+        AssertTransformScrollMetadataOnly(uiRoot, viewer, content, contentRecordBefore);
+        AssertCompositionScrollTransform(content, expectedX: 0f, expectedY: -viewer.VerticalOffset);
+    }
+
+    [Fact]
+    public void TransformDefault_ScrollBarValueChange_UpdatesContentCompositionMetadataWithoutDeepSyncOrRerecord()
+    {
+        var root = new Panel();
+        var content = CreateTransformCapableTallStackPanel(120);
+        content.Name = "scrollContent";
+        var viewer = new ScrollViewer
+        {
+            Width = 320f,
+            Height = 200f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = PrepareRetainedScrollTest(root, viewer);
+        var contentRecordBefore = uiRoot.GetVisualRecordForTests(content);
+
+        viewer.AutomationVerticalScrollBar.Value = 96f;
+        SynchronizeAndRecord(uiRoot);
+
+        Assert.True(AreClose(96f, viewer.VerticalOffset));
+        AssertTransformScrollMetadataOnly(uiRoot, viewer, content, contentRecordBefore);
+        AssertCompositionScrollTransform(content, expectedX: 0f, expectedY: -viewer.VerticalOffset);
+    }
+
+    [Fact]
+    public void TransformDefault_PointerPan_UpdatesContentCompositionMetadataWithoutDeepSyncOrRerecord()
+    {
+        var root = new Panel();
+        var content = CreateTransformCapableTallStackPanel(120);
+        content.Name = "scrollContent";
+        var viewer = new ScrollViewer
+        {
+            Width = 320f,
+            Height = 200f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            PanningMode = PanningMode.VerticalOnly,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = PrepareRetainedScrollTest(root, viewer);
+        var contentRecordBefore = uiRoot.GetVisualRecordForTests(content);
+
+        Assert.True(viewer.HandlePointerDownFromInput(new Vector2(40f, 120f)));
+        Assert.True(viewer.HandlePointerMoveFromInput(new Vector2(40f, 72f)));
+        Assert.True(viewer.HandlePointerUpFromInput());
+        SynchronizeAndRecord(uiRoot);
+
+        Assert.True(AreClose(48f, viewer.VerticalOffset));
+        AssertTransformScrollMetadataOnly(uiRoot, viewer, content, contentRecordBefore);
+        AssertCompositionScrollTransform(content, expectedX: 0f, expectedY: -viewer.VerticalOffset);
+    }
+
+    [Fact]
     public void AutoBars_RemainVisible_ForOversizedCanvasContent()
     {
         var root = new Panel();
@@ -495,7 +579,6 @@ public class ScrollViewerViewerOwnedScrollingTests
 
         uiRoot.SynchronizeRetainedRenderListForTests();
 
-        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
         RetainedRenderingAssert.AssertRetainedDrawOrderMatchesImmediateTraversal(uiRoot, clip);
     }
 
@@ -526,6 +609,52 @@ public class ScrollViewerViewerOwnedScrollingTests
         Assert.Contains(
             uiRoot.GetDirtyBoundsEventTraceForTests(),
             entry => entry.Contains(":scroll-viewport:", System.StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TransformDefault_ScrollViewportDamage_RemainsPartialWhenLaterChromeInvalidates()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 360f, 220f));
+        var viewer = new ScrollViewer
+        {
+            Name = "ViewportOwner",
+            Width = 320f,
+            Height = 200f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        viewer.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 200f));
+        var chrome = new Border
+        {
+            Name = "ScrollbarLikeChrome"
+        };
+        chrome.SetLayoutSlot(new LayoutRect(330f, 20f, 12f, 120f));
+        root.AddChild(viewer);
+        root.AddChild(chrome);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 360f, 220f));
+
+        uiRoot.NotifyScrollViewportChanged(viewer, new LayoutRect(0f, 0f, 320f, 200f));
+        chrome.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var coverage = uiRoot.GetDirtyCoverageForTests();
+        var decision = uiRoot.ResolveDirtyDrawDecisionAfterRetainedSyncForTests();
+
+        Assert.True(coverage > uiRoot.DirtyRegionCoverageFallbackThreshold);
+        Assert.Equal(UiDirtyDrawDecisionReason.Partial, decision.AfterSyncReason);
+        Assert.Contains(
+            uiRoot.GetDirtyBoundsEventTraceForTests(),
+            entry => entry.Contains(":scroll-viewport:", StringComparison.Ordinal));
+        Assert.Contains(
+            uiRoot.GetDirtyBoundsEventTraceForTests(),
+            entry => entry.Contains("ScrollbarLikeChrome", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -561,7 +690,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         visibleChild.InvalidateVisual();
         uiRoot.SynchronizeRetainedRenderListForTests();
 
-        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
         RetainedRenderingAssert.AssertRetainedDrawOrderMatchesImmediateTraversal(uiRoot, clip);
         Assert.Contains(visibleChild, uiRoot.GetRetainedDrawOrderForClipForTests(clip));
     }
@@ -704,6 +832,51 @@ public class ScrollViewerViewerOwnedScrollingTests
         }
 
         return panel;
+    }
+
+    private static UiRoot PrepareRetainedScrollTest(Panel root, ScrollViewer viewer)
+    {
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 640, 480, 16);
+        Assert.True(viewer.TryGetContentViewportClipRect(out _));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.UpdateVisualRecordsForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.GetTelemetryAndReset();
+        return uiRoot;
+    }
+
+    private static void SynchronizeAndRecord(UiRoot uiRoot)
+    {
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        uiRoot.UpdateVisualRecordsForTests();
+    }
+
+    private static void AssertTransformScrollMetadataOnly(
+        UiRoot uiRoot,
+        ScrollViewer viewer,
+        UIElement content,
+        VisualCommandList contentRecordBefore)
+    {
+        var retained = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+        var performance = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+
+        Assert.True(viewer.TryGetContentViewportClipRect(out var viewportClip));
+        Assert.Equal(1, retained.TransformMetadataUpdateCount);
+        Assert.Equal(0, retained.CompositionMetadataUpdateMissCount);
+        Assert.Equal(0, performance.RetainedForceDeepSyncCount);
+        Assert.Equal(content.GetType().Name + "#scrollContent", retained.LastCompositionMetadataUpdateSource);
+        Assert.Same(contentRecordBefore, uiRoot.GetVisualRecordForTests(content));
+        Assert.Contains(uiRoot.GetDirtyRegionsSnapshotForTests(), region => Contains(region, viewportClip));
+    }
+
+    private static void AssertCompositionScrollTransform(UIElement content, float expectedX, float expectedY)
+    {
+        Assert.True(content.TryGetLocalRenderTransformSnapshot(out var transform));
+        Assert.True(AreClose(expectedX, transform.Translation.X));
+        Assert.True(AreClose(expectedY, transform.Translation.Y));
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)

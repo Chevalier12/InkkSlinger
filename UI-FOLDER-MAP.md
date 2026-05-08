@@ -415,6 +415,18 @@ UI/
     Root/
       Services/
         IUiRootUpdateParticipant.cs
+        Mimisbrunnr/
+          CompositionTreeIndex.cs
+          RenderInvalidationKind.cs
+          VisualCommandList.cs
+          VisualRecordingContext.cs
+          VisualRecordStore.cs
+        RetainedComposition/
+          RetainedCompositionCacheMode.cs
+          RetainedCompositionCompositor.cs
+          RetainedCompositionGraph.cs
+          RetainedCompositionNode.cs
+          RetainedDrawRecord.cs
         RetainedRenderController.cs
         RetainedRenderController.Tree.cs
         UiRootDraw.cs
@@ -432,6 +444,7 @@ UI/
   Rendering/
     Core/
       UiDrawing.cs
+      VisualCommandReplayer.cs
     DirtyRegions/
       DirtyRegionTracker.cs
       IRenderDirtyBoundsHintProvider.cs

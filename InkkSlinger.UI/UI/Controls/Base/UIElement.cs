@@ -60,6 +60,7 @@ public class UIElement : DependencyObject
     private int _layoutVersionStamp;
     private int _updateCallCount;
     private int _drawCallCount;
+    private RetainedCompositionCacheMode _retainedCompositionCacheMode;
     private bool _suppressNextLogicalParentChanged;
     private bool _hasDirectMeasureInvalidation;
     private bool _hasDirectArrangeInvalidation;
@@ -344,6 +345,21 @@ public class UIElement : DependencyObject
 
     internal bool HasDirectArrangeInvalidationForLayoutRepair => _hasDirectArrangeInvalidation;
 
+    internal RetainedCompositionCacheMode RetainedCompositionCacheMode
+    {
+        get => _retainedCompositionCacheMode;
+        set
+        {
+            if (_retainedCompositionCacheMode == value)
+            {
+                return;
+            }
+
+            _retainedCompositionCacheMode = value;
+            InvalidateVisualCore(this, source: null, reason: "retained-composition-cache-mode", RenderInvalidationKind.Content);
+        }
+    }
+
     public virtual IEnumerable<UIElement> GetVisualChildren()
     {
         yield break;
@@ -487,6 +503,11 @@ public class UIElement : DependencyObject
 
     protected virtual void OnRender(SpriteBatch spriteBatch)
     {
+    }
+
+    internal virtual void RecordVisual(VisualRecordingContext context)
+    {
+        context.Unsupported(GetType().Name);
     }
 
     internal static bool IsRetainedDrawPassForCurrentThread => _retainedSelfDrawDepth > 0;
@@ -1318,7 +1339,11 @@ public class UIElement : DependencyObject
         if ((options & FrameworkPropertyMetadataOptions.AffectsRender) != 0 &&
             ShouldInvalidateVisualForPropertyChange(args, metadata))
         {
-            InvalidateVisualCore(this, source: null, reason: $"property:{args.Property.Name}");
+            InvalidateVisualCore(
+                this,
+                source: null,
+                reason: $"property:{args.Property.Name}",
+                GetRenderInvalidationKindForProperty(args.Property));
         }
 
         if (!metadata.Inherits)
@@ -1608,7 +1633,7 @@ public class UIElement : DependencyObject
             return;
         }
 
-        InvalidateVisual();
+        InvalidateVisualCore(this, source: null, reason: "freezable:Effect", RenderInvalidationKind.Effect);
     }
 
     private void OnRenderTransformChanged()
@@ -1618,7 +1643,7 @@ public class UIElement : DependencyObject
             return;
         }
 
-        InvalidateVisual();
+        InvalidateVisualCore(this, source: null, reason: "freezable:RenderTransform", RenderInvalidationKind.Transform);
     }
 
     internal static void BeginFreezableInvalidationBatch()
@@ -1903,7 +1928,11 @@ public class UIElement : DependencyObject
         }
     }
 
-    private void InvalidateVisualCore(UIElement origin, UIElement? source, string reason)
+    private void InvalidateVisualCore(
+        UIElement origin,
+        UIElement? source,
+        string reason,
+        RenderInvalidationKind renderInvalidationKind = RenderInvalidationKind.Content)
     {
         Dispatcher.VerifyAccess();
         var renderInvalidationSource = ReferenceEquals(origin, this)
@@ -1911,13 +1940,20 @@ public class UIElement : DependencyObject
             : origin;
         if (NeedsRender)
         {
-            UiRoot.Current?.EnsureRenderInvalidationTracked(renderInvalidationSource);
+            UiRoot.Current?.EnsureRenderInvalidationTracked(renderInvalidationSource, renderInvalidationKind);
             return;
         }
 
         NeedsRender = true;
         _renderInvalidationCount++;
-        _renderVersionStamp++;
+        if (renderInvalidationKind == RenderInvalidationKind.Content ||
+            renderInvalidationKind == RenderInvalidationKind.Effect ||
+            renderInvalidationKind == RenderInvalidationKind.Overlay ||
+            renderInvalidationKind == RenderInvalidationKind.DeviceResource)
+        {
+            _renderVersionStamp++;
+        }
+
         if (!IsConnectedToCurrentUiRoot())
         {
             return;
@@ -1925,7 +1961,38 @@ public class UIElement : DependencyObject
 
         RecordInvalidationDiagnostics(UiInvalidationType.Render, origin, source, reason);
         MarkSubtreeDirty();
-        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Render, renderInvalidationSource);
+        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Render, renderInvalidationSource, renderInvalidationKind: renderInvalidationKind);
+    }
+
+    private static RenderInvalidationKind GetRenderInvalidationKindForProperty(DependencyProperty property)
+    {
+        if (ReferenceEquals(property, RenderTransformProperty) ||
+            ReferenceEquals(property, RenderTransformOriginProperty))
+        {
+            return RenderInvalidationKind.Transform;
+        }
+
+        if (ReferenceEquals(property, ClipToBoundsProperty))
+        {
+            return RenderInvalidationKind.Clip;
+        }
+
+        if (ReferenceEquals(property, OpacityProperty))
+        {
+            return RenderInvalidationKind.Opacity;
+        }
+
+        if (ReferenceEquals(property, IsVisibleProperty))
+        {
+            return RenderInvalidationKind.Visibility;
+        }
+
+        if (ReferenceEquals(property, EffectProperty))
+        {
+            return RenderInvalidationKind.Effect;
+        }
+
+        return RenderInvalidationKind.Content;
     }
 
     private bool IsConnectedToCurrentUiRoot()

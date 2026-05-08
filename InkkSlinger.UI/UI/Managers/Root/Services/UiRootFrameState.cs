@@ -89,27 +89,38 @@ public sealed partial class UiRoot
         }
     }
 
-    internal void EnsureRenderInvalidationTracked(UIElement visual, bool requireDeepSync = false)
+    internal void EnsureRenderInvalidationTracked(
+        UIElement visual,
+        RenderInvalidationKind renderInvalidationKind = RenderInvalidationKind.Content,
+        bool requireDeepSync = false)
     {
         if (_retainedRender.IsDirtyRenderQueued(visual))
         {
-            TrackQueuedRenderMutation(visual, requireDeepSync);
+            TrackQueuedRenderMutation(visual, renderInvalidationKind, requireDeepSync);
             return;
         }
 
-        NotifyInvalidation(UiInvalidationType.Render, visual, requireDeepSync);
+        NotifyInvalidation(UiInvalidationType.Render, visual, requireDeepSync, renderInvalidationKind);
     }
 
     internal void NotifyDirectRenderInvalidation(UIElement visual, bool requireDeepSync = false)
     {
+        NotifyDirectRenderInvalidation(visual, RenderInvalidationKind.Content, requireDeepSync);
+    }
+
+    internal void NotifyDirectRenderInvalidation(
+        UIElement visual,
+        RenderInvalidationKind renderInvalidationKind,
+        bool requireDeepSync = false)
+    {
         if (!_retainedRender.TryResolveInvalidationSource(visual, allowRetainedAncestorFallback: true, out var effectiveSource) ||
             effectiveSource == null)
         {
-            NotifyInvalidation(UiInvalidationType.Render, visual, requireDeepSync);
+            NotifyInvalidation(UiInvalidationType.Render, visual, requireDeepSync, renderInvalidationKind);
             return;
         }
 
-        RecordRenderInvalidationSources(visual, effectiveSource);
+        RecordRenderInvalidationSources(visual, effectiveSource, renderInvalidationKind);
 
         _hasRenderInvalidation = true;
         _mustDrawNextFrame = true;
@@ -125,7 +136,11 @@ public sealed partial class UiRoot
             _hasCaretBlinkInvalidation = true;
         }
 
-        _retainedRender.NotifyInvalidation(_retainedRender.CreateRenderStateInvalidation(visual, effectiveSource, requireDeepSync));
+        _retainedRender.NotifyInvalidation(_retainedRender.CreateRenderStateInvalidation(
+            visual,
+            effectiveSource,
+            requireDeepSync),
+            renderInvalidationKind);
 
         if (visual is IUiRootUpdateParticipant || effectiveSource is IUiRootUpdateParticipant)
         {
@@ -133,17 +148,21 @@ public sealed partial class UiRoot
         }
     }
 
-    internal void NotifyInvalidation(UiInvalidationType invalidationType, UIElement? source = null, bool requireDeepSync = false)
+    internal void NotifyInvalidation(
+        UiInvalidationType invalidationType,
+        UIElement? source = null,
+        bool requireDeepSync = false,
+        RenderInvalidationKind renderInvalidationKind = RenderInvalidationKind.Content)
     {
         var effectiveSource = source;
         if (source != null &&
             !_retainedRender.TryResolveInvalidationSource(source, invalidationType == UiInvalidationType.Render, out effectiveSource))
         {
-            RecordRenderInvalidationSources(source, effectiveSource: null);
+            RecordRenderInvalidationSources(source, effectiveSource: null, renderInvalidationKind);
             return;
         }
 
-        RecordRenderInvalidationSources(source, effectiveSource);
+        RecordRenderInvalidationSources(source, effectiveSource, renderInvalidationKind);
 
         switch (invalidationType)
         {
@@ -175,7 +194,11 @@ public sealed partial class UiRoot
                     _hasCaretBlinkInvalidation = true;
                 }
 
-                _retainedRender.NotifyInvalidation(_retainedRender.CreateRenderStateInvalidation(source, effectiveSource, requireDeepSync));
+                _retainedRender.NotifyInvalidation(_retainedRender.CreateRenderStateInvalidation(
+                    source,
+                    effectiveSource,
+                    requireDeepSync),
+                    renderInvalidationKind);
 
                 break;
             default:
@@ -188,7 +211,10 @@ public sealed partial class UiRoot
         }
     }
 
-    private void TrackQueuedRenderMutation(UIElement source, bool requireDeepSync = false)
+    private void TrackQueuedRenderMutation(
+        UIElement source,
+        RenderInvalidationKind renderInvalidationKind,
+        bool requireDeepSync = false)
     {
         if (!_retainedRender.TryResolveInvalidationSource(source, allowRetainedAncestorFallback: true, out var effectiveSource) ||
             effectiveSource == null)
@@ -196,7 +222,7 @@ public sealed partial class UiRoot
             return;
         }
 
-        RecordRenderInvalidationSources(source, effectiveSource);
+        RecordRenderInvalidationSources(source, effectiveSource, renderInvalidationKind);
 
         _hasRenderInvalidation = true;
         _mustDrawNextFrame = true;
@@ -211,7 +237,11 @@ public sealed partial class UiRoot
             _hasCaretBlinkInvalidation = true;
         }
 
-        _retainedRender.NotifyInvalidation(_retainedRender.CreateRenderStateInvalidation(source, effectiveSource, requireDeepSync));
+        _retainedRender.NotifyInvalidation(_retainedRender.CreateRenderStateInvalidation(
+            source,
+            effectiveSource,
+            requireDeepSync),
+            renderInvalidationKind);
 
         if (source is IUiRootUpdateParticipant || effectiveSource is IUiRootUpdateParticipant)
         {
@@ -219,8 +249,13 @@ public sealed partial class UiRoot
         }
     }
 
-    private void RecordRenderInvalidationSources(UIElement? requestedSource, UIElement? effectiveSource)
+    private void RecordRenderInvalidationSources(
+        UIElement? requestedSource,
+        UIElement? effectiveSource,
+        RenderInvalidationKind renderInvalidationKind)
     {
+        _lastRenderInvalidationKind = renderInvalidationKind;
+        _lastRenderInvalidationKindName = renderInvalidationKind.ToString();
         _lastRenderInvalidationRequestedSourceElement = requestedSource;
         _lastRenderInvalidationRequestedSourceType = requestedSource?.GetType().Name ?? "none";
         _lastRenderInvalidationRequestedSourceName = requestedSource is FrameworkElement requestedFrameworkElement

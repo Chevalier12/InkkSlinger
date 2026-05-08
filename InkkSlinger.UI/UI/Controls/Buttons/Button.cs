@@ -482,6 +482,34 @@ public class Button : ContentControl
         }
     }
 
+    internal override void RecordVisual(VisualRecordingContext context)
+    {
+        if (HasTemplateRoot)
+        {
+            context.Unsupported("Button template root");
+            return;
+        }
+
+        var slot = new LayoutRect(0f, 0f, LayoutSlot.Width, LayoutSlot.Height);
+        RecordChrome(context, slot);
+
+        var renderPlan = PrepareTextRenderPlan(slot);
+        if (!renderPlan.HasValue)
+        {
+            return;
+        }
+
+        for (var i = 0; i < renderPlan.Value.LineDraws.Count; i++)
+        {
+            var lineDraw = renderPlan.Value.LineDraws[i];
+            context.DrawTextPlaceholder(
+                new LayoutRect(lineDraw.Position.X, lineDraw.Position.Y, slot.Width, FontSize),
+                lineDraw.Text,
+                Foreground,
+                Opacity);
+        }
+    }
+
     protected override bool ShouldCreateImplicitContentElement(object? content, DataTemplate? selectedTemplate)
     {
         IncrementMetric(ref _runtimeShouldCreateImplicitContentElementCallCount, ref _diagShouldCreateImplicitContentElementCallCount);
@@ -805,6 +833,28 @@ public class Button : ContentControl
         {
             AddMetric(ref _runtimeRenderChromeElapsedTicks, ref _diagRenderChromeElapsedTicks, Stopwatch.GetTimestamp() - start);
         }
+    }
+
+    private void RecordChrome(VisualRecordingContext context, LayoutRect slot)
+    {
+        context.DrawFilledRect(slot, Background, Opacity);
+
+        if (BorderThickness <= 0f)
+        {
+            return;
+        }
+
+        var thickness = BorderThickness;
+        context.DrawFilledRect(new LayoutRect(slot.X, slot.Y, slot.Width, thickness), BorderBrush, Opacity);
+        context.DrawFilledRect(
+            new LayoutRect(slot.X, slot.Y + slot.Height - thickness, slot.Width, thickness),
+            BorderBrush,
+            Opacity);
+        context.DrawFilledRect(new LayoutRect(slot.X, slot.Y, thickness, slot.Height), BorderBrush, Opacity);
+        context.DrawFilledRect(
+            new LayoutRect(slot.X + slot.Width - thickness, slot.Y, thickness, slot.Height),
+            BorderBrush,
+            Opacity);
     }
 
     private void DrawTextRenderPlan(SpriteBatch spriteBatch, ButtonTextRenderPlan renderPlan)

@@ -16,11 +16,19 @@ public sealed partial class UiRoot
         private int _dirtyRegionAddCount;
         private int _dirtyRegionFragmentationFullDirtyCount;
         private int _dirtyRegionBoundsDeltaSuppressedByTransformScrollCount;
+        private readonly int[] _renderInvalidationKindCounts = new int[Enum.GetValues<RenderInvalidationKind>().Length];
+        private readonly int[] _compositionMetadataUpdateKindCounts = new int[Enum.GetValues<RenderInvalidationKind>().Length];
         private string _lastDirtyRegionAddReason = "none";
         private string _lastFullDirtySource = "none";
+        private string _lastRenderInvalidationKind = "none";
+        private string _lastRenderInvalidationSource = "none";
+        private string _lastCompositionMetadataUpdateKind = "none";
+        private string _lastCompositionMetadataUpdateSource = "none";
+        private bool _hasViewportScopedScrollDirtyRegion;
         private UIElement? _transformScrollDirtyBoundsSuppressionRoot;
         internal readonly List<RenderNode> RetainedRenderList = new();
         internal readonly Dictionary<UIElement, int> RenderNodeIndices = new();
+        internal readonly VisualRecordStore VisualRecords = new();
         internal readonly Queue<UIElement> DirtyRenderQueue = new();
         internal readonly HashSet<UIElement> DirtyRenderSet = new();
         internal readonly HashSet<UIElement> DirtyRenderRootsRequireDeepSync = new();
@@ -37,7 +45,32 @@ public sealed partial class UiRoot
         internal readonly List<UIElement> DirtyRenderCompactionBuffer = new();
         internal readonly List<RenderNode> ActiveRetainedDrawPath = new();
         internal readonly DirtyRegionTracker DirtyRegions = new();
+        internal readonly CompositionTreeIndex CompositionTreeIndex = new();
+        internal readonly RetainedCompositionCompositor CompositionCompositor = new();
+        internal readonly Dictionary<UIElement, RenderInvalidationKind> PendingCompositionMetadataUpdates = new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<UIElement, int> _pendingDirtyAncestorCounts = new(ReferenceEqualityComparer.Instance);
+        private int _lastCompositionRecordPassCount;
+        private int _lastCompositionMetadataPassCount;
+        private int _lastCompositionFullPassCount;
+        private string _lastCompositionPrimaryMode = "none";
+        private string _lastCompositionPrimaryReason = "none";
+        private int _lastCompositionFrameVisualRecordRebuildTotal;
+        private int _lastCompositionFrameMetadataUpdateTotal;
+        private int _fullCompositionFrameCount;
+        private int _compositorOnlyFrameCount;
+        private bool _lastCompositionMetadataOnlySyncSucceeded;
+        private int _commandReplayCount;
+        private int _commandReplayFallbackCount;
+        private int _unsupportedCommandFallbackCount;
+        private int _compositionSubtreeCullCount;
+        private int _compositionSelfCullCount;
+        private int _compositionTransformPushCount;
+        private int _compositionOpacityPushCount;
+        private int _cacheModeBoundaryCount;
+        private int _bitmapCacheBoundaryCount;
+        private int _deferredBitmapCacheBoundaryCount;
+        private double _compositionCullingMilliseconds;
+        private double _compositionCommandReplayMilliseconds;
 
         public RetainedRenderController(UiRoot root)
         {
@@ -46,11 +79,30 @@ public sealed partial class UiRoot
 
         internal int NodeCount => RetainedRenderList.Count;
 
+        internal int CompositionNodeCount => CompositionTreeIndex.Graph.NodeCount;
+
+        internal int CompositionRebuildCount => CompositionTreeIndex.RebuildCount;
+
+        internal double LastCompositionSyncBuildMilliseconds => CompositionTreeIndex.LastBuildMilliseconds;
+
+        internal int VisualRecordCount => VisualRecords.RecordCount;
+
+        internal int VisualRecordRebuildCount => VisualRecords.RebuildCount;
+
+        internal int VisualRecordReuseCount => VisualRecords.ReuseCount;
+
+        internal int CompositionMetadataUpdateCount { get; private set; }
+
+        internal int CompositionMetadataUpdateMissCount { get; private set; }
+
         internal int DirtyQueueCount => DirtyRenderQueue.Count;
 
         internal int FullRedrawFallbackCount => DirtyRegions.FullRedrawFallbackCount;
 
-        internal bool HasDirtyWork => DirtyRegions.IsFullFrameDirty || DirtyRegions.RegionCount > 0;
+        internal bool HasDirtyWork =>
+            DirtyRegions.IsFullFrameDirty ||
+            DirtyRegions.RegionCount > 0 ||
+            PendingCompositionMetadataUpdates.Count > 0;
 
         internal int HighCostVisualCount =>
             RetainedRenderList.Count == 0
@@ -90,6 +142,16 @@ public sealed partial class UiRoot
             }
 
             return visuals;
+        }
+
+        internal IReadOnlyList<UIElement> GetCompositionVisualOrderSnapshot()
+        {
+            return CompositionTreeIndex.GetVisualOrderSnapshot();
+        }
+
+        internal RetainedCompositionGraph GetCompositionGraphSnapshot()
+        {
+            return CompositionTreeIndex.Graph;
         }
 
         internal IReadOnlyList<UIElement> GetDirtyRenderQueueSnapshot()
@@ -181,6 +243,7 @@ public sealed partial class UiRoot
         internal void ResetDirtyState()
         {
             DirtyRegions.Clear();
+            _hasViewportScopedScrollDirtyRegion = false;
             ClearDirtyRenderQueue();
             ResetRetainedSyncTrackingState();
             LastCompletedSynchronizedDirtyRenderRoots.Clear();
@@ -213,6 +276,14 @@ public sealed partial class UiRoot
 
         internal void NotifyInvalidation(RetainedInvalidation invalidation)
         {
+            NotifyInvalidation(invalidation, MapRetainedInvalidationKind(invalidation.Kind));
+        }
+
+        internal void NotifyInvalidation(RetainedInvalidation invalidation, RenderInvalidationKind renderInvalidationKind)
+        {
+            RecordRenderInvalidationTelemetry(invalidation, renderInvalidationKind);
+            QueueCompositionMetadataUpdate(invalidation, renderInvalidationKind);
+
             if (invalidation.Kind == RetainedInvalidationKind.Structure)
             {
                 _structureInvalidationCount++;
@@ -223,7 +294,8 @@ public sealed partial class UiRoot
                 TrackDirtyBoundsForVisual(invalidation.DirtyBoundsSource);
             }
 
-            if (invalidation.RetainedSyncRoot != null)
+            if (invalidation.RetainedSyncRoot != null &&
+                ShouldEnqueueDirtyRenderNode(renderInvalidationKind, invalidation.Kind))
             {
                 EnqueueDirtyRenderNode(
                     invalidation.RetainedSyncRoot,
@@ -244,6 +316,31 @@ public sealed partial class UiRoot
                 ResolveDirtyBoundsSource(requestedSource, effectiveSource),
                 RetainedInvalidationKind.RenderState,
                 requireDeepSync);
+        }
+
+        private void RecordRenderInvalidationTelemetry(
+            RetainedInvalidation invalidation,
+            RenderInvalidationKind renderInvalidationKind = RenderInvalidationKind.Content)
+        {
+            var kindIndex = (int)renderInvalidationKind;
+            if ((uint)kindIndex < (uint)_renderInvalidationKindCounts.Length)
+            {
+                _renderInvalidationKindCounts[kindIndex]++;
+            }
+
+            _lastRenderInvalidationKind = renderInvalidationKind.ToString();
+            _lastRenderInvalidationSource = DescribeElementForDiagnostics(
+                invalidation.RequestedSource ??
+                invalidation.EffectiveSource ??
+                invalidation.RetainedSyncRoot ??
+                invalidation.DirtyBoundsSource);
+        }
+
+        private static RenderInvalidationKind MapRetainedInvalidationKind(RetainedInvalidationKind kind)
+        {
+            return kind == RetainedInvalidationKind.Structure
+                ? RenderInvalidationKind.Structure
+                : RenderInvalidationKind.Content;
         }
 
         internal bool TryResolveInvalidationSource(UIElement source, bool allowRetainedAncestorFallback, out UIElement? effectiveSource)
@@ -529,6 +626,16 @@ public sealed partial class UiRoot
                 return;
             }
 
+            var content = viewer.Content as UIElement;
+            var invalidation = new RetainedInvalidation(
+                content ?? viewer,
+                content ?? viewer,
+                null,
+                viewer,
+                RetainedInvalidationKind.ScrollViewport,
+                RequireDeepSync: false);
+            RecordRenderInvalidationTelemetry(invalidation, RenderInvalidationKind.Transform);
+            QueueCompositionMetadataUpdate(invalidation, RenderInvalidationKind.Transform);
             _scrollViewportDirtyCount++;
             _root._dirtyBoundsEventTrace.Add(
                 $"{nameof(ScrollViewer)}#{viewer.Name}:scroll-viewport:{viewport.X:0.##},{viewport.Y:0.##},{viewport.Width:0.##},{viewport.Height:0.##}");
@@ -544,11 +651,6 @@ public sealed partial class UiRoot
             {
                 AddDirtyRegionForDiagnostics(viewport, "scroll-viewport");
             }
-
-            if (viewer.Content is UIElement content)
-            {
-                EnqueueDirtyRenderNode(content, requireDeepSync: true);
-            }
         }
 
         internal void Sync(Viewport viewport)
@@ -562,7 +664,8 @@ public sealed partial class UiRoot
         {
             if (_root._renderListNeedsFullRebuild ||
                 DirtyRenderQueue.Count > 0 ||
-                DirtyRenderSet.Count > 0)
+                DirtyRenderSet.Count > 0 ||
+                PendingCompositionMetadataUpdates.Count > 0)
             {
                 _root.EnsureVisualIndexCurrent();
                 SynchronizeRetainedRenderList();
@@ -572,22 +675,28 @@ public sealed partial class UiRoot
         internal void Draw(SpriteBatch spriteBatch, bool useDirtyRegions, RetainedDrawThresholds thresholds)
         {
             _ = thresholds;
-            if (useDirtyRegions)
-            {
-                DrawRetainedRenderListWithDirtyRegions(spriteBatch);
-            }
-            else
-            {
-                _root.LastDirtyRectCount = 1;
-                _root.LastDirtyAreaPercentage = 1d;
-                _root.RecordFullRetainedDrawWithoutFullClearIfNeeded();
-                DrawRetainedRenderList(spriteBatch);
-            }
+            UpdateVisualRecords();
+            DrawMimisbrunnrComposition(spriteBatch, useDirtyRegions);
         }
 
         internal void AppendDrawOrderForClip(LayoutRect clipRect, List<UIElement> visuals)
         {
             _ = TraverseNodesWithinClip(spriteBatch: null, clipRect, visuals);
+        }
+
+        internal void UpdateVisualRecordsForTests()
+        {
+            UpdateVisualRecords();
+        }
+
+        internal VisualCommandList GetVisualRecordForTests(UIElement visual)
+        {
+            if (!VisualRecords.TryGetRecord(visual, out var commands))
+            {
+                throw new ArgumentException("Visual does not have a retained visual record.", nameof(visual));
+            }
+
+            return commands;
         }
 
         internal (int NodesVisited, int NodesDrawn, int LocalClipPushCount) GetTraversalMetricsForClip(LayoutRect clipRect)
@@ -596,48 +705,104 @@ public sealed partial class UiRoot
             return (metrics.NodesVisited, metrics.NodesDrawn, metrics.ClipPushCount);
         }
 
-        private void DrawRetainedRenderListWithDirtyRegions(SpriteBatch spriteBatch)
+        private void ClearMimisbrunnrRegion(SpriteBatch spriteBatch, LayoutRect region)
         {
-            var dirtyCoverage = DirtyRegions.GetDirtyAreaCoverage();
-            _root.LastDirtyRectCount = DirtyRegions.IsFullFrameDirty ? 1 : DirtyRegions.RegionCount;
-            _root.LastDirtyAreaPercentage = dirtyCoverage;
+            UiDrawing.DrawFilledRect(
+                spriteBatch,
+                region,
+                _root._clearColor);
+        }
 
-            if (DirtyRegions.IsFullFrameDirty || DirtyRegions.RegionCount == 0)
+        private void UpdateVisualRecords()
+        {
+            if (RetainedRenderList.Count == 0)
             {
-                _root.RecordFullRetainedDrawWithoutFullClearIfNeeded();
-                DrawRetainedRenderList(spriteBatch);
                 return;
             }
 
-            DrawRetainedRenderListForDirtyRegions(spriteBatch, DirtyRegions.Regions);
-            _root.LastDrawUsedPartialRedraw = true;
-        }
-
-        private void DrawRetainedRenderList(SpriteBatch spriteBatch)
-        {
-            var metrics = TraverseNodesWithinClip(
-                spriteBatch,
-                ToLayoutRect(spriteBatch.GraphicsDevice.ScissorRectangle));
-            _root._lastRetainedTraversalCount++;
-            _root._lastRetainedNodesVisited += metrics.NodesVisited;
-            _root._lastRetainedNodesDrawn += metrics.NodesDrawn;
-        }
-
-        private void DrawRetainedRenderListForDirtyRegions(SpriteBatch spriteBatch, IReadOnlyList<LayoutRect> regions)
-        {
-            for (var regionIndex = 0; regionIndex < regions.Count; regionIndex++)
+            var retainedVisuals = new List<UIElement>(RetainedRenderList.Count);
+            for (var i = 0; i < RetainedRenderList.Count; i++)
             {
-                var dirtyRegion = regions[regionIndex];
-                UiDrawing.PushAbsoluteClip(spriteBatch, dirtyRegion);
+                var visual = RetainedRenderList[i].Visual;
+                retainedVisuals.Add(visual);
+                _ = VisualRecords.RecordOrReuse(visual);
+            }
+
+            VisualRecords.RetainOnly(retainedVisuals);
+            UpdateCompositionFrameTelemetry();
+        }
+
+        private void UpdateCompositionFrameTelemetry()
+        {
+            var visualRecordRebuildDelta = Math.Max(0, VisualRecords.RebuildCount - _lastCompositionFrameVisualRecordRebuildTotal);
+            var compositionMetadataUpdateDelta = Math.Max(0, CompositionMetadataUpdateCount - _lastCompositionFrameMetadataUpdateTotal);
+
+            _lastCompositionFrameVisualRecordRebuildTotal = VisualRecords.RebuildCount;
+            _lastCompositionFrameMetadataUpdateTotal = CompositionMetadataUpdateCount;
+
+            _lastCompositionRecordPassCount = visualRecordRebuildDelta > 0 ? 1 : 0;
+            _lastCompositionMetadataPassCount = 0;
+            _lastCompositionFullPassCount = 0;
+            _lastCompositionPrimaryMode = "none";
+            _lastCompositionPrimaryReason = "none";
+
+            if (IsFullFrameDirty)
+            {
+                _lastCompositionFullPassCount = 1;
+                _lastCompositionPrimaryMode = "FullComposition";
+                _lastCompositionPrimaryReason = "full-dirty";
+                _fullCompositionFrameCount++;
+                return;
+            }
+
+            if (_lastCompositionMetadataOnlySyncSucceeded &&
+                compositionMetadataUpdateDelta > 0 &&
+                visualRecordRebuildDelta == 0)
+            {
+                _lastCompositionMetadataPassCount = 1;
+                _lastCompositionPrimaryMode = "MetadataOnly";
+                _lastCompositionPrimaryReason = "composition-metadata-only";
+                _compositorOnlyFrameCount++;
+                return;
+            }
+
+            if (DirtyRegionCount > 0 || visualRecordRebuildDelta > 0)
+            {
+                _lastCompositionFullPassCount = 1;
+                _lastCompositionPrimaryMode = "FullComposition";
+                _lastCompositionPrimaryReason = "full-composition";
+                _fullCompositionFrameCount++;
+            }
+        }
+
+        private void DrawMimisbrunnrComposition(SpriteBatch spriteBatch, bool useDirtyRegions)
+        {
+            if (!useDirtyRegions || DirtyRegions.RegionCount == 0)
+            {
+                DrawFullMimisbrunnrComposition(spriteBatch);
+                return;
+            }
+
+            var regions = DirtyRegions.Regions;
+            _root.LastDirtyRectCount = regions.Count;
+            _root.LastDirtyAreaPercentage = DirtyRegions.GetDirtyAreaCoverage();
+
+            for (var i = 0; i < regions.Count; i++)
+            {
+                var region = regions[i];
+                if (region.Width <= 0f || region.Height <= 0f)
+                {
+                    continue;
+                }
+
+                UiDrawing.PushAbsoluteClip(spriteBatch, region);
                 try
                 {
-                    UiDrawing.DrawFilledRect(spriteBatch, dirtyRegion, _root._clearColor);
-
-                    var metrics = TraverseNodesWithinClip(spriteBatch, dirtyRegion);
-                    _root._lastRetainedTraversalCount++;
+                    ClearMimisbrunnrRegion(spriteBatch, region);
+                    var metrics = DrawCompositionWithinClip(spriteBatch, region);
+                    _root._lastDirtyRegionTraversalCount++;
                     _root._lastRetainedNodesVisited += metrics.NodesVisited;
                     _root._lastRetainedNodesDrawn += metrics.NodesDrawn;
-                    _root._lastDirtyRegionTraversalCount++;
                 }
                 finally
                 {
@@ -646,67 +811,89 @@ public sealed partial class UiRoot
             }
         }
 
+        private void DrawFullMimisbrunnrComposition(SpriteBatch spriteBatch)
+        {
+            var metrics = DrawCompositionWithinClip(
+                spriteBatch,
+                ToLayoutRect(spriteBatch.GraphicsDevice.ScissorRectangle));
+            _root._lastRetainedTraversalCount++;
+            _root._lastRetainedNodesVisited += metrics.NodesVisited;
+            _root._lastRetainedNodesDrawn += metrics.NodesDrawn;
+            _root.LastDirtyRectCount = 1;
+            _root.LastDirtyAreaPercentage = 1d;
+            _root.RecordFullRetainedDrawWithoutFullClearIfNeeded();
+        }
+
+        private RetainedCompositionDrawMetrics DrawCompositionWithinClip(SpriteBatch spriteBatch, LayoutRect clipRect)
+        {
+            var metrics = CompositionCompositor.Draw(CompositionTreeIndex.Graph, VisualRecords, spriteBatch, clipRect);
+            AccumulateCompositionMetrics(metrics);
+            return metrics;
+        }
+
         private RenderTraversalMetrics TraverseNodesWithinClip(SpriteBatch? spriteBatch, LayoutRect clipRect, List<UIElement>? visuals = null)
         {
-            var visited = 0;
-            var drawn = 0;
-            var clipPushCount = 0;
-            ActiveRetainedDrawPath.Clear();
+            var metrics = CompositionCompositor.Draw(CompositionTreeIndex.Graph, VisualRecords, spriteBatch, clipRect, visuals);
+            AccumulateCompositionMetrics(metrics);
+            return new RenderTraversalMetrics(metrics.NodesVisited, metrics.NodesDrawn, metrics.ClipPushCount);
+        }
 
-            try
-            {
-                for (var nodeIndex = 0; nodeIndex < RetainedRenderList.Count; nodeIndex++)
-                {
-                    visited++;
-                    var node = RetainedRenderList[nodeIndex];
-                    if (!node.IsEffectivelyVisible)
-                    {
-                        nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
-                        continue;
-                    }
-
-                    if (node.HasSubtreeBoundsSnapshot &&
-                        !Intersects(node.SubtreeBoundsSnapshot, clipRect))
-                    {
-                        nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
-                        continue;
-                    }
-
-                    var shouldDrawSelf = ShouldDrawRetainedNodeSelf(node, clipRect);
-                    if (spriteBatch != null)
-                    {
-                        SyncRetainedDrawState(spriteBatch, node, ref clipPushCount);
-                        if (shouldDrawSelf)
-                        {
-                            node.Visual.DrawSelf(spriteBatch);
-                        }
-                    }
-                    else if (node.HasLocalClip)
-                    {
-                        clipPushCount++;
-                    }
-
-                    if (shouldDrawSelf)
-                    {
-                        visuals?.Add(node.Visual);
-                        drawn++;
-                    }
-                }
-            }
-            finally
-            {
-                if (spriteBatch != null)
-                {
-                    ResetRetainedDrawState(spriteBatch);
-                }
-            }
-
-            return new RenderTraversalMetrics(visited, drawn, clipPushCount);
+        private void AccumulateCompositionMetrics(RetainedCompositionDrawMetrics metrics)
+        {
+            _commandReplayCount += metrics.CommandReplayCount;
+            _commandReplayFallbackCount += metrics.CommandReplayFallbackCount;
+            _unsupportedCommandFallbackCount += metrics.UnsupportedCommandFallbackCount;
+            _compositionSubtreeCullCount += metrics.SubtreesCulled;
+            _compositionSelfCullCount += metrics.SelfCulled;
+            _compositionTransformPushCount += metrics.TransformPushCount;
+            _compositionOpacityPushCount += metrics.OpacityPushCount;
+            _cacheModeBoundaryCount += metrics.CacheModeBoundaryCount;
+            _bitmapCacheBoundaryCount += metrics.BitmapCacheBoundaryCount;
+            _deferredBitmapCacheBoundaryCount += metrics.DeferredBitmapCacheBoundaryCount;
+            _compositionCullingMilliseconds += metrics.CullingMilliseconds;
+            _compositionCommandReplayMilliseconds += metrics.CommandReplayMilliseconds;
         }
 
         private static bool ShouldDrawRetainedNodeSelf(RenderNode node, LayoutRect clipRect)
         {
             return !node.HasBoundsSnapshot || Intersects(node.BoundsSnapshot, clipRect);
+        }
+
+        private void DrawRetainedNodeSelf(SpriteBatch spriteBatch, RenderNode node)
+        {
+            if (!VisualRecords.TryGetRecord(node.Visual, out var commands))
+            {
+                _commandReplayFallbackCount++;
+                node.Visual.DrawSelf(spriteBatch);
+                return;
+            }
+
+            var slot = node.Visual.LayoutSlot;
+            var hasSlotTranslation = slot.X != 0f || slot.Y != 0f;
+            if (hasSlotTranslation)
+            {
+                UiDrawing.PushTransform(spriteBatch, Matrix.CreateTranslation(slot.X, slot.Y, 0f));
+            }
+
+            try
+            {
+                if (VisualCommandReplayer.TryReplay(spriteBatch, commands))
+                {
+                    _commandReplayCount++;
+                    return;
+                }
+            }
+            finally
+            {
+                if (hasSlotTranslation)
+                {
+                    UiDrawing.PopTransform(spriteBatch);
+                }
+            }
+
+            _commandReplayFallbackCount++;
+            _unsupportedCommandFallbackCount += commands.UnsupportedCommandCount > 0 ? 1 : 0;
+            node.Visual.DrawSelf(spriteBatch);
         }
 
         private void SyncRetainedDrawState(SpriteBatch spriteBatch, RenderNode node, ref int clipPushCount)
@@ -941,6 +1128,10 @@ public sealed partial class UiRoot
                 _root._dirtyBoundsEventTrace.Add($"dirty-add:{reason}:{bounds.X:0.##},{bounds.Y:0.##},{bounds.Width:0.##},{bounds.Height:0.##}");
                 _dirtyRegionAddCount++;
                 _lastDirtyRegionAddReason = reason;
+                if (IsViewportScopedScrollDirtyRegionReason(reason))
+                {
+                    _hasViewportScopedScrollDirtyRegion = true;
+                }
             }
 
             if (!wasFullFrameDirty &&
@@ -1163,8 +1354,7 @@ public sealed partial class UiRoot
                 return false;
             }
 
-            if (DirtyRegions.RegionCount == 1 &&
-                IsViewportScopedScrollDirtyRegionReason(_lastDirtyRegionAddReason))
+            if (_hasViewportScopedScrollDirtyRegion)
             {
                 return true;
             }
@@ -1254,6 +1444,7 @@ public sealed partial class UiRoot
             ClearDirtyRenderQueue();
             ResetRetainedSyncTrackingState();
             DirtyRegions.Clear();
+            _hasViewportScopedScrollDirtyRegion = false;
         }
 
         internal void ApplyRenderInvalidationCleanupAfterDraw()
@@ -1369,7 +1560,56 @@ public sealed partial class UiRoot
                 _dirtyRegionFragmentationFullDirtyCount,
                 _dirtyRegionBoundsDeltaSuppressedByTransformScrollCount,
                 _lastDirtyRegionAddReason,
-                _lastFullDirtySource);
+                _lastFullDirtySource,
+                GetRenderInvalidationKindCount(RenderInvalidationKind.Content),
+                GetRenderInvalidationKindCount(RenderInvalidationKind.Transform),
+                GetRenderInvalidationKindCount(RenderInvalidationKind.Clip),
+                GetRenderInvalidationKindCount(RenderInvalidationKind.Opacity),
+                GetRenderInvalidationKindCount(RenderInvalidationKind.Visibility),
+                GetRenderInvalidationKindCount(RenderInvalidationKind.Effect),
+                GetRenderInvalidationKindCount(RenderInvalidationKind.Structure),
+                GetRenderInvalidationKindCount(RenderInvalidationKind.Bounds),
+                GetRenderInvalidationKindCount(RenderInvalidationKind.Overlay),
+                GetRenderInvalidationKindCount(RenderInvalidationKind.DeviceResource),
+                _lastRenderInvalidationKind,
+                _lastRenderInvalidationSource,
+                CompositionMetadataUpdateCount,
+                GetCompositionMetadataUpdateKindCount(RenderInvalidationKind.Transform),
+                GetCompositionMetadataUpdateKindCount(RenderInvalidationKind.Clip),
+                GetCompositionMetadataUpdateKindCount(RenderInvalidationKind.Opacity),
+                GetCompositionMetadataUpdateKindCount(RenderInvalidationKind.Visibility),
+                CompositionMetadataUpdateMissCount,
+                _lastCompositionMetadataUpdateKind,
+                _lastCompositionMetadataUpdateSource,
+                CompositionNodeCount,
+                NodeCount - CompositionNodeCount,
+                CompositionRebuildCount,
+                LastCompositionSyncBuildMilliseconds,
+                VisualRecordCount,
+                VisualRecordRebuildCount,
+                VisualRecordReuseCount,
+                VisualRecords.LastRecordedCommandCount,
+                VisualRecords.LastRecordedVisualType,
+                VisualRecords.LastRecordedVisualName,
+                _commandReplayCount,
+                _commandReplayFallbackCount,
+                _unsupportedCommandFallbackCount,
+                _lastCompositionRecordPassCount,
+                _lastCompositionMetadataPassCount,
+                _lastCompositionFullPassCount,
+                _lastCompositionPrimaryMode,
+                _lastCompositionPrimaryReason,
+                _compositorOnlyFrameCount,
+                _fullCompositionFrameCount,
+                _compositionSubtreeCullCount,
+                _compositionSelfCullCount,
+                _compositionTransformPushCount,
+                _compositionOpacityPushCount,
+                _cacheModeBoundaryCount,
+                _bitmapCacheBoundaryCount,
+                _deferredBitmapCacheBoundaryCount,
+                _compositionCullingMilliseconds,
+                _compositionCommandReplayMilliseconds);
         }
 
         internal void ResetTelemetry()
@@ -1379,8 +1619,143 @@ public sealed partial class UiRoot
             _dirtyRegionAddCount = 0;
             _dirtyRegionFragmentationFullDirtyCount = 0;
             _dirtyRegionBoundsDeltaSuppressedByTransformScrollCount = 0;
+            Array.Clear(_renderInvalidationKindCounts);
             _lastDirtyRegionAddReason = "none";
             _lastFullDirtySource = "none";
+            _lastRenderInvalidationKind = "none";
+            _lastRenderInvalidationSource = "none";
+            Array.Clear(_compositionMetadataUpdateKindCounts);
+            _lastCompositionMetadataUpdateKind = "none";
+            _lastCompositionMetadataUpdateSource = "none";
+            CompositionMetadataUpdateCount = 0;
+            CompositionMetadataUpdateMissCount = 0;
+            VisualRecords.ResetTelemetry();
+            _lastCompositionRecordPassCount = 0;
+            _lastCompositionMetadataPassCount = 0;
+            _lastCompositionFullPassCount = 0;
+            _lastCompositionPrimaryMode = "none";
+            _lastCompositionPrimaryReason = "none";
+            _lastCompositionFrameVisualRecordRebuildTotal = 0;
+            _lastCompositionFrameMetadataUpdateTotal = 0;
+            _fullCompositionFrameCount = 0;
+            _compositorOnlyFrameCount = 0;
+            _lastCompositionMetadataOnlySyncSucceeded = false;
+            _commandReplayCount = 0;
+            _commandReplayFallbackCount = 0;
+            _unsupportedCommandFallbackCount = 0;
+            _compositionSubtreeCullCount = 0;
+            _compositionSelfCullCount = 0;
+            _compositionTransformPushCount = 0;
+            _compositionOpacityPushCount = 0;
+            _cacheModeBoundaryCount = 0;
+            _bitmapCacheBoundaryCount = 0;
+            _deferredBitmapCacheBoundaryCount = 0;
+            _compositionCullingMilliseconds = 0d;
+            _compositionCommandReplayMilliseconds = 0d;
+        }
+
+        private int GetRenderInvalidationKindCount(RenderInvalidationKind kind)
+        {
+            var kindIndex = (int)kind;
+            return (uint)kindIndex < (uint)_renderInvalidationKindCounts.Length
+                ? _renderInvalidationKindCounts[kindIndex]
+                : 0;
+        }
+
+        private int GetCompositionMetadataUpdateKindCount(RenderInvalidationKind kind)
+        {
+            var kindIndex = (int)kind;
+            return (uint)kindIndex < (uint)_compositionMetadataUpdateKindCounts.Length
+                ? _compositionMetadataUpdateKindCounts[kindIndex]
+                : 0;
+        }
+
+        private void QueueCompositionMetadataUpdate(
+            RetainedInvalidation invalidation,
+            RenderInvalidationKind renderInvalidationKind)
+        {
+            if (!IsCompositionMetadataInvalidationKind(renderInvalidationKind))
+            {
+                return;
+            }
+
+            var visual = invalidation.RequestedSource ??
+                         invalidation.EffectiveSource ??
+                         invalidation.RetainedSyncRoot;
+            if (visual == null)
+            {
+                CompositionMetadataUpdateMissCount++;
+                _lastCompositionMetadataUpdateKind = renderInvalidationKind.ToString();
+                _lastCompositionMetadataUpdateSource = "none";
+                return;
+            }
+
+            PendingCompositionMetadataUpdates[visual] = renderInvalidationKind;
+        }
+
+        private bool ApplyPendingCompositionMetadataUpdates()
+        {
+            if (PendingCompositionMetadataUpdates.Count == 0)
+            {
+                return true;
+            }
+
+            var allApplied = true;
+            foreach (var update in PendingCompositionMetadataUpdates)
+            {
+                var retainedMetadataApplied = TryRefreshRetainedRenderMetadata(update.Key);
+                if (!CompositionTreeIndex.TryUpdateMetadata(update.Key, update.Value))
+                {
+                    allApplied = false;
+                    CompositionMetadataUpdateMissCount++;
+                    _lastCompositionMetadataUpdateKind = update.Value.ToString();
+                    _lastCompositionMetadataUpdateSource = DescribeElementForDiagnostics(update.Key);
+                    continue;
+                }
+
+                allApplied &= retainedMetadataApplied;
+                CompositionMetadataUpdateCount++;
+                var kindIndex = (int)update.Value;
+                if ((uint)kindIndex < (uint)_compositionMetadataUpdateKindCounts.Length)
+                {
+                    _compositionMetadataUpdateKindCounts[kindIndex]++;
+                }
+
+                _lastCompositionMetadataUpdateKind = update.Value.ToString();
+                _lastCompositionMetadataUpdateSource = DescribeElementForDiagnostics(update.Key);
+            }
+
+            PendingCompositionMetadataUpdates.Clear();
+            return allApplied;
+        }
+
+        private bool HasPendingCompositionMetadataUpdate(UIElement visual)
+        {
+            return PendingCompositionMetadataUpdates.ContainsKey(visual);
+        }
+
+        private static bool IsCompositionMetadataInvalidationKind(RenderInvalidationKind kind)
+        {
+            return kind == RenderInvalidationKind.Transform ||
+                   kind == RenderInvalidationKind.Clip ||
+                   kind == RenderInvalidationKind.Opacity ||
+                   kind == RenderInvalidationKind.Visibility;
+        }
+
+        private static bool ShouldEnqueueDirtyRenderNode(
+            RenderInvalidationKind renderInvalidationKind,
+            RetainedInvalidationKind retainedInvalidationKind)
+        {
+            if (retainedInvalidationKind == RetainedInvalidationKind.Structure)
+            {
+                return true;
+            }
+
+            return renderInvalidationKind == RenderInvalidationKind.Content ||
+                   renderInvalidationKind == RenderInvalidationKind.Bounds ||
+                   renderInvalidationKind == RenderInvalidationKind.Effect ||
+                   renderInvalidationKind == RenderInvalidationKind.Overlay ||
+                   renderInvalidationKind == RenderInvalidationKind.DeviceResource;
         }
 
         private readonly record struct RenderTraversalMetrics(

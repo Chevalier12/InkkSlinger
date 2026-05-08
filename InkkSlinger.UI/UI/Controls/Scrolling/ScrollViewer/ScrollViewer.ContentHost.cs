@@ -7,11 +7,24 @@ public partial class ScrollViewer
     private void ArrangeContentForCurrentOffsets()
     {
         _contentPresenter.ArrangeForCurrentOffsets(_contentViewportRect);
+        NotifyRetainedScrollViewportChangedAfterArrange();
     }
 
     private void ArrangeContentForCurrentOffsets(LayoutRect previousViewportRect)
     {
         _contentPresenter.ArrangeForCurrentOffsets(previousViewportRect);
+        NotifyRetainedScrollViewportChangedAfterArrange();
+    }
+
+    private void NotifyRetainedScrollViewportChangedAfterArrange()
+    {
+        if (!UsesTransformBasedContentScrolling() ||
+            !TryGetContentViewportClipRect(out var contentViewport))
+        {
+            return;
+        }
+
+        UiRoot.Current?.NotifyScrollViewportChanged(this, contentViewport);
     }
 
     private bool CanReuseExistingContentArrange(FrameworkElement content, LayoutRect nextArrangeRect)

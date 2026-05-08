@@ -352,6 +352,11 @@ public class Panel : FrameworkElement
         UiDrawing.DrawFilledRect(spriteBatch, LayoutSlot, Background, Opacity);
     }
 
+    internal override void RecordVisual(VisualRecordingContext context)
+    {
+        context.DrawFilledRect(new LayoutRect(0f, 0f, LayoutSlot.Width, LayoutSlot.Height), Background, Opacity);
+    }
+
     protected override bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
     {
         var hasBaseTransform = base.TryGetLocalRenderTransform(out var baseTransform, out var baseInverseTransform);

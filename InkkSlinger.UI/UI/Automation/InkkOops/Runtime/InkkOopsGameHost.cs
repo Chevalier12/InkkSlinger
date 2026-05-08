@@ -469,6 +469,13 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
                 builder.AppendLine($"retainedControllerDirtyRegionBoundsDeltaSuppressedByTransformScrollCount={retainedControllerTelemetry.DirtyRegionBoundsDeltaSuppressedByTransformScrollCount}");
                 builder.AppendLine($"retainedControllerLastDirtyRegionAddReason={retainedControllerTelemetry.LastDirtyRegionAddReason}");
                 builder.AppendLine($"retainedControllerLastFullDirtySource={retainedControllerTelemetry.LastFullDirtySource}");
+                builder.AppendLine($"retainedControllerLastCompositionRecordPassCount={retainedControllerTelemetry.LastCompositionRecordPassCount}");
+                builder.AppendLine($"retainedControllerLastCompositionMetadataPassCount={retainedControllerTelemetry.LastCompositionMetadataPassCount}");
+                builder.AppendLine($"retainedControllerLastCompositionFullPassCount={retainedControllerTelemetry.LastCompositionFullPassCount}");
+                builder.AppendLine($"retainedControllerLastCompositionPrimaryMode={retainedControllerTelemetry.LastCompositionPrimaryMode}");
+                builder.AppendLine($"retainedControllerLastCompositionPrimaryReason={retainedControllerTelemetry.LastCompositionPrimaryReason}");
+                builder.AppendLine($"retainedControllerCompositorOnlyFrameCount={retainedControllerTelemetry.CompositorOnlyFrameCount}");
+                builder.AppendLine($"retainedControllerFullCompositionFrameCount={retainedControllerTelemetry.FullCompositionFrameCount}");
                 builder.AppendLine($"fullDirtyInitialStateCount={renderTelemetry.FullDirtyInitialStateCount}");
                 builder.AppendLine($"fullDirtyViewportChangeCount={renderTelemetry.FullDirtyViewportChangeCount}");
                 builder.AppendLine($"fullDirtySurfaceResetCount={renderTelemetry.FullDirtySurfaceResetCount}");

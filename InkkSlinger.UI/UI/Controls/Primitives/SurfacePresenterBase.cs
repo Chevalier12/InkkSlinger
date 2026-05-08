@@ -130,6 +130,24 @@ public abstract class SurfacePresenterBase : FrameworkElement
         UiDrawing.DrawTexture(spriteBatch, texture, _renderRect, opacity: Opacity);
     }
 
+    internal override void RecordVisual(VisualRecordingContext context)
+    {
+        if (!TryGetRenderableTexture(out var texture))
+        {
+            return;
+        }
+
+        var slot = LayoutSlot;
+        context.DrawTexture(
+            texture,
+            new LayoutRect(
+                _renderRect.X - slot.X,
+                _renderRect.Y - slot.Y,
+                _renderRect.Width,
+                _renderRect.Height),
+            opacity: Opacity);
+    }
+
     private bool TryGetNaturalSize(out Vector2 naturalSize)
     {
         naturalSize = Vector2.Zero;

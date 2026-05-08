@@ -135,7 +135,7 @@ public sealed class DesignerHierarchyViewTests
             "InkkSlinger.Designer",
             "DesignerHierarchyView.xml.cs"));
 
-        Assert.Contains("private sealed class GraphLayerCanvas : Canvas", source);
+        Assert.Contains("sealed class GraphLayerCanvas : Canvas", source);
         Assert.Contains("protected override bool TryGetClipRect(out LayoutRect clipRect)", source);
         Assert.Contains("return false;", source);
         Assert.Contains("Name = \"HierarchyGraphLayer\"", source);

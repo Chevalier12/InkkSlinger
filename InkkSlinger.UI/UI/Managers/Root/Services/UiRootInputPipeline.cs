@@ -25,6 +25,7 @@ public sealed partial class UiRoot
     private string _lastPointerResolvePath = "None";
     private HitTestMetrics? _lastPointerResolveHitTestMetrics;
     private bool _lastPointerResolveUsedFullHitTest;
+    private readonly HashSet<UIElement> _inputMouseOverElements = new(ReferenceEqualityComparer.Instance);
     private ContextMenu? _lastKnownOpenContextMenu;
     private int _overlayCandidateVersion;
     private OverlayCandidate _cachedTopOverlayCandidate;
@@ -261,11 +262,14 @@ public sealed partial class UiRoot
         if (delta.MiddlePressed)
         {
             DismissToolTipForPointerInteraction();
+            var routeStart = Stopwatch.GetTimestamp();
+            DispatchMouseDown(pointerTarget, pressedPointerPosition, MouseButton.Middle);
             _ = InputGestureService.Execute(
                 MouseButton.Middle,
                 _inputState.CurrentModifiers,
                 _inputState.FocusedElement,
                 _visualRoot);
+            pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
 
         if (delta.RightReleased)
@@ -274,6 +278,14 @@ public sealed partial class UiRoot
             DispatchMouseUp(pointerTarget, delta.Current.PointerPosition, MouseButton.Right);
             RefreshHoverAfterClick(delta.Current.PointerPosition);
             clickResolveHitTests = 0;
+            pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
+        }
+
+        if (delta.MiddleReleased)
+        {
+            var routeStart = Stopwatch.GetTimestamp();
+            DispatchMouseUp(pointerTarget, delta.Current.PointerPosition, MouseButton.Middle);
+            RefreshHoverAfterClick(delta.Current.PointerPosition);
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
 
@@ -823,6 +835,18 @@ public sealed partial class UiRoot
         var previousHovered = _inputState.HoveredElement;
         if (ReferenceEquals(previousHovered, hovered))
         {
+            if (TryResolvePreciseHoverForTransformedCurrentHost(previousHovered, pointerPosition, out var preciseHovered))
+            {
+                hovered = preciseHovered;
+            }
+            else
+            {
+                return;
+            }
+        }
+
+        if (ReferenceEquals(previousHovered, hovered))
+        {
             return;
         }
 
@@ -841,6 +865,7 @@ public sealed partial class UiRoot
         RefreshCachedWheelTargets(hovered);
         RefreshCachedClickTarget(hovered);
         SetHoverState(hovered, isMouseOver: true);
+        ClearStaleInputMouseOverElements(hovered);
 
         if (CanvasThumbInvestigationLog.ShouldTrace(
             _visualRoot,
@@ -871,6 +896,41 @@ public sealed partial class UiRoot
         }
 
         UpdateToolTipHoverTarget(hovered);
+    }
+
+    private bool TryResolvePreciseHoverForTransformedCurrentHost(
+        UIElement? currentHovered,
+        Vector2 pointerPosition,
+        out UIElement? preciseHovered)
+    {
+        preciseHovered = null;
+        if (currentHovered == null || !HoverHostNeedsPreciseReuseValidation(currentHovered))
+        {
+            return false;
+        }
+
+        _lastInputHitTestCount++;
+        var hitTestStart = Stopwatch.GetTimestamp();
+        var preciseHit = VisualTreeHelper.HitTestIncludingDisabled(_visualRoot, pointerPosition, out var metrics);
+        _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+        _lastPointerResolveHitTestMetrics = metrics;
+
+        preciseHovered = ResolveHoverTargetCandidate(preciseHit, pointerPosition);
+        return !ReferenceEquals(preciseHovered, currentHovered);
+    }
+
+    private static bool HoverHostNeedsPreciseReuseValidation(UIElement hovered)
+    {
+        for (var current = hovered; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current.TryGetLocalRenderTransformSnapshot(out _, out _) ||
+                current is IScrollTransformContent)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private UIElement? ResolveHostedHoverTargetWithinTextInputSubtree(UIElement? hovered)
@@ -924,8 +984,13 @@ public sealed partial class UiRoot
         return element is ITextInputControl or Button or ComboBox or ScrollBar or Thumb or GridSplitter or ResizeGrip or ColorPicker or ColorSpectrum or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
     }
 
-    private static void SetHoverState(UIElement? element, bool isMouseOver)
+    private void SetHoverState(UIElement? element, bool isMouseOver)
     {
+        if (element != null)
+        {
+            TrackInputMouseOverElement(element, isMouseOver);
+        }
+
         switch (element)
         {
             case null:
@@ -1013,6 +1078,48 @@ public sealed partial class UiRoot
                 }
                 return;
             }
+        }
+    }
+
+    private void TrackInputMouseOverElement(UIElement element, bool isMouseOver)
+    {
+        if (isMouseOver)
+        {
+            _inputMouseOverElements.Add(element);
+        }
+        else
+        {
+            _inputMouseOverElements.Remove(element);
+        }
+    }
+
+    private void ClearStaleInputMouseOverElements(UIElement? currentHovered)
+    {
+        if (_inputMouseOverElements.Count == 0)
+        {
+            return;
+        }
+
+        List<UIElement>? staleElements = null;
+        foreach (var element in _inputMouseOverElements)
+        {
+            if (ReferenceEquals(element, currentHovered))
+            {
+                continue;
+            }
+
+            staleElements ??= new List<UIElement>();
+            staleElements.Add(element);
+        }
+
+        if (staleElements == null)
+        {
+            return;
+        }
+
+        foreach (var staleElement in staleElements)
+        {
+            SetHoverState(staleElement, isMouseOver: false);
         }
     }
 
@@ -1546,14 +1653,14 @@ public sealed partial class UiRoot
             SetFocus(textInputTarget);
             CapturePointer(textInputTarget);
         }
-        else if (button == MouseButton.Left &&
+        else if (IsScrollViewerPanningButton(button) &&
                  TryFindPanningScrollViewerAtPoint(pointerPosition, out var panningScrollViewer) &&
                  panningScrollViewer != null &&
                  panningScrollViewer.HandlePointerDownFromInput(panningScrollViewer, pointerPosition))
         {
             CapturePointer(panningScrollViewer);
         }
-        else if (button == MouseButton.Left &&
+        else if (IsScrollViewerPanningButton(button) &&
                  target != null &&
                  TryFindAncestor<ScrollViewer>(target, out var ancestorScrollViewer) &&
                  ancestorScrollViewer != null &&
@@ -1561,11 +1668,16 @@ public sealed partial class UiRoot
         {
             CapturePointer(ancestorScrollViewer);
         }
-        else if (button == MouseButton.Left && target is ScrollViewer scrollViewer &&
+        else if (IsScrollViewerPanningButton(button) && target is ScrollViewer scrollViewer &&
                  scrollViewer.HandlePointerDownFromInput(pointerPosition))
         {
             CapturePointer(scrollViewer);
         }
+    }
+
+    private static bool IsScrollViewerPanningButton(MouseButton button)
+    {
+        return button is MouseButton.Left or MouseButton.Middle;
     }
 
     private bool TryFindPanningScrollViewerAtPoint(Vector2 pointerPosition, out ScrollViewer? scrollViewer)
@@ -1662,7 +1774,7 @@ public sealed partial class UiRoot
         {
             resizeGrip.HandlePointerUpFromInput();
         }
-        else if (_inputState.CapturedPointerElement is ScrollViewer scrollViewer && button == MouseButton.Left)
+        else if (_inputState.CapturedPointerElement is ScrollViewer scrollViewer && IsScrollViewerPanningButton(button))
         {
             scrollViewer.HandlePointerUpFromInput();
         }
@@ -2140,7 +2252,7 @@ public sealed partial class UiRoot
             return false;
         }
 
-        return true;
+        return PointerInsideHoveredTargetForReuse(hovered, pointerPosition);
     }
 
     private static bool ShouldDeferWheelDrivenHoverRefresh(UIElement element)

@@ -22,7 +22,12 @@ public partial class ControlsCatalogView : UserControl
         _previewHost = this.FindName("PreviewHost") as ContentControl;
 
         BuildButtons();
-        if (ControlViews.All.Length > 0)
+        var defaultView = Environment.GetEnvironmentVariable("INKKSLINGER_DEMO_DEFAULT_VIEW");
+        if (!string.IsNullOrWhiteSpace(defaultView) && ControlViews.HasCatalogView(defaultView))
+        {
+            ShowControl(defaultView);
+        }
+        else if (ControlViews.All.Length > 0)
         {
             ShowControl(ControlViews.All[0]);
         }
