@@ -50,7 +50,11 @@ internal readonly record struct BorderTelemetrySnapshot(
     double TextureBuildMilliseconds,
     long TextureBuildPixelCount,
     long TextureCacheBucketCreateCount,
-    long RoundedGeometryBuildPointCount);
+    long RoundedGeometryBuildPointCount,
+    long CanReuseMeasureForAvailableSizeChangeCallCount,
+    long CanReuseMeasureForAvailableSizeChangeAcceptedCount,
+    long CanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount,
+    long CanReuseMeasureForAvailableSizeChangeRejectedChildCount);
 
 /// <summary>
 /// Border per-instance runtime diagnostics snapshot.
@@ -117,4 +121,20 @@ internal readonly record struct BorderRuntimeDiagnosticsSnapshot(
     double TextureBuildMilliseconds,
     long TextureBuildPixelCount,
     long TextureCacheBucketCreateCount,
-    long RoundedGeometryBuildPointCount);
+    long RoundedGeometryBuildPointCount,
+    long CanReuseMeasureForAvailableSizeChangeCallCount,
+    long CanReuseMeasureForAvailableSizeChangeAcceptedCount,
+    long CanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount,
+    long CanReuseMeasureForAvailableSizeChangeRejectedChildCount,
+    string LastMeasureReuseDecision,
+    string LastMeasureReuseFailure,
+    string LastMeasureReuseChildType,
+    string LastMeasureReuseChildName,
+    float LastMeasureReusePreviousAvailableWidth,
+    float LastMeasureReusePreviousAvailableHeight,
+    float LastMeasureReuseNextAvailableWidth,
+    float LastMeasureReuseNextAvailableHeight,
+    float LastMeasureReusePreviousInnerAvailableWidth,
+    float LastMeasureReusePreviousInnerAvailableHeight,
+    float LastMeasureReuseNextInnerAvailableWidth,
+    float LastMeasureReuseNextInnerAvailableHeight);

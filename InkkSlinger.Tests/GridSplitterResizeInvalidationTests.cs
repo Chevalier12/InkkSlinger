@@ -26,19 +26,78 @@ public sealed class GridSplitterResizeInvalidationTests
     }
 
     [Fact]
-    public void SplitterColumnResize_WrappedTextInsideScrollViewer_CurrentlyInvalidatesViewerMeasure()
+    public void SplitterRowResize_RepeatedMicroDeltasWithStableNoWrapContent_AvoidsRepeatedMeasureInvalidation()
+    {
+        var root = new Panel();
+        var grid = CreateStableNoWrapRowGridContent();
+        var viewer = CreateCountingViewer(grid);
+        root.AddChild(viewer);
+        var uiRoot = new UiRoot(root);
+
+        RunLayout(uiRoot, 640, 480, 16);
+
+        var viewerMeasureWorkBefore = viewer.MeasureWorkCount;
+        var viewerMeasureInvalidationsBefore = viewer.GetFrameworkElementSnapshotForDiagnostics().InvalidateMeasureCallCount;
+        var gridMeasureWorkBefore = grid.MeasureWorkCount;
+        var gridMeasureInvalidationsBefore = grid.GetFrameworkElementSnapshotForDiagnostics().InvalidateMeasureCallCount;
+        var gridArrangeWorkBefore = grid.ArrangeWorkCount;
+
+        var resizeSequence = new (float Top, float Bottom)[]
+        {
+            (141f, 139f),
+            (142f, 138f),
+            (143f, 137f),
+            (144f, 136f),
+            (145f, 135f),
+            (146f, 134f),
+            (147f, 133f),
+            (148f, 132f),
+            (149f, 131f),
+            (150f, 130f),
+            (151f, 129f),
+            (152f, 128f)
+        };
+
+        foreach (var step in resizeSequence)
+        {
+            var changed = grid.ApplySplitterRowResize(0, 1, step.Top, step.Bottom);
+
+            Assert.True(changed);
+            Assert.False(grid.NeedsMeasure);
+            Assert.True(grid.NeedsArrange);
+            Assert.False(viewer.NeedsMeasure);
+            RunLayout(uiRoot, 640, 480, 32);
+        }
+
+        var viewerMeasureInvalidationsAfter = viewer.GetFrameworkElementSnapshotForDiagnostics().InvalidateMeasureCallCount;
+        var gridMeasureInvalidationsAfter = grid.GetFrameworkElementSnapshotForDiagnostics().InvalidateMeasureCallCount;
+
+        Assert.Equal(viewerMeasureWorkBefore, viewer.MeasureWorkCount);
+        Assert.Equal(viewerMeasureInvalidationsBefore, viewerMeasureInvalidationsAfter);
+        Assert.Equal(gridMeasureWorkBefore, grid.MeasureWorkCount);
+        Assert.Equal(gridMeasureInvalidationsBefore, gridMeasureInvalidationsAfter);
+        Assert.True(grid.ArrangeWorkCount > gridArrangeWorkBefore);
+    }
+
+    [Fact]
+    public void SplitterColumnResize_WrappedTextInsideScrollViewer_RemeasuresWhenDesiredSizeChanges()
     {
         var (uiRoot, viewer, grid) = CreateViewerFixture(CreateWrappedTextGridContent());
         RunLayout(uiRoot, 640, 480, 16);
 
         Assert.False(grid.NeedsMeasure);
         Assert.False(viewer.NeedsMeasure);
+        var desiredHeightBefore = grid.DesiredSize.Y;
 
         var changed = grid.ApplySplitterColumnResize(0, 1, 60f, 240f);
 
         Assert.True(changed);
         Assert.True(grid.NeedsMeasure);
         Assert.True(viewer.NeedsMeasure);
+
+        RunLayout(uiRoot, 640, 480, 32);
+
+        Assert.True(grid.DesiredSize.Y > desiredHeightBefore);
     }
 
     [Fact]
@@ -356,6 +415,32 @@ public sealed class GridSplitterResizeInvalidationTests
         Grid.SetColumn(right, 1);
         grid.AddChild(left);
         grid.AddChild(right);
+        return grid;
+    }
+
+    private static Grid CreateStableNoWrapRowGridContent()
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(140f, GridUnitType.Pixel), MinHeight = 80f });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(140f, GridUnitType.Pixel), MinHeight = 80f });
+
+        var top = new TextBlock
+        {
+            Text = "Inspector",
+            TextWrapping = TextWrapping.NoWrap,
+            Height = 32f
+        };
+        var bottom = new TextBlock
+        {
+            Text = "Workbench",
+            TextWrapping = TextWrapping.NoWrap,
+            Height = 32f
+        };
+
+        Grid.SetRow(bottom, 1);
+        grid.AddChild(top);
+        grid.AddChild(bottom);
         return grid;
     }
 

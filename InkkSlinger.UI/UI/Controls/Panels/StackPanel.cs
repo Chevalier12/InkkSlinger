@@ -30,6 +30,22 @@ public class StackPanel : Panel, IScrollTransformContent
     private static long _diagArrangeNonPositivePrimarySizeCount;
     private static double _diagArrangePrimarySpanTotal;
     private static double _diagArrangeCrossSpanTotal;
+    private static long _diagCanReuseMeasureForAvailableSizeChangeCallCount;
+    private static long _diagCanReuseMeasureForAvailableSizeChangeAcceptedCount;
+    private static long _diagCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount;
+    private static long _diagCanReuseMeasureForAvailableSizeChangeRejectedChildCount;
+
+    private long _runtimeCanReuseMeasureForAvailableSizeChangeCallCount;
+    private long _runtimeCanReuseMeasureForAvailableSizeChangeAcceptedCount;
+    private long _runtimeCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount;
+    private long _runtimeCanReuseMeasureForAvailableSizeChangeRejectedChildCount;
+    private string _runtimeLastMeasureReuseDecision = "none";
+    private string _runtimeLastMeasureReuseFailure = "none";
+    private int _runtimeLastMeasureReuseRejectedChildIndex = -1;
+    private string _runtimeLastMeasureReuseRejectedChildType = "none";
+    private string _runtimeLastMeasureReuseRejectedChildName = "none";
+    private Vector2 _runtimeLastMeasureReusePreviousChildAvailableSize = new(float.NaN, float.NaN);
+    private Vector2 _runtimeLastMeasureReuseNextChildAvailableSize = new(float.NaN, float.NaN);
 
     public static readonly DependencyProperty OrientationProperty =
         DependencyProperty.Register(
@@ -123,15 +139,30 @@ public class StackPanel : Panel, IScrollTransformContent
 
     protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
     {
+        _runtimeCanReuseMeasureForAvailableSizeChangeCallCount++;
+        IncrementAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeCallCount);
+        _runtimeLastMeasureReuseDecision = "evaluating";
+        _runtimeLastMeasureReuseFailure = "none";
+        _runtimeLastMeasureReuseRejectedChildIndex = -1;
+        _runtimeLastMeasureReuseRejectedChildType = "none";
+        _runtimeLastMeasureReuseRejectedChildName = "none";
+
         if (GetType() != typeof(StackPanel))
         {
+            _runtimeCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount++;
+            IncrementAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount);
+            _runtimeLastMeasureReuseDecision = "rejected";
+            _runtimeLastMeasureReuseFailure = "derived-stackpanel-type";
             return false;
         }
 
         var previousChildAvailable = ResolveChildAvailableSize(previousAvailableSize);
         var nextChildAvailable = ResolveChildAvailableSize(nextAvailableSize);
-        foreach (var child in Children)
+        _runtimeLastMeasureReusePreviousChildAvailableSize = previousChildAvailable;
+        _runtimeLastMeasureReuseNextChildAvailableSize = nextChildAvailable;
+        for (var childIndex = 0; childIndex < Children.Count; childIndex++)
         {
+            var child = Children[childIndex];
             if (child is not FrameworkElement frameworkChild)
             {
                 continue;
@@ -139,10 +170,21 @@ public class StackPanel : Panel, IScrollTransformContent
 
             if (!frameworkChild.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousChildAvailable, nextChildAvailable))
             {
+                _runtimeCanReuseMeasureForAvailableSizeChangeRejectedChildCount++;
+                IncrementAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeRejectedChildCount);
+                _runtimeLastMeasureReuseDecision = "rejected";
+                _runtimeLastMeasureReuseFailure = "child-reuse-rejected";
+                _runtimeLastMeasureReuseRejectedChildIndex = childIndex;
+                _runtimeLastMeasureReuseRejectedChildType = frameworkChild.GetType().Name;
+                _runtimeLastMeasureReuseRejectedChildName = string.IsNullOrEmpty(frameworkChild.Name) ? "none" : frameworkChild.Name;
                 return false;
             }
         }
 
+        _runtimeCanReuseMeasureForAvailableSizeChangeAcceptedCount++;
+        IncrementAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeAcceptedCount);
+        _runtimeLastMeasureReuseDecision = "accepted";
+        _runtimeLastMeasureReuseFailure = "none";
         return true;
     }
 
@@ -256,7 +298,20 @@ public class StackPanel : Panel, IScrollTransformContent
             TicksToMilliseconds(MeasureExclusiveElapsedTicksForTests),
             TicksToMilliseconds(ArrangeElapsedTicksForTests),
             IsMeasureValidForTests,
-            IsArrangeValidForTests);
+            IsArrangeValidForTests,
+            _runtimeCanReuseMeasureForAvailableSizeChangeCallCount,
+            _runtimeCanReuseMeasureForAvailableSizeChangeAcceptedCount,
+            _runtimeCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount,
+            _runtimeCanReuseMeasureForAvailableSizeChangeRejectedChildCount,
+            _runtimeLastMeasureReuseDecision,
+            _runtimeLastMeasureReuseFailure,
+            _runtimeLastMeasureReuseRejectedChildIndex,
+            _runtimeLastMeasureReuseRejectedChildType,
+            _runtimeLastMeasureReuseRejectedChildName,
+            _runtimeLastMeasureReusePreviousChildAvailableSize.X,
+            _runtimeLastMeasureReusePreviousChildAvailableSize.Y,
+            _runtimeLastMeasureReuseNextChildAvailableSize.X,
+            _runtimeLastMeasureReuseNextChildAvailableSize.Y);
     }
 
     internal new static StackPanelTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
@@ -296,6 +351,10 @@ public class StackPanel : Panel, IScrollTransformContent
         ResetAggregate(ref _diagArrangeNonPositivePrimarySizeCount);
         ResetAggregate(ref _diagArrangePrimarySpanTotal);
         ResetAggregate(ref _diagArrangeCrossSpanTotal);
+        ResetAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeCallCount);
+        ResetAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeAcceptedCount);
+        ResetAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount);
+        ResetAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeRejectedChildCount);
         return snapshot;
     }
 
@@ -325,7 +384,11 @@ public class StackPanel : Panel, IScrollTransformContent
             ReadAggregate(ref _diagArrangeNaNPrimarySizeCount),
             ReadAggregate(ref _diagArrangeNonPositivePrimarySizeCount),
             ReadAggregate(ref _diagArrangePrimarySpanTotal),
-            ReadAggregate(ref _diagArrangeCrossSpanTotal));
+            ReadAggregate(ref _diagArrangeCrossSpanTotal),
+            ReadAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeCallCount),
+            ReadAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeAcceptedCount),
+            ReadAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount),
+            ReadAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeRejectedChildCount));
     }
 
     private static void IncrementAggregate(ref long counter)

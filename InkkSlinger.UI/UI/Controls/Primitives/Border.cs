@@ -60,6 +60,10 @@ public class Border : Decorator
     private static long _diagTextureBuildPixelCount;
     private static long _diagTextureCacheBucketCreateCount;
     private static long _diagRoundedGeometryBuildPointCount;
+    private static long _diagCanReuseMeasureForAvailableSizeChangeCallCount;
+    private static long _diagCanReuseMeasureForAvailableSizeChangeAcceptedCount;
+    private static long _diagCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount;
+    private static long _diagCanReuseMeasureForAvailableSizeChangeRejectedChildCount;
     private BorderRenderState _renderStateCache;
     private bool _hasRenderStateCache;
     private RoundedRectRadii _outerRadiiCache;
@@ -127,6 +131,18 @@ public class Border : Decorator
     private long _runtimeTextureBuildPixelCount;
     private long _runtimeTextureCacheBucketCreateCount;
     private long _runtimeRoundedGeometryBuildPointCount;
+    private long _runtimeCanReuseMeasureForAvailableSizeChangeCallCount;
+    private long _runtimeCanReuseMeasureForAvailableSizeChangeAcceptedCount;
+    private long _runtimeCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount;
+    private long _runtimeCanReuseMeasureForAvailableSizeChangeRejectedChildCount;
+    private string _runtimeLastMeasureReuseDecision = "none";
+    private string _runtimeLastMeasureReuseFailure = "none";
+    private string _runtimeLastMeasureReuseChildType = "none";
+    private string _runtimeLastMeasureReuseChildName = "none";
+    private Vector2 _runtimeLastMeasureReusePreviousAvailableSize = new(float.NaN, float.NaN);
+    private Vector2 _runtimeLastMeasureReuseNextAvailableSize = new(float.NaN, float.NaN);
+    private Vector2 _runtimeLastMeasureReusePreviousInnerAvailableSize = new(float.NaN, float.NaN);
+    private Vector2 _runtimeLastMeasureReuseNextInnerAvailableSize = new(float.NaN, float.NaN);
 
     public static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
@@ -330,7 +346,23 @@ public class Border : Decorator
             TicksToMilliseconds(_runtimeTextureBuildElapsedTicks),
             _runtimeTextureBuildPixelCount,
             _runtimeTextureCacheBucketCreateCount,
-            _runtimeRoundedGeometryBuildPointCount);
+            _runtimeRoundedGeometryBuildPointCount,
+            _runtimeCanReuseMeasureForAvailableSizeChangeCallCount,
+            _runtimeCanReuseMeasureForAvailableSizeChangeAcceptedCount,
+            _runtimeCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount,
+            _runtimeCanReuseMeasureForAvailableSizeChangeRejectedChildCount,
+            _runtimeLastMeasureReuseDecision,
+            _runtimeLastMeasureReuseFailure,
+            _runtimeLastMeasureReuseChildType,
+            _runtimeLastMeasureReuseChildName,
+            _runtimeLastMeasureReusePreviousAvailableSize.X,
+            _runtimeLastMeasureReusePreviousAvailableSize.Y,
+            _runtimeLastMeasureReuseNextAvailableSize.X,
+            _runtimeLastMeasureReuseNextAvailableSize.Y,
+            _runtimeLastMeasureReusePreviousInnerAvailableSize.X,
+            _runtimeLastMeasureReusePreviousInnerAvailableSize.Y,
+            _runtimeLastMeasureReuseNextInnerAvailableSize.X,
+            _runtimeLastMeasureReuseNextInnerAvailableSize.Y);
     }
 
     internal static BorderTelemetrySnapshot GetTelemetryAndReset()
@@ -383,6 +415,10 @@ public class Border : Decorator
         _diagTextureBuildPixelCount = 0;
         _diagTextureCacheBucketCreateCount = 0;
         _diagRoundedGeometryBuildPointCount = 0;
+        _diagCanReuseMeasureForAvailableSizeChangeCallCount = 0;
+        _diagCanReuseMeasureForAvailableSizeChangeAcceptedCount = 0;
+        _diagCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount = 0;
+        _diagCanReuseMeasureForAvailableSizeChangeRejectedChildCount = 0;
         return snapshot;
     }
 
@@ -425,19 +461,54 @@ public class Border : Decorator
 
     protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
     {
+        _runtimeCanReuseMeasureForAvailableSizeChangeCallCount++;
+        IncrementAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeCallCount);
+        _runtimeLastMeasureReuseDecision = "evaluating";
+        _runtimeLastMeasureReuseFailure = "none";
+        _runtimeLastMeasureReuseChildType = "none";
+        _runtimeLastMeasureReuseChildName = "none";
+        _runtimeLastMeasureReusePreviousAvailableSize = previousAvailableSize;
+        _runtimeLastMeasureReuseNextAvailableSize = nextAvailableSize;
+        _runtimeLastMeasureReusePreviousInnerAvailableSize = GetInnerAvailableSizeForMeasureReuse(previousAvailableSize);
+        _runtimeLastMeasureReuseNextInnerAvailableSize = GetInnerAvailableSizeForMeasureReuse(nextAvailableSize);
+
         if (GetType() != typeof(Border))
         {
+            _runtimeCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount++;
+            IncrementAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount);
+            _runtimeLastMeasureReuseDecision = "rejected";
+            _runtimeLastMeasureReuseFailure = "derived-border-type";
             return false;
         }
 
         if (Child is not FrameworkElement childElement)
         {
+            _runtimeCanReuseMeasureForAvailableSizeChangeAcceptedCount++;
+            IncrementAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeAcceptedCount);
+            _runtimeLastMeasureReuseDecision = "accepted";
+            _runtimeLastMeasureReuseFailure = "no-child";
             return true;
         }
 
-        return childElement.CanReuseMeasureForAvailableSizeChangeForParentLayout(
-            GetInnerAvailableSizeForMeasureReuse(previousAvailableSize),
-            GetInnerAvailableSizeForMeasureReuse(nextAvailableSize));
+        _runtimeLastMeasureReuseChildType = childElement.GetType().Name;
+        _runtimeLastMeasureReuseChildName = string.IsNullOrEmpty(childElement.Name) ? "none" : childElement.Name;
+        var canReuse = childElement.CanReuseMeasureForAvailableSizeChangeForParentLayout(
+            _runtimeLastMeasureReusePreviousInnerAvailableSize,
+            _runtimeLastMeasureReuseNextInnerAvailableSize);
+        if (canReuse)
+        {
+            _runtimeCanReuseMeasureForAvailableSizeChangeAcceptedCount++;
+            IncrementAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeAcceptedCount);
+            _runtimeLastMeasureReuseDecision = "accepted";
+            _runtimeLastMeasureReuseFailure = "none";
+            return true;
+        }
+
+        _runtimeCanReuseMeasureForAvailableSizeChangeRejectedChildCount++;
+        IncrementAggregate(ref _diagCanReuseMeasureForAvailableSizeChangeRejectedChildCount);
+        _runtimeLastMeasureReuseDecision = "rejected";
+        _runtimeLastMeasureReuseFailure = "child-reuse-rejected";
+        return false;
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
@@ -1724,7 +1795,11 @@ public class Border : Decorator
             TicksToMilliseconds(_diagTextureBuildElapsedTicks),
             _diagTextureBuildPixelCount,
             _diagTextureCacheBucketCreateCount,
-            _diagRoundedGeometryBuildPointCount);
+            _diagRoundedGeometryBuildPointCount,
+            _diagCanReuseMeasureForAvailableSizeChangeCallCount,
+            _diagCanReuseMeasureForAvailableSizeChangeAcceptedCount,
+            _diagCanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount,
+            _diagCanReuseMeasureForAvailableSizeChangeRejectedChildCount);
     }
 
     private static void IncrementAggregate(ref long counter)

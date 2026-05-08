@@ -27,7 +27,11 @@ internal readonly record struct StackPanelTelemetrySnapshot(
     long ArrangeNaNPrimarySizeCount,
     long ArrangeNonPositivePrimarySizeCount,
     double ArrangeTotalPrimarySpan,
-    double ArrangeTotalCrossSpan);
+    double ArrangeTotalCrossSpan,
+    long CanReuseMeasureForAvailableSizeChangeCallCount,
+    long CanReuseMeasureForAvailableSizeChangeAcceptedCount,
+    long CanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount,
+    long CanReuseMeasureForAvailableSizeChangeRejectedChildCount);
 
 /// <summary>
 /// StackPanel per-instance runtime diagnostics snapshot.
@@ -51,4 +55,17 @@ internal readonly record struct StackPanelRuntimeDiagnosticsSnapshot(
     double MeasureExclusiveMilliseconds,
     double ArrangeMilliseconds,
     bool IsMeasureValid,
-    bool IsArrangeValid);
+    bool IsArrangeValid,
+    long CanReuseMeasureForAvailableSizeChangeCallCount,
+    long CanReuseMeasureForAvailableSizeChangeAcceptedCount,
+    long CanReuseMeasureForAvailableSizeChangeRejectedDerivedTypeCount,
+    long CanReuseMeasureForAvailableSizeChangeRejectedChildCount,
+    string LastMeasureReuseDecision,
+    string LastMeasureReuseFailure,
+    int LastMeasureReuseRejectedChildIndex,
+    string LastMeasureReuseRejectedChildType,
+    string LastMeasureReuseRejectedChildName,
+    float LastMeasureReusePreviousChildAvailableWidth,
+    float LastMeasureReusePreviousChildAvailableHeight,
+    float LastMeasureReuseNextChildAvailableWidth,
+    float LastMeasureReuseNextChildAvailableHeight);

@@ -63,7 +63,15 @@ internal readonly record struct GridTelemetrySnapshot(
     long ApplySharedSizesCallCount,
     long ApplySharedSizeDefinitionCount,
     long PublishSharedSizesCallCount,
-    long PublishSharedSizeDefinitionCount);
+    long PublishSharedSizeDefinitionCount,
+    long SplitterArrangeOnlyDecisionCallCount,
+    long SplitterArrangeOnlyAcceptedCount,
+    long SplitterArrangeOnlyRejectedNeedsMeasureCount,
+    long SplitterArrangeOnlyRejectedInvalidMeasureCount,
+    long SplitterArrangeOnlyRejectedSharedSizeCount,
+    long SplitterArrangeOnlyRejectedInvalidAvailableSizeCount,
+    long SplitterArrangeOnlyRejectedSimulationFailureCount,
+    long SplitterArrangeOnlyRejectedDesiredSizeChangedCount);
 
 /// <summary>
 /// Grid per-instance runtime diagnostics snapshot.
@@ -103,4 +111,26 @@ internal readonly record struct GridRuntimeDiagnosticsSnapshot(
     bool IsArrangeValid,
     int MeasureInvalidationCount,
     int ArrangeInvalidationCount,
-    int RenderInvalidationCount);
+    int RenderInvalidationCount,
+    long SplitterArrangeOnlyDecisionCallCount,
+    long SplitterArrangeOnlyAcceptedCount,
+    long SplitterArrangeOnlyRejectedNeedsMeasureCount,
+    long SplitterArrangeOnlyRejectedInvalidMeasureCount,
+    long SplitterArrangeOnlyRejectedSharedSizeCount,
+    long SplitterArrangeOnlyRejectedInvalidAvailableSizeCount,
+    long SplitterArrangeOnlyRejectedSimulationFailureCount,
+    long SplitterArrangeOnlyRejectedDesiredSizeChangedCount,
+    string LastSplitterArrangeOnlyDecision,
+    string LastSplitterArrangeOnlyFailure,
+    string LastSplitterArrangeOnlyFailingChildType,
+    string LastSplitterArrangeOnlyFailingChildName,
+    string LastSplitterArrangeOnlyFailingChildDetail,
+    int LastSplitterArrangeOnlyFailingChildIndex,
+    float LastSplitterArrangeOnlyRequestedAvailableWidth,
+    float LastSplitterArrangeOnlyRequestedAvailableHeight,
+    float LastSplitterArrangeOnlyCachedAvailableWidth,
+    float LastSplitterArrangeOnlyCachedAvailableHeight,
+    float LastSplitterArrangeOnlySimulatedDesiredWidth,
+    float LastSplitterArrangeOnlySimulatedDesiredHeight,
+    float LastSplitterArrangeOnlyCurrentDesiredWidth,
+    float LastSplitterArrangeOnlyCurrentDesiredHeight);

@@ -304,6 +304,14 @@ public class Grid : Panel
     private static long _diagApplySharedSizeDefinitionCount;
     private static long _diagPublishSharedSizesCallCount;
     private static long _diagPublishSharedSizeDefinitionCount;
+    private static long _diagSplitterArrangeOnlyDecisionCallCount;
+    private static long _diagSplitterArrangeOnlyAcceptedCount;
+    private static long _diagSplitterArrangeOnlyRejectedNeedsMeasureCount;
+    private static long _diagSplitterArrangeOnlyRejectedInvalidMeasureCount;
+    private static long _diagSplitterArrangeOnlyRejectedSharedSizeCount;
+    private static long _diagSplitterArrangeOnlyRejectedInvalidAvailableSizeCount;
+    private static long _diagSplitterArrangeOnlyRejectedSimulationFailureCount;
+    private static long _diagSplitterArrangeOnlyRejectedDesiredSizeChangedCount;
     private static readonly ConditionalWeakTable<UIElement, SharedSizeScopeState> SharedSizeScopes = new();
     public static readonly DependencyProperty RowProperty =
         DependencyProperty.RegisterAttached(
@@ -385,6 +393,24 @@ public class Grid : Panel
     private bool _childLayoutMetadataDirty = true;
     private SharedSizeScopeState? _sharedSizeScopeState;
     private bool _isReconcilingDescendantMeasureInvalidation;
+    private long _runtimeSplitterArrangeOnlyDecisionCallCount;
+    private long _runtimeSplitterArrangeOnlyAcceptedCount;
+    private long _runtimeSplitterArrangeOnlyRejectedNeedsMeasureCount;
+    private long _runtimeSplitterArrangeOnlyRejectedInvalidMeasureCount;
+    private long _runtimeSplitterArrangeOnlyRejectedSharedSizeCount;
+    private long _runtimeSplitterArrangeOnlyRejectedInvalidAvailableSizeCount;
+    private long _runtimeSplitterArrangeOnlyRejectedSimulationFailureCount;
+    private long _runtimeSplitterArrangeOnlyRejectedDesiredSizeChangedCount;
+    private string _runtimeLastSplitterArrangeOnlyDecision = "none";
+    private string _runtimeLastSplitterArrangeOnlyFailure = "none";
+    private string _runtimeLastSplitterArrangeOnlyFailingChildType = "none";
+    private string _runtimeLastSplitterArrangeOnlyFailingChildName = "none";
+    private string _runtimeLastSplitterArrangeOnlyFailingChildDetail = "none";
+    private int _runtimeLastSplitterArrangeOnlyFailingChildIndex = -1;
+    private Vector2 _runtimeLastSplitterArrangeOnlyRequestedAvailableSize = new(float.NaN, float.NaN);
+    private Vector2 _runtimeLastSplitterArrangeOnlyCachedAvailableSize = new(float.NaN, float.NaN);
+    private Vector2 _runtimeLastSplitterArrangeOnlySimulatedDesiredSize = new(float.NaN, float.NaN);
+    private Vector2 _runtimeLastSplitterArrangeOnlyCurrentDesiredSize = new(float.NaN, float.NaN);
 
     public Grid()
     {
@@ -689,22 +715,22 @@ public class Grid : Panel
             return false;
         }
 
-        if (HasFiniteStarAxisSizeChange(previousAvailableSize, nextAvailableSize))
-        {
-            return false;
-        }
-
         var columns = PrepareColumnSnapshots(_arrangeColumns);
         var rows = PrepareRowSnapshots(_arrangeRows);
         var childLayoutMetadata = PrepareChildLayoutMetadata(rows, columns);
-        if (!TrySimulateMeasureWithCachedChildren(childLayoutMetadata, nextAvailableSize, columns, rows, out var nextDesiredSize))
+        if (!TrySimulateMeasureWithCachedChildren(childLayoutMetadata, nextAvailableSize, columns, rows, out var nextDesiredSize, out _))
         {
             return false;
         }
 
-        return AreSizesClose(nextDesiredSize, GetCurrentMeasuredDesiredSize()) &&
-               AreDefinitionSizesClose(columns, _measuredColumnSizes) &&
-               AreDefinitionSizesClose(rows, _measuredRowSizes);
+        if (!AreSizesClose(nextDesiredSize, GetCurrentMeasuredDesiredSize()))
+        {
+            return false;
+        }
+
+        CopySizesToBuffer(columns, ref _measuredColumnSizes);
+        CopySizesToBuffer(rows, ref _measuredRowSizes);
+        return true;
     }
 
     protected override bool TryHandleMeasureInvalidation(UIElement origin, UIElement? source, string reason)
@@ -721,6 +747,7 @@ public class Grid : Panel
         }
 
         var availableSize = PreviousAvailableSizeForTests;
+        _runtimeLastSplitterArrangeOnlyRequestedAvailableSize = availableSize;
         if (float.IsNaN(availableSize.X) || float.IsNaN(availableSize.Y))
         {
             return false;
@@ -1121,33 +1148,122 @@ public class Grid : Panel
 
     private bool TryResolveSplitterResizeAsArrangeOnly()
     {
-        if (NeedsMeasure || !IsMeasureValidForTests || HasSharedSizeDefinitions())
+        _runtimeSplitterArrangeOnlyDecisionCallCount++;
+        IncrementAggregate(ref _diagSplitterArrangeOnlyDecisionCallCount);
+        ClearLastSplitterArrangeOnlyDecision();
+
+        if (NeedsMeasure)
         {
+            RecordSplitterArrangeOnlyReject(
+                "grid-needs-measure",
+                ref _runtimeSplitterArrangeOnlyRejectedNeedsMeasureCount,
+                ref _diagSplitterArrangeOnlyRejectedNeedsMeasureCount);
+            return false;
+        }
+
+        if (!IsMeasureValidForTests)
+        {
+            RecordSplitterArrangeOnlyReject(
+                "grid-measure-invalid",
+                ref _runtimeSplitterArrangeOnlyRejectedInvalidMeasureCount,
+                ref _diagSplitterArrangeOnlyRejectedInvalidMeasureCount);
+            return false;
+        }
+
+        if (HasSharedSizeDefinitions())
+        {
+            RecordSplitterArrangeOnlyReject(
+                "shared-size-definition",
+                ref _runtimeSplitterArrangeOnlyRejectedSharedSizeCount,
+                ref _diagSplitterArrangeOnlyRejectedSharedSizeCount);
             return false;
         }
 
         var availableSize = PreviousAvailableSizeForTests;
         if (float.IsNaN(availableSize.X) || float.IsNaN(availableSize.Y))
         {
+            RecordSplitterArrangeOnlyReject(
+                "invalid-previous-available-size",
+                ref _runtimeSplitterArrangeOnlyRejectedInvalidAvailableSizeCount,
+                ref _diagSplitterArrangeOnlyRejectedInvalidAvailableSizeCount);
             return false;
         }
 
         var columns = PrepareColumnSnapshots(_measureColumns);
         var rows = PrepareRowSnapshots(_measureRows);
         var childLayoutMetadata = PrepareChildLayoutMetadata(rows, columns);
-        if (!TrySimulateMeasureWithCachedChildren(childLayoutMetadata, availableSize, columns, rows, out var desiredSize))
+        if (!TrySimulateMeasureWithCachedChildren(childLayoutMetadata, availableSize, columns, rows, out var desiredSize, out var failure))
         {
+            RecordSplitterArrangeOnlySimulationReject(failure, availableSize);
             return false;
         }
 
-        if (!AreSizesClose(desiredSize, GetCurrentMeasuredDesiredSize()))
+        var currentDesiredSize = GetCurrentMeasuredDesiredSize();
+        _runtimeLastSplitterArrangeOnlySimulatedDesiredSize = desiredSize;
+        _runtimeLastSplitterArrangeOnlyCurrentDesiredSize = currentDesiredSize;
+        if (!AreSizesClose(desiredSize, currentDesiredSize))
         {
+            _runtimeLastSplitterArrangeOnlyRequestedAvailableSize = availableSize;
+            RecordSplitterArrangeOnlyReject(
+                $"desired-size-changed simulated={FormatVector(desiredSize)} current={FormatVector(currentDesiredSize)}",
+                ref _runtimeSplitterArrangeOnlyRejectedDesiredSizeChangedCount,
+                ref _diagSplitterArrangeOnlyRejectedDesiredSizeChangedCount);
             return false;
         }
 
         CopySizesToBuffer(columns, ref _measuredColumnSizes);
         CopySizesToBuffer(rows, ref _measuredRowSizes);
+        _runtimeSplitterArrangeOnlyAcceptedCount++;
+        IncrementAggregate(ref _diagSplitterArrangeOnlyAcceptedCount);
+        _runtimeLastSplitterArrangeOnlyDecision = "accepted";
+        _runtimeLastSplitterArrangeOnlyFailure = "none";
+        _runtimeLastSplitterArrangeOnlyRequestedAvailableSize = availableSize;
+        _runtimeLastSplitterArrangeOnlySimulatedDesiredSize = desiredSize;
+        _runtimeLastSplitterArrangeOnlyCurrentDesiredSize = currentDesiredSize;
         return true;
+    }
+
+    private void ClearLastSplitterArrangeOnlyDecision()
+    {
+        _runtimeLastSplitterArrangeOnlyDecision = "evaluating";
+        _runtimeLastSplitterArrangeOnlyFailure = "none";
+        _runtimeLastSplitterArrangeOnlyFailingChildType = "none";
+        _runtimeLastSplitterArrangeOnlyFailingChildName = "none";
+        _runtimeLastSplitterArrangeOnlyFailingChildDetail = "none";
+        _runtimeLastSplitterArrangeOnlyFailingChildIndex = -1;
+        _runtimeLastSplitterArrangeOnlyRequestedAvailableSize = new Vector2(float.NaN, float.NaN);
+        _runtimeLastSplitterArrangeOnlyCachedAvailableSize = new Vector2(float.NaN, float.NaN);
+        _runtimeLastSplitterArrangeOnlySimulatedDesiredSize = new Vector2(float.NaN, float.NaN);
+        _runtimeLastSplitterArrangeOnlyCurrentDesiredSize = GetCurrentMeasuredDesiredSize();
+    }
+
+    private void RecordSplitterArrangeOnlyReject(string reason, ref long runtimeCounter, ref long aggregateCounter)
+    {
+        runtimeCounter++;
+        IncrementAggregate(ref aggregateCounter);
+        _runtimeLastSplitterArrangeOnlyDecision = "rejected";
+        _runtimeLastSplitterArrangeOnlyFailure = reason;
+    }
+
+    private void RecordSplitterArrangeOnlySimulationReject(MeasureSimulationFailure failure, Vector2 gridAvailableSize)
+    {
+        RecordSplitterArrangeOnlyReject(
+            failure.Reason,
+            ref _runtimeSplitterArrangeOnlyRejectedSimulationFailureCount,
+            ref _diagSplitterArrangeOnlyRejectedSimulationFailureCount);
+        _runtimeLastSplitterArrangeOnlyFailingChildType = failure.ChildType;
+        _runtimeLastSplitterArrangeOnlyFailingChildName = failure.ChildName;
+        _runtimeLastSplitterArrangeOnlyFailingChildDetail = failure.ChildDetail;
+        _runtimeLastSplitterArrangeOnlyFailingChildIndex = failure.ChildIndex;
+        _runtimeLastSplitterArrangeOnlyRequestedAvailableSize = failure.RequestedAvailableSize;
+        _runtimeLastSplitterArrangeOnlyCachedAvailableSize = failure.CachedAvailableSize;
+        _runtimeLastSplitterArrangeOnlySimulatedDesiredSize = new Vector2(float.NaN, float.NaN);
+        _runtimeLastSplitterArrangeOnlyCurrentDesiredSize = GetCurrentMeasuredDesiredSize();
+        if (float.IsNaN(_runtimeLastSplitterArrangeOnlyRequestedAvailableSize.X) ||
+            float.IsNaN(_runtimeLastSplitterArrangeOnlyRequestedAvailableSize.Y))
+        {
+            _runtimeLastSplitterArrangeOnlyRequestedAvailableSize = gridAvailableSize;
+        }
     }
 
     private List<DefinitionSnapshot> PrepareColumnSnapshots(List<DefinitionSnapshot> target)
@@ -1605,24 +1721,6 @@ public class Grid : Panel
         {
             buffer[i] = definitions[i].Size;
         }
-    }
-
-    private static bool AreDefinitionSizesClose(IReadOnlyList<DefinitionSnapshot> definitions, float[] previousSizes)
-    {
-        if (definitions.Count != previousSizes.Length)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < definitions.Count; i++)
-        {
-            if (!AreFloatsClose(definitions[i].Size, previousSizes[i]))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private void EnsureChildMeasureRecordCapacity(int capacity)
@@ -2102,9 +2200,11 @@ public class Grid : Panel
         Vector2 availableSize,
         List<DefinitionSnapshot> columns,
         List<DefinitionSnapshot> rows,
-        out Vector2 desiredSize)
+        out Vector2 desiredSize,
+        out MeasureSimulationFailure failure)
     {
         desiredSize = Vector2.Zero;
+        failure = MeasureSimulationFailure.None;
         var firstPassRecords = new FirstPassMeasureRecord[childLayoutMetadata.Length];
 
         ResolveDefinitionSizes(columns, availableSize.X);
@@ -2125,7 +2225,12 @@ public class Grid : Panel
                     }
 
                     var firstPassAvailable = ResolveFirstPassAvailableSize(metadata, rows, columns, availableSize);
-                    if (!CanReuseCachedChildMeasureState(childMeasureIndex, metadata.Child, firstPassAvailable, out var cachedDesiredSize))
+                    if (!CanReuseCachedChildMeasureState(
+                            childMeasureIndex,
+                            metadata.Child,
+                            firstPassAvailable,
+                            out var cachedDesiredSize,
+                            out failure))
                     {
                         return false;
                     }
@@ -2186,7 +2291,12 @@ public class Grid : Panel
                         continue;
                     }
 
-                    if (!CanReuseCachedChildMeasureState(childMeasureIndex, metadata.Child, childAvailable, out var cachedDesiredSize))
+                    if (!CanReuseCachedChildMeasureState(
+                            childMeasureIndex,
+                            metadata.Child,
+                            childAvailable,
+                            out var cachedDesiredSize,
+                            out failure))
                     {
                         return false;
                     }
@@ -2224,9 +2334,11 @@ public class Grid : Panel
         int childMeasureIndex,
         FrameworkElement child,
         Vector2 availableSize,
-        out Vector2 desiredSize)
+        out Vector2 desiredSize,
+        out MeasureSimulationFailure failure)
     {
         desiredSize = Vector2.Zero;
+        failure = MeasureSimulationFailure.None;
         if (!child.NeedsMeasure &&
             child.IsMeasureValidForTests &&
             child.CanReuseMeasureForAvailableSizeChangeForParentLayout(child.PreviousAvailableSizeForTests, availableSize))
@@ -2250,22 +2362,245 @@ public class Grid : Panel
 
         if (child.NeedsMeasure || childMeasureIndex < 0 || childMeasureIndex >= _cachedChildMeasureStates.Length)
         {
+            var reason = child.NeedsMeasure
+                ? "child-needs-measure"
+                : "child-cache-index-out-of-range";
+            failure = CreateMeasureSimulationFailure(reason, childMeasureIndex, child, availableSize, child.PreviousAvailableSizeForTests);
             return false;
         }
 
         var cachedState = _cachedChildMeasureStates[childMeasureIndex];
         if (!cachedState.IsValid || !ReferenceEquals(cachedState.Child, child))
         {
+            var reason = !cachedState.IsValid
+                ? "child-cache-invalid"
+                : "child-cache-mismatch";
+            failure = CreateMeasureSimulationFailure(reason, childMeasureIndex, child, availableSize, cachedState.AvailableSize);
             return false;
         }
 
         if (!child.CanReuseMeasureForAvailableSizeChangeForParentLayout(cachedState.AvailableSize, availableSize))
         {
+            failure = CreateMeasureSimulationFailure(
+                "child-reuse-rejected",
+                childMeasureIndex,
+                child,
+                availableSize,
+                cachedState.AvailableSize);
             return false;
         }
 
         desiredSize = cachedState.DesiredSize;
         return true;
+    }
+
+    private static MeasureSimulationFailure CreateMeasureSimulationFailure(
+        string reason,
+        int childIndex,
+        FrameworkElement child,
+        Vector2 requestedAvailableSize,
+        Vector2 cachedAvailableSize)
+    {
+        return new MeasureSimulationFailure(
+            reason,
+            childIndex,
+            child.GetType().Name,
+            string.IsNullOrEmpty(child.Name) ? "none" : child.Name,
+            GetMeasureSimulationFailureChildDetail(child, cachedAvailableSize, requestedAvailableSize),
+            requestedAvailableSize,
+            cachedAvailableSize);
+    }
+
+    private static string GetMeasureSimulationFailureChildDetail(
+        FrameworkElement child,
+        Vector2 cachedAvailableSize,
+        Vector2 requestedAvailableSize)
+    {
+        return DescribeMeasureReuseRejectionPath(child, cachedAvailableSize, requestedAvailableSize, depth: 0);
+    }
+
+    private static string DescribeMeasureReuseRejectionPath(
+        FrameworkElement element,
+        Vector2 cachedAvailableSize,
+        Vector2 requestedAvailableSize,
+        int depth)
+    {
+        if (depth >= 8)
+        {
+            return $"{DescribeElementForMeasureReuse(element)} -> depth-limit";
+        }
+
+        if (!element.CanReuseMeasureForAvailableSizeChangeForParentLayout(cachedAvailableSize, requestedAvailableSize))
+        {
+            if (element is Border { Child: FrameworkElement borderChild } border)
+            {
+                var previousInner = GetBorderInnerAvailableSize(border, cachedAvailableSize);
+                var nextInner = GetBorderInnerAvailableSize(border, requestedAvailableSize);
+                return $"{DescribeElementForMeasureReuse(element)} -> {DescribeMeasureReuseRejectionPath(borderChild, previousInner, nextInner, depth + 1)}";
+            }
+
+            if (element is ContentControl { Content: FrameworkElement contentChild })
+            {
+                return $"{DescribeElementForMeasureReuse(element)} -> {DescribeMeasureReuseRejectionPath(contentChild, cachedAvailableSize, requestedAvailableSize, depth + 1)}";
+            }
+
+            if (element is Grid grid && grid.TryDescribeFirstMeasureReuseRejection(requestedAvailableSize, depth + 1, out var gridDetail))
+            {
+                return $"{DescribeElementForMeasureReuse(element)} -> {gridDetail}";
+            }
+
+            if (element is StackPanel stackPanel)
+            {
+                var previousChildAvailable = ResolveStackPanelChildAvailableSize(stackPanel, cachedAvailableSize);
+                var nextChildAvailable = ResolveStackPanelChildAvailableSize(stackPanel, requestedAvailableSize);
+                for (var i = 0; i < stackPanel.Children.Count; i++)
+                {
+                    if (stackPanel.Children[i] is FrameworkElement stackPanelChild &&
+                        !stackPanelChild.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousChildAvailable, nextChildAvailable))
+                    {
+                        return $"{DescribeElementForMeasureReuse(element)} -> child[{i}]={DescribeMeasureReuseRejectionPath(stackPanelChild, previousChildAvailable, nextChildAvailable, depth + 1)} prev={FormatVector(previousChildAvailable)} next={FormatVector(nextChildAvailable)}";
+                    }
+                }
+            }
+
+            if (element is Panel panel && element.GetType() == typeof(Panel))
+            {
+                for (var i = 0; i < panel.Children.Count; i++)
+                {
+                    if (panel.Children[i] is FrameworkElement panelChild &&
+                        !panelChild.CanReuseMeasureForAvailableSizeChangeForParentLayout(cachedAvailableSize, requestedAvailableSize))
+                    {
+                        return $"{DescribeElementForMeasureReuse(element)} -> child[{i}]={DescribeMeasureReuseRejectionPath(panelChild, cachedAvailableSize, requestedAvailableSize, depth + 1)}";
+                    }
+                }
+            }
+        }
+
+        return DescribeElementForMeasureReuse(element);
+    }
+
+    private bool TryDescribeFirstMeasureReuseRejection(Vector2 availableSize, int depth, out string detail)
+    {
+        detail = "none";
+        if (depth >= 8)
+        {
+            detail = "depth-limit";
+            return true;
+        }
+
+        var columns = PrepareColumnSnapshots(_measureColumns);
+        var rows = PrepareRowSnapshots(_measureRows);
+        var childLayoutMetadata = PrepareChildLayoutMetadata(rows, columns);
+        ResolveDefinitionSizes(columns, availableSize.X);
+        ResolveDefinitionSizes(rows, availableSize.Y);
+
+        for (var deferredSpanPass = 0; deferredSpanPass < 2; deferredSpanPass++)
+        {
+            var useWidthPriority = ShouldUseWidthPriorityFirstPass(childLayoutMetadata, deferredSpanPass, availableSize.X);
+            for (var widthPriorityPass = 0; widthPriorityPass < (useWidthPriority ? 2 : 1); widthPriorityPass++)
+            {
+                var measuredAnyChild = false;
+                for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
+                {
+                    ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
+                    if (!ShouldMeasureInFirstPass(metadata, deferredSpanPass, widthPriorityPass, useWidthPriority))
+                    {
+                        continue;
+                    }
+
+                    var childAvailable = ResolveFirstPassAvailableSize(metadata, rows, columns, availableSize);
+                    if (TryDescribeChildMeasureReuseRejection(childMeasureIndex, metadata.Child, childAvailable, depth, out detail))
+                    {
+                        return true;
+                    }
+
+                    measuredAnyChild = true;
+                    ApplyChildRequirement(
+                        columns,
+                        metadata.Cell.Column,
+                        metadata.Cell.ColumnSpan,
+                        metadata.Child.DesiredSize.X,
+                        !float.IsInfinity(availableSize.X) && !float.IsNaN(availableSize.X));
+                    ApplyChildRequirement(
+                        rows,
+                        metadata.Cell.Row,
+                        metadata.Cell.RowSpan,
+                        metadata.Child.DesiredSize.Y,
+                        !float.IsInfinity(availableSize.Y) && !float.IsNaN(availableSize.Y));
+                }
+
+                if (useWidthPriority && widthPriorityPass == 0 && measuredAnyChild)
+                {
+                    FinalizeDefinitionSizes(columns, availableSize.X);
+                    FinalizeDefinitionSizes(rows, availableSize.Y);
+                }
+            }
+        }
+
+        FinalizeDefinitionSizes(columns, availableSize.X);
+        FinalizeDefinitionSizes(rows, availableSize.Y);
+
+        for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
+        {
+            ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
+            var childAvailable = new Vector2(
+                SumRange(columns, metadata.Cell.Column, metadata.Cell.ColumnSpan),
+                SumRange(rows, metadata.Cell.Row, metadata.Cell.RowSpan));
+            if (TryDescribeChildMeasureReuseRejection(childMeasureIndex, metadata.Child, childAvailable, depth, out detail))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryDescribeChildMeasureReuseRejection(
+        int childMeasureIndex,
+        FrameworkElement child,
+        Vector2 availableSize,
+        int depth,
+        out string detail)
+    {
+        detail = "none";
+        var previousAvailableSize = child.PreviousAvailableSizeForTests;
+        if (childMeasureIndex >= 0 &&
+            childMeasureIndex < _cachedChildMeasureStates.Length &&
+            _cachedChildMeasureStates[childMeasureIndex].IsValid &&
+            ReferenceEquals(_cachedChildMeasureStates[childMeasureIndex].Child, child))
+        {
+            previousAvailableSize = _cachedChildMeasureStates[childMeasureIndex].AvailableSize;
+        }
+
+        if (!child.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, availableSize))
+        {
+            detail = $"child[{childMeasureIndex}]={DescribeMeasureReuseRejectionPath(child, previousAvailableSize, availableSize, depth + 1)} prev={FormatVector(previousAvailableSize)} next={FormatVector(availableSize)}";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static Vector2 GetBorderInnerAvailableSize(Border border, Vector2 availableSize)
+    {
+        var thickness = border.BorderThickness;
+        var padding = border.Padding;
+        return new Vector2(
+            MathF.Max(0f, availableSize.X - thickness.Left - thickness.Right - padding.Left - padding.Right),
+            MathF.Max(0f, availableSize.Y - thickness.Top - thickness.Bottom - padding.Top - padding.Bottom));
+    }
+
+    private static Vector2 ResolveStackPanelChildAvailableSize(StackPanel stackPanel, Vector2 availableSize)
+    {
+        return stackPanel.Orientation == Orientation.Vertical
+            ? new Vector2(availableSize.X, float.PositiveInfinity)
+            : new Vector2(float.PositiveInfinity, availableSize.Y);
+    }
+
+    private static string DescribeElementForMeasureReuse(FrameworkElement element)
+    {
+        var name = string.IsNullOrEmpty(element.Name) ? "none" : element.Name;
+        return $"{element.GetType().Name}:{name}";
     }
 
     private bool TryReconcileDescendantMeasureInvalidation(Vector2 availableSize, out Vector2 desiredSize)
@@ -2415,52 +2750,6 @@ public class Grid : Panel
         }
 
         return false;
-    }
-
-    private bool HasFiniteStarAxisSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
-    {
-        return HasFiniteStarDefinitionSizeChange(previousAvailableSize.X, nextAvailableSize.X, isColumnAxis: true) ||
-               HasFiniteStarDefinitionSizeChange(previousAvailableSize.Y, nextAvailableSize.Y, isColumnAxis: false);
-    }
-
-    private bool HasFiniteStarDefinitionSizeChange(float previousAvailable, float nextAvailable, bool isColumnAxis)
-    {
-        if (!IsFiniteAvailableSizeChange(previousAvailable, nextAvailable))
-        {
-            return false;
-        }
-
-        if (isColumnAxis)
-        {
-            for (var i = 0; i < _columnDefinitions.Count; i++)
-            {
-                if (_columnDefinitions[i].Width.IsStar)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        for (var i = 0; i < _rowDefinitions.Count; i++)
-        {
-            if (_rowDefinitions[i].Height.IsStar)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsFiniteAvailableSizeChange(float previousAvailable, float nextAvailable)
-    {
-        return !float.IsNaN(previousAvailable) &&
-               !float.IsNaN(nextAvailable) &&
-               !float.IsInfinity(previousAvailable) &&
-               !float.IsInfinity(nextAvailable) &&
-               !AreFloatsClose(previousAvailable, nextAvailable);
     }
 
     private bool IsGridDescendant(UIElement element)
@@ -2988,6 +3277,25 @@ public class Grid : Panel
         Vector2 DesiredSize,
         bool IsValid);
 
+    private readonly record struct MeasureSimulationFailure(
+        string Reason,
+        int ChildIndex,
+        string ChildType,
+        string ChildName,
+        string ChildDetail,
+        Vector2 RequestedAvailableSize,
+        Vector2 CachedAvailableSize)
+    {
+        public static MeasureSimulationFailure None { get; } = new(
+            "none",
+            -1,
+            "none",
+            "none",
+            "none",
+            new Vector2(float.NaN, float.NaN),
+            new Vector2(float.NaN, float.NaN));
+    }
+
     internal GridRuntimeDiagnosticsSnapshot GetGridSnapshotForDiagnostics()
     {
         return new GridRuntimeDiagnosticsSnapshot(
@@ -3025,7 +3333,29 @@ public class Grid : Panel
             IsArrangeValidForTests,
             MeasureInvalidationCount,
             ArrangeInvalidationCount,
-                RenderInvalidationCount);
+            RenderInvalidationCount,
+            _runtimeSplitterArrangeOnlyDecisionCallCount,
+            _runtimeSplitterArrangeOnlyAcceptedCount,
+            _runtimeSplitterArrangeOnlyRejectedNeedsMeasureCount,
+            _runtimeSplitterArrangeOnlyRejectedInvalidMeasureCount,
+            _runtimeSplitterArrangeOnlyRejectedSharedSizeCount,
+            _runtimeSplitterArrangeOnlyRejectedInvalidAvailableSizeCount,
+            _runtimeSplitterArrangeOnlyRejectedSimulationFailureCount,
+            _runtimeSplitterArrangeOnlyRejectedDesiredSizeChangedCount,
+            _runtimeLastSplitterArrangeOnlyDecision,
+            _runtimeLastSplitterArrangeOnlyFailure,
+            _runtimeLastSplitterArrangeOnlyFailingChildType,
+            _runtimeLastSplitterArrangeOnlyFailingChildName,
+            _runtimeLastSplitterArrangeOnlyFailingChildDetail,
+            _runtimeLastSplitterArrangeOnlyFailingChildIndex,
+            _runtimeLastSplitterArrangeOnlyRequestedAvailableSize.X,
+            _runtimeLastSplitterArrangeOnlyRequestedAvailableSize.Y,
+            _runtimeLastSplitterArrangeOnlyCachedAvailableSize.X,
+            _runtimeLastSplitterArrangeOnlyCachedAvailableSize.Y,
+            _runtimeLastSplitterArrangeOnlySimulatedDesiredSize.X,
+            _runtimeLastSplitterArrangeOnlySimulatedDesiredSize.Y,
+            _runtimeLastSplitterArrangeOnlyCurrentDesiredSize.X,
+            _runtimeLastSplitterArrangeOnlyCurrentDesiredSize.Y);
     }
 
     internal new static GridTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
@@ -3111,7 +3441,15 @@ public class Grid : Panel
             ReadOrReset(ref _diagApplySharedSizesCallCount, reset),
             ReadOrReset(ref _diagApplySharedSizeDefinitionCount, reset),
             ReadOrReset(ref _diagPublishSharedSizesCallCount, reset),
-            ReadOrReset(ref _diagPublishSharedSizeDefinitionCount, reset));
+            ReadOrReset(ref _diagPublishSharedSizeDefinitionCount, reset),
+            ReadOrReset(ref _diagSplitterArrangeOnlyDecisionCallCount, reset),
+            ReadOrReset(ref _diagSplitterArrangeOnlyAcceptedCount, reset),
+            ReadOrReset(ref _diagSplitterArrangeOnlyRejectedNeedsMeasureCount, reset),
+            ReadOrReset(ref _diagSplitterArrangeOnlyRejectedInvalidMeasureCount, reset),
+            ReadOrReset(ref _diagSplitterArrangeOnlyRejectedSharedSizeCount, reset),
+            ReadOrReset(ref _diagSplitterArrangeOnlyRejectedInvalidAvailableSizeCount, reset),
+            ReadOrReset(ref _diagSplitterArrangeOnlyRejectedSimulationFailureCount, reset),
+            ReadOrReset(ref _diagSplitterArrangeOnlyRejectedDesiredSizeChangedCount, reset));
     }
 
     private static string ReadOrResetString(ref string value, bool reset)
@@ -3123,6 +3461,11 @@ public class Grid : Panel
         }
 
         return result;
+    }
+
+    private static string FormatVector(Vector2 value)
+    {
+        return $"{value.X:0.###},{value.Y:0.###}";
     }
 
     private static void IncrementAggregate(ref long counter)
