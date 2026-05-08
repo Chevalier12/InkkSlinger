@@ -129,25 +129,9 @@ public class DesignerShellProjectExplorerTests
         Assert.Equal("Main.xml", mainFileItem!.Header);
         Assert.False(mainFileItem.HasChildItems());
 
-        var viewsExpander = Assert.IsType<Grid>(FindNamedVisualChild<Grid>(viewsItem, "PART_Expander"));
-        var emptyFolderExpander = Assert.IsType<Grid>(FindNamedVisualChild<Grid>(emptyFolderItem, "PART_Expander"));
-        var fileExpander = Assert.IsType<Grid>(FindNamedVisualChild<Grid>(mainFileItem, "PART_Expander"));
-        var chevronUp = Assert.IsType<Viewbox>(FindNamedVisualChild<Viewbox>(viewsExpander, "ProjectExplorerChevronUp"));
-        var chevronDown = Assert.IsType<Viewbox>(FindNamedVisualChild<Viewbox>(viewsExpander, "ProjectExplorerChevronDown"));
-        var chevronUpPath = Assert.IsType<PathShape>(FindNamedVisualChild<PathShape>(chevronUp, "ProjectExplorerChevronUpPath"));
-        var chevronDownPath = Assert.IsType<PathShape>(FindNamedVisualChild<PathShape>(chevronDown, "ProjectExplorerChevronDownPath"));
-
-        Assert.Equal(10, chevronUp.Width);
-        Assert.Equal(10, chevronUp.Height);
-        Assert.Equal(10, chevronDown.Width);
-        Assert.Equal(10, chevronDown.Height);
-        Assert.IsType<PathGeometry>(chevronUpPath.Data);
-        Assert.IsType<PathGeometry>(chevronDownPath.Data);
-        AssertMatchingFilledCaretGeometry(chevronUpPath, chevronDownPath);
-        Assert.Equal(Visibility.Collapsed, chevronUp.Visibility);
-        Assert.Equal(Visibility.Visible, chevronDown.Visibility);
-        Assert.Equal(Visibility.Collapsed, emptyFolderExpander.Visibility);
-        Assert.Equal(Visibility.Collapsed, fileExpander.Visibility);
+        Assert.True(FindVisibleExpanderPoint(viewsItem, viewsItem.LayoutSlot).HasValue);
+        Assert.False(FindVisibleExpanderPoint(emptyFolderItem, emptyFolderItem.LayoutSlot).HasValue);
+        Assert.False(FindVisibleExpanderPoint(mainFileItem, mainFileItem.LayoutSlot).HasValue);
     }
 
     private static void AssertMatchingFilledCaretGeometry(PathShape chevronUp, PathShape chevronDown)
@@ -180,6 +164,23 @@ public class DesignerShellProjectExplorerTests
         var maxX = figure.Points.Max(point => point.X);
         var maxY = figure.Points.Max(point => point.Y);
         return new LayoutRect(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    private static Vector2? FindVisibleExpanderPoint(TreeViewItem item, LayoutRect rowBoundsInRoot)
+    {
+        var y = rowBoundsInRoot.Y + (rowBoundsInRoot.Height / 2f);
+        var maxX = MathF.Min(rowBoundsInRoot.X + 80f, rowBoundsInRoot.X + rowBoundsInRoot.Width);
+
+        for (var x = rowBoundsInRoot.X; x <= maxX; x += 1f)
+        {
+            var point = new Vector2(x, y);
+            if (item.HitExpander(point))
+            {
+                return point;
+            }
+        }
+
+        return null;
     }
 
     private static ShellHarness CreateHarness()

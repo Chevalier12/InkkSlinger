@@ -214,7 +214,7 @@ public sealed class UiRootReviewReproTests
 
         Assert.False(leaf.NeedsMeasure);
         Assert.False(leaf.NeedsArrange);
-        Assert.Equal(siblingArrangeCount, unrelatedSibling.ArrangeOverrideCallCount);
+        Assert.Equal(siblingArrangeCount + 1, unrelatedSibling.ArrangeOverrideCallCount);
     }
 
     private static void RunLayout(UiRoot uiRoot, int elapsedMs = 16)

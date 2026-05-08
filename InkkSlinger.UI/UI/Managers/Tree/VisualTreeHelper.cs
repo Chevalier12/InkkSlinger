@@ -1493,7 +1493,7 @@ public static class VisualTreeHelper
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool UsesTransformBasedScrollHitTesting(UIElement element)
     {
-        return element is IScrollTransformContent;
+        return element is IScrollTransformContent && ScrollViewer.GetUseTransformContentScrolling(element);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

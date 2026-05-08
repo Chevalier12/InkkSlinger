@@ -249,9 +249,7 @@ public sealed class TreeViewInputTests
         var uiRoot = new UiRoot(host);
         RunLayout(uiRoot);
 
-        var expander = Assert.IsType<Border>(root.GetTemplateChildForTests("PART_Expander"));
-        Assert.True(expander.TryGetRenderBoundsInRootSpace(out var expanderBounds));
-        var templateOwnedPoint = new Vector2(expanderBounds.X + expanderBounds.Width - 2f, expanderBounds.Y + expanderBounds.Height / 2f);
+        var templateOwnedPoint = FindVisibleExpanderPoint(root, root.LayoutSlot);
         Assert.True(root.HitExpander(templateOwnedPoint));
 
         Click(uiRoot, templateOwnedPoint);

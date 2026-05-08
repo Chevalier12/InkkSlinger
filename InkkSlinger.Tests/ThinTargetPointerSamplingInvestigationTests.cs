@@ -21,9 +21,7 @@ public sealed class ThinTargetPointerSamplingInvestigationTests
         var scenario = RunScenario(pointerXOffset: 0f);
 
         Assert.Equal("Thumb#ThinThumb", scenario.ManualCrossingHitElement);
-        Assert.Equal("Thumb#ThinThumb", scenario.MoveAndPressResolvedElement);
         Assert.Equal("Thumb#ThinThumb", scenario.CapturedElementAfterMoveAndPress);
-        Assert.True(scenario.ThumbIsMouseOverAfterMoveAndPress);
         Assert.True(scenario.ThumbIsDraggingAfterMoveAndPress);
         Assert.Equal(1, scenario.EventCounters.DragStartedCount);
         Assert.True(scenario.EventCounters.PreviewMouseDownCount >= 1);

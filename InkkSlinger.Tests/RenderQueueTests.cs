@@ -30,20 +30,33 @@ public class RenderQueueTests
     }
 
     [Fact]
-    public void RenderInvalidation_QueuesDirtyNodeOnce()
+    public void OpacityInvalidation_UpdatesCompositionMetadataWithoutDirtyRenderQueue()
     {
         var root = new Panel();
         var target = new Border();
+        target.Name = "metadataTarget";
         root.AddChild(target);
         var uiRoot = new UiRoot(root);
         uiRoot.RebuildRenderListForTests();
+        uiRoot.UpdateVisualRecordsForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.GetTelemetryAndReset();
 
         target.Opacity = 0.5f;
         target.Opacity = 0.25f;
 
         var queue = uiRoot.GetDirtyRenderQueueSnapshotForTests();
-        Assert.Single(queue);
-        Assert.Same(target, queue[0]);
+        Assert.Empty(queue);
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var retained = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+        Assert.Equal(1, retained.OpacityMetadataUpdateCount);
+        Assert.Equal(0, retained.ContentInvalidationCount);
+        Assert.Equal(0, retained.CompositionMetadataUpdateMissCount);
+        Assert.Equal("Border#metadataTarget", retained.LastCompositionMetadataUpdateSource);
     }
 
     [Fact]

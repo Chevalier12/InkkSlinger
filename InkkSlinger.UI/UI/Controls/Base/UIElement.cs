@@ -108,6 +108,13 @@ public class UIElement : DependencyObject
             typeof(UIElement),
             new FrameworkPropertyMetadata(true));
 
+    public static readonly DependencyProperty IsMouseOverProperty =
+        DependencyProperty.Register(
+            nameof(IsMouseOver),
+            typeof(bool),
+            typeof(UIElement),
+            new FrameworkPropertyMetadata(false));
+
     public static readonly DependencyProperty ClipToBoundsProperty =
         DependencyProperty.Register(
             nameof(ClipToBounds),
@@ -256,6 +263,12 @@ public class UIElement : DependencyObject
     {
         get => GetValue<bool>(IsHitTestVisibleProperty);
         set => SetValue(IsHitTestVisibleProperty, value);
+    }
+
+    public bool IsMouseOver
+    {
+        get => GetValue<bool>(IsMouseOverProperty);
+        private set => SetValue(IsMouseOverProperty, value);
     }
 
     public bool ClipToBounds
@@ -683,6 +696,14 @@ public class UIElement : DependencyObject
     internal bool HitTestIncludingDisabled(Vector2 point)
     {
         return HitTestCore(point, excludeDisabledElements: false);
+    }
+
+    internal void SetElementMouseOverFromInput(bool isMouseOver)
+    {
+        if (IsMouseOver != isMouseOver)
+        {
+            IsMouseOver = isMouseOver;
+        }
     }
 
     private bool HitTestCore(Vector2 point, bool excludeDisabledElements)

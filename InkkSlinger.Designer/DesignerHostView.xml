@@ -118,7 +118,8 @@
     <DataTemplate x:Key="RecentProjectTemplate">
       <Grid x:Name="RecentProjectRowRoot"
             Height="60">
-        <Button Style="{StaticResource RecentProjectButtonStyle}"
+        <Button x:Name="RecentProjectOpenButton"
+                Style="{StaticResource RecentProjectButtonStyle}"
                 Command="{Binding DataContext.OpenProjectCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
                 CommandParameter="{Binding Path}">
           <Grid x:Name="RecentProjectContentGrid"

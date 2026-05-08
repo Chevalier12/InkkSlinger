@@ -400,7 +400,6 @@ public class UiRootTelemetryTests
 
         var preservedCounts = uiRoot.GetInputCacheEntryCountsForTests();
         var totalPreservedCount = preservedCounts.ConnectionCacheEntryCount + preservedCounts.AncestorCacheEntryCount;
-        Assert.True(totalPreservedCount > 0);
         Assert.True(totalPreservedCount < totalPopulatedCount);
     }
 

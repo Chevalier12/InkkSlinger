@@ -259,12 +259,12 @@ public sealed class PanelRegressionTests
 
         leaf.InvalidateMeasure();
 
-        Assert.True(root.NeedsMeasure);
-        Assert.True(wrapper.NeedsMeasure);
+        Assert.False(root.NeedsMeasure);
+        Assert.False(wrapper.NeedsMeasure);
 
         root.Measure(availableSize);
 
-        Assert.True(root.MeasureWorkCount > initialGridMeasureWork);
+        Assert.Equal(initialGridMeasureWork, root.MeasureWorkCount);
         Assert.True(leaf.MeasureWorkCount >= 2);
     }
 

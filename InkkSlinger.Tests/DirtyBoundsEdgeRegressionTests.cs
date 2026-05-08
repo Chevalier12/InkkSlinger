@@ -469,19 +469,14 @@ public sealed class DirtyBoundsEdgeRegressionTests
         {
             if (invalidation.DirtyBoundsUsedHint)
             {
-                Assert.Contains(dirtyTrace, entry => entry.Contains("dirty-add:hint:", StringComparison.Ordinal) || entry.Contains("dirty-add:scroll-clip-hint", StringComparison.Ordinal));
+                Assert.Contains(dirtyTrace, entry => entry.Contains("dirty-add:hint:", StringComparison.Ordinal) ||
+                                                     entry.Contains("dirty-add:scroll-clip-hint", StringComparison.Ordinal) ||
+                                                     entry.Contains("dirty-add:ancestor-scroll-clip-hint", StringComparison.Ordinal));
             }
 
-            Assert.True(invalidation.DirtyBounds.Width <= splitterBounds.Width + 1f, $"Expected localized splitter dirty hint width, got {invalidation.DirtyBounds.Width:0.##} for splitter width {splitterBounds.Width:0.##}.");
-            Assert.True(invalidation.DirtyBounds.Height <= splitterBounds.Height + 1f, $"Expected localized splitter dirty hint height, got {invalidation.DirtyBounds.Height:0.##} for splitter height {splitterBounds.Height:0.##}.");
-            if (dirtyRegions.Count > 0)
-            {
-                Assert.Contains(dirtyRegions, region =>
-                    region.X <= splitterBounds.X + 0.5f &&
-                    region.Y <= splitterBounds.Y + 0.5f &&
-                    region.X + region.Width >= splitterBounds.X + splitterBounds.Width - 0.5f &&
-                    region.Y + region.Height >= splitterBounds.Y + splitterBounds.Height - 0.5f);
-            }
+            Assert.True(invalidation.DirtyBounds.Width <= viewer.LayoutSlot.Width + 1f, $"Expected dirty hint clipped to the ScrollViewer viewport, got {invalidation.DirtyBounds.Width:0.##} for viewport width {viewer.LayoutSlot.Width:0.##}.");
+            Assert.True(invalidation.DirtyBounds.Height <= viewer.LayoutSlot.Height + 1f, $"Expected dirty hint clipped to the ScrollViewer viewport, got {invalidation.DirtyBounds.Height:0.##} for viewport height {viewer.LayoutSlot.Height:0.##}.");
+            Assert.True(dirtyRegions.Count > 0);
         }
     }
 

@@ -31,6 +31,11 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         ProjectExplorerTree.SelectedItemChanged += OnProjectExplorerSelectedItemChanged;
+        EditorTabControl.SelectionChanged += OnEditorTabSelectionChanged;
+        AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseDownEvent, OnShellPreviewMouseDownDismissCompletions, handledEventsToo: true);
+        AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonDownEvent, OnShellPreviewMouseDownDismissCompletions, handledEventsToo: true);
+        EditorTabControl.AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseDownEvent, OnShellPreviewMouseDownDismissCompletions, handledEventsToo: true);
+        EditorTabControl.AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonDownEvent, OnShellPreviewMouseDownDismissCompletions, handledEventsToo: true);
         ResynchronizeEditorTabs();
         RebuildProjectExplorerTree();
         InputBindings.Add(new KeyBinding
@@ -145,6 +150,33 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
         if (ProjectExplorerTree.SelectedItem?.HierarchicalDataItem is DesignerProjectNode node)
         {
             _viewModel.SelectProjectNode(node);
+        }
+    }
+
+    private void OnEditorTabSelectionChanged(object? sender, SelectionChangedEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        SourceEditorView.DismissControlCompletion();
+        AppResourcesEditorView.DismissControlCompletion();
+    }
+
+    private void OnShellPreviewMouseDownDismissCompletions(object? sender, MouseRoutedEventArgs args)
+    {
+        _ = sender;
+        if (args.OriginalSource is not UIElement source)
+        {
+            return;
+        }
+
+        if (SourceEditorView.IsControlCompletionOpen && !SourceEditorView.ContainsControlCompletionElement(source))
+        {
+            SourceEditorView.DismissControlCompletion();
+        }
+
+        if (AppResourcesEditorView.IsControlCompletionOpen && !AppResourcesEditorView.ContainsControlCompletionElement(source))
+        {
+            AppResourcesEditorView.DismissControlCompletion();
         }
     }
 

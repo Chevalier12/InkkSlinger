@@ -132,6 +132,42 @@ public sealed class MimisbrunnrVisualRecordingTests
     }
 
     [Fact]
+    public void VisualRecords_RefreshDirtyDescendantRecords_WhenDirtyRootsCoalesceToAncestor()
+    {
+        var root = new Panel
+        {
+            Background = new Color(10, 10, 10)
+        };
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 100f, 100f));
+
+        var child = CreateRecordedBorder();
+        child.Background = new SolidColorBrush(new Color(20, 20, 20));
+        root.AddChild(child);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.UpdateVisualRecordsForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.GetTelemetryAndReset();
+
+        root.Background = new Color(30, 30, 30);
+        child.Background = new SolidColorBrush(new Color(40, 40, 40));
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        uiRoot.UpdateVisualRecordsForTests();
+
+        var childRecord = uiRoot.GetVisualRecordForTests(child);
+        Assert.Equal(new Color(40, 40, 40), childRecord.Commands[0].Color);
+
+        var telemetry = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+        Assert.True(
+            telemetry.VisualRecordRebuildCount >= 2,
+            $"Expected the coalesced ancestor span to refresh both ancestor and descendant records. Rebuilds={telemetry.VisualRecordRebuildCount}, last={telemetry.LastRecordedVisualType}#{telemetry.LastRecordedVisualName}.");
+    }
+
+    [Fact]
     public void VisualRecords_TransformInvalidationReusesContentRecords()
     {
         var root = new Panel();

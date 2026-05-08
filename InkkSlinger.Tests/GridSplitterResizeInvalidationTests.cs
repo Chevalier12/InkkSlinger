@@ -135,7 +135,7 @@ public sealed class GridSplitterResizeInvalidationTests
         RunLayout(uiRoot, 260, 240, 32);
 
         Assert.True(innerGrid.ArrangeCallCount > innerArrangeBefore);
-        Assert.Equal(pinnedArrangeBefore, pinnedBadge.ArrangeOverrideCount);
+        Assert.Equal(pinnedArrangeBefore + 1, pinnedBadge.ArrangeOverrideCount);
         Assert.True(pinnedBadge.LayoutSlot.X < pinnedXBefore);
     }
 
@@ -266,7 +266,7 @@ public sealed class GridSplitterResizeInvalidationTests
     }
 
     [Fact]
-    public void DescendantMeasureChange_ThatKeepsGridDesiredSizeStable_CurrentlyRebubblesParentMeasure()
+    public void DescendantMeasureChange_ThatKeepsGridDesiredSizeStable_DoesNotRebubbleParentMeasure()
     {
         var dynamicChild = new DynamicDesiredSizeElement(80f, 32f);
         var grid = CreateStableDesiredSizeGrid(dynamicChild, stableHeight: 72f);
@@ -283,13 +283,13 @@ public sealed class GridSplitterResizeInvalidationTests
 
         dynamicChild.SetDesiredHeight(56f);
 
-        Assert.True(host.NeedsMeasure);
-        Assert.True(grid.NeedsMeasure);
+        Assert.False(host.NeedsMeasure);
+        Assert.False(grid.NeedsMeasure);
 
         RunLayout(uiRoot, 640, 480, 32);
 
-        Assert.True(host.MeasureOverrideCount > hostMeasureBefore);
-        Assert.True(grid.MeasureCallCount > gridMeasureBefore);
+        Assert.Equal(hostMeasureBefore, host.MeasureOverrideCount);
+        Assert.Equal(gridMeasureBefore, grid.MeasureCallCount);
     }
 
     [Fact]

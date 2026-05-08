@@ -104,6 +104,51 @@ public sealed class MouseEnterLeavePhase3Tests
         Assert.Equal(1, leaveAction.InvokeCount);
     }
 
+    [Fact]
+    public void HoveringChild_SetsIsMouseOverOnAncestorRoute()
+    {
+        var hoverBackground = new Color(0x24, 0x27, 0x2C);
+        var rowStyle = new Style(typeof(Border));
+        rowStyle.Setters.Add(new Setter(Border.BackgroundProperty, Color.Transparent));
+        var hoverTrigger = new Trigger(UIElement.IsMouseOverProperty, true);
+        hoverTrigger.Setters.Add(new Setter(Border.BackgroundProperty, hoverBackground));
+        rowStyle.Triggers.Add(hoverTrigger);
+
+        var root = new Canvas();
+        var row = new Border
+        {
+            Width = 180f,
+            Height = 64f,
+            Style = rowStyle,
+            Child = new Button
+            {
+                Width = 140f,
+                Height = 40f,
+                Content = "Project"
+            }
+        };
+
+        Canvas.SetLeft(row, 20f);
+        Canvas.SetTop(row, 20f);
+        root.AddChild(row);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, width: 260, height: 140, elapsedMs: 16);
+
+        var hoverPoint = new Vector2(row.LayoutSlot.X + 40f, row.LayoutSlot.Y + 24f);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(hoverPoint, pointerMoved: true));
+
+        Assert.True(row.IsMouseOver);
+        Assert.True(((Button)row.Child!).IsMouseOver);
+        Assert.Equal(hoverBackground, Assert.IsType<SolidColorBrush>(row.Background).Color);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(new Vector2(240f, 120f), pointerMoved: true));
+
+        Assert.False(row.IsMouseOver);
+        Assert.False(((Button)row.Child!).IsMouseOver);
+        Assert.Equal(Color.Transparent, Assert.IsType<SolidColorBrush>(row.Background).Color);
+    }
+
     private static InputDelta CreatePointerDelta(Vector2 pointer, bool pointerMoved)
     {
         return new InputDelta

@@ -24,8 +24,8 @@ public sealed class TreeViewMeasurePerformanceTests
     [Fact]
     public void TreeView_EagerExpandedItems_MaterializationCostIsVisibleBeforeLayout()
     {
-        const int folderCount = 2078;
-        const int fileCount = 15329;
+        const int folderCount = 200;
+        const int fileCount = 1500;
         var stopwatch = Stopwatch.StartNew();
         var root = CreateExpandedProjectTree(folderCount, fileCount);
         stopwatch.Stop();

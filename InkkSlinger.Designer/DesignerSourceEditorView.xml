@@ -422,6 +422,7 @@
 
     <Popup x:Name="CompletionPopup"
            Style="{StaticResource CompletionPopupStyle}"
+           DismissOnOutsideClick="True"
            MaxHeight="260">
       <ListBox x:Name="CompletionListBox"
                Style="{StaticResource CompletionListBoxStyle}" />

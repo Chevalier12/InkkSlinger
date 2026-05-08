@@ -169,12 +169,7 @@ public class Control : FrameworkElement, ICommandSource
             typeof(Control),
             new FrameworkPropertyMetadata(VerticalAlignment.Top, FrameworkPropertyMetadataOptions.AffectsArrange));
 
-    public static readonly DependencyProperty IsMouseOverProperty =
-        DependencyProperty.Register(
-            nameof(IsMouseOver),
-            typeof(bool),
-            typeof(Control),
-            new FrameworkPropertyMetadata(false));
+    public new static readonly DependencyProperty IsMouseOverProperty = UIElement.IsMouseOverProperty;
 
     public static readonly DependencyProperty IsPressedProperty =
         DependencyProperty.Register(
@@ -362,7 +357,7 @@ public class Control : FrameworkElement, ICommandSource
         set => SetValue(VerticalContentAlignmentProperty, value);
     }
 
-    public bool IsMouseOver
+    public new bool IsMouseOver
     {
         get => GetValue<bool>(IsMouseOverProperty);
         set => SetValue(IsMouseOverProperty, value);

@@ -258,12 +258,7 @@ public class Button : ContentControl
             typeof(Button),
             new FrameworkPropertyMetadata(new Thickness(10f, 6f, 10f, 6f), FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public new static readonly DependencyProperty IsMouseOverProperty =
-        DependencyProperty.Register(
-            nameof(IsMouseOver),
-            typeof(bool),
-            typeof(Button),
-            new FrameworkPropertyMetadata(false));
+    public new static readonly DependencyProperty IsMouseOverProperty = UIElement.IsMouseOverProperty;
 
     public new static readonly DependencyProperty IsPressedProperty =
         DependencyProperty.Register(

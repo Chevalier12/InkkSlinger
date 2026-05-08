@@ -756,6 +756,30 @@ public sealed partial class UiRoot
                 return;
             }
 
+            if (LastSynchronizedDirtyRenderSpans.Count > 0)
+            {
+                for (var i = 0; i < LastSynchronizedDirtyRenderSpans.Count; i++)
+                {
+                    var span = LastSynchronizedDirtyRenderSpans[i];
+                    if ((uint)span.StartIndex >= (uint)RetainedRenderList.Count ||
+                        span.EndIndexExclusive < span.StartIndex ||
+                        span.EndIndexExclusive > RetainedRenderList.Count)
+                    {
+                        RefreshAllVisualRecords();
+                        _lastSyncUsedFullVisualRecordRefresh = false;
+                        return;
+                    }
+
+                    for (var nodeIndex = span.StartIndex; nodeIndex < span.EndIndexExclusive; nodeIndex++)
+                    {
+                        _ = VisualRecords.RecordOrReuse(RetainedRenderList[nodeIndex].Visual);
+                        _visualRecordTouchedCount++;
+                    }
+                }
+
+                return;
+            }
+
             for (var i = 0; i < LastCompletedSynchronizedDirtyRenderRoots.Count; i++)
             {
                 var root = LastCompletedSynchronizedDirtyRenderRoots[i];
@@ -1301,7 +1325,8 @@ public sealed partial class UiRoot
 
         private static bool IsTransformScrollContent(UIElement visual)
         {
-            return visual is IScrollTransformContent or VirtualizingStackPanel;
+            return visual is VirtualizingStackPanel ||
+                   visual is IScrollTransformContent && ScrollViewer.GetUseTransformContentScrolling(visual);
         }
 
         private static bool TryGetTransformFromVisualToRoot(UIElement element, out Matrix transform)

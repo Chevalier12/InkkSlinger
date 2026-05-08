@@ -26,6 +26,7 @@ public sealed partial class UiRoot
     private HitTestMetrics? _lastPointerResolveHitTestMetrics;
     private bool _lastPointerResolveUsedFullHitTest;
     private readonly HashSet<UIElement> _inputMouseOverElements = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<UIElement> _inputElementMouseOverElements = new(ReferenceEqualityComparer.Instance);
     private ContextMenu? _lastKnownOpenContextMenu;
     private int _overlayCandidateVersion;
     private OverlayCandidate _cachedTopOverlayCandidate;
@@ -852,12 +853,14 @@ public sealed partial class UiRoot
 
         if (previousHovered is TreeViewItem && hovered is TreeViewItem)
         {
+            ApplyElementMouseOverRoute(hovered);
             SetHoverState(previousHovered, isMouseOver: false);
             _inputState.HoveredElement = hovered;
             SetHoverState(hovered, isMouseOver: true);
             return;
         }
 
+        ApplyElementMouseOverRoute(hovered);
         SetHoverState(previousHovered, isMouseOver: false);
 
         _inputState.HoveredElement = hovered;
@@ -1078,6 +1081,51 @@ public sealed partial class UiRoot
                 }
                 return;
             }
+        }
+    }
+
+    private void ApplyElementMouseOverRoute(UIElement? hovered)
+    {
+        HashSet<UIElement>? currentRoute = null;
+        for (var current = hovered; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            currentRoute ??= new HashSet<UIElement>(ReferenceEqualityComparer.Instance);
+            currentRoute.Add(current);
+        }
+
+        if (_inputElementMouseOverElements.Count > 0)
+        {
+            List<UIElement>? staleElements = null;
+            foreach (var element in _inputElementMouseOverElements)
+            {
+                if (currentRoute != null && currentRoute.Contains(element))
+                {
+                    continue;
+                }
+
+                staleElements ??= new List<UIElement>();
+                staleElements.Add(element);
+            }
+
+            if (staleElements != null)
+            {
+                foreach (var staleElement in staleElements)
+                {
+                    staleElement.SetElementMouseOverFromInput(false);
+                    _inputElementMouseOverElements.Remove(staleElement);
+                }
+            }
+        }
+
+        if (currentRoute == null)
+        {
+            return;
+        }
+
+        foreach (var element in currentRoute)
+        {
+            element.SetElementMouseOverFromInput(true);
+            _inputElementMouseOverElements.Add(element);
         }
     }
 

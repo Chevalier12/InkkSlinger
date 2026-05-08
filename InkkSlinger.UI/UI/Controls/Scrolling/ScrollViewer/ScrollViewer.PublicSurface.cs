@@ -59,6 +59,10 @@ public partial class ScrollViewer
     public static void SetIsTransformContentLayerStable(UIElement element, bool value)
     {
         element.SetValue(IsTransformContentLayerStableProperty, value);
+        if (value)
+        {
+            SetUseTransformContentScrolling(element, true);
+        }
     }
 
     public override IEnumerable<UIElement> GetVisualChildren()

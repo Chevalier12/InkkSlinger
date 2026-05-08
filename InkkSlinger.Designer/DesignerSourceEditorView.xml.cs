@@ -163,6 +163,8 @@ public partial class DesignerSourceEditorView : UserControl
         CompletionListBox.SelectionChanged += OnCompletionListSelectionChanged;
         SourceMinimap.NavigateRequested += OnSourceMinimapNavigateRequested;
         CompletionListBox.AddHandler<MouseRoutedEventArgs>(UIElement.MouseUpEvent, OnCompletionListMouseUp, handledEventsToo: true);
+        AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseDownEvent, OnPreviewMouseDownDismissCompletion, handledEventsToo: true);
+        AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonDownEvent, OnPreviewMouseDownDismissCompletion, handledEventsToo: true);
         AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonDownEvent, OnSourceMinimapPreviewMouseLeftButtonDown, handledEventsToo: true);
         AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseMoveEvent, OnSourceMinimapPreviewMouseMove, handledEventsToo: true);
         AddHandler<MouseRoutedEventArgs>(UIElement.PreviewMouseLeftButtonUpEvent, OnSourceMinimapPreviewMouseLeftButtonUp, handledEventsToo: true);
@@ -230,6 +232,11 @@ public partial class DesignerSourceEditorView : UserControl
     public void DismissControlCompletion()
     {
         DismissCompletionPopup();
+    }
+
+    public bool ContainsControlCompletionElement(UIElement element)
+    {
+        return IsWithinCompletionPopup(element) || IsWithinSourceEditor(element);
     }
 
     public DesignerSourceEditorViewRuntimeDiagnosticsSnapshot GetDesignerSourceEditorViewSnapshotForDiagnostics()
@@ -1104,6 +1111,20 @@ public partial class DesignerSourceEditorView : UserControl
         }
 
         if (args.NewFocus != null && IsWithinCompletionPopup(args.NewFocus))
+        {
+            return;
+        }
+
+        DismissCompletionPopup();
+    }
+
+    private void OnPreviewMouseDownDismissCompletion(object? sender, MouseRoutedEventArgs args)
+    {
+        _ = sender;
+        if (!IsControlCompletionOpen ||
+            args.OriginalSource is not UIElement source ||
+            IsWithinCompletionPopup(source) ||
+            IsWithinSourceEditor(source))
         {
             return;
         }
@@ -2535,6 +2556,19 @@ public partial class DesignerSourceEditorView : UserControl
         for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
         {
             if (ReferenceEquals(current, CompletionPopup))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsWithinSourceEditor(UIElement element)
+    {
+        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (ReferenceEquals(current, SourceEditor))
             {
                 return true;
             }

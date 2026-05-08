@@ -365,7 +365,7 @@ public partial class DesignerHostView : UserControl
     {
         foreach (var button in FindDescendants<Button>(recentRow))
         {
-            if (!string.Equals(button.Name, "RecentProjectRemoveButton", StringComparison.Ordinal))
+            if (string.Equals(button.Name, "RecentProjectOpenButton", StringComparison.Ordinal))
             {
                 return button;
             }

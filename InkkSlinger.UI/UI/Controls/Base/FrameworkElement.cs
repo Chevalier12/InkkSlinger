@@ -1035,6 +1035,7 @@ public class FrameworkElement : UIElement
 
         _arrangeWorkCount++;
         IncrementAggregate(ref _diagArrangeWorkCount);
+        var previousArrangeRect = _arrangeRect;
         _arrangeRect = effectiveFinalRect;
         var arrangeStart = Stopwatch.GetTimestamp();
         var arrangeChildTickStack = _activeArrangeChildTickStack ??= new List<long>();
@@ -1051,7 +1052,7 @@ public class FrameworkElement : UIElement
             return;
         }
 
-        if (CanRepairDescendantArrangeWithoutSelfArrange(effectiveFinalRect, requiresArrangeRemeasure) &&
+        if (CanRepairDescendantArrangeWithoutSelfArrange(previousArrangeRect, effectiveFinalRect, requiresArrangeRemeasure) &&
             TryRepairDescendantArrangeOnlySubtree())
         {
             _lastArrangedDesiredSize = DesiredSize;
@@ -1179,13 +1180,16 @@ public class FrameworkElement : UIElement
         return true;
     }
 
-    private bool CanRepairDescendantArrangeWithoutSelfArrange(LayoutRect effectiveFinalRect, bool requiresArrangeRemeasure)
+    private bool CanRepairDescendantArrangeWithoutSelfArrange(
+        LayoutRect previousArrangeRect,
+        LayoutRect effectiveFinalRect,
+        bool requiresArrangeRemeasure)
     {
         return _isMeasureValid &&
                _isArrangeValid &&
                !NeedsMeasure &&
                !requiresArrangeRemeasure &&
-               AreRectsEqual(_arrangeRect, effectiveFinalRect);
+               AreRectsEqual(previousArrangeRect, effectiveFinalRect);
     }
 
     private bool TryRepairDescendantArrangeOnlySubtree()
