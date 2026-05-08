@@ -99,9 +99,9 @@ public sealed class DesignerHierarchyViewTests
         Assert.Contains("_graphLayer.Height = _workspaceLogicalHeight;", match.Value);
         Assert.DoesNotContain("_graphLayer.Width = layout.CanvasWidth;", match.Value);
         Assert.DoesNotContain("_graphLayer.Height = layout.CanvasHeight;", match.Value);
-        Assert.Contains("_graphLayer.Zoom = layout.Zoom;", match.Value);
-        Assert.Contains("Canvas.SetLeft(_graphLayer, layout.LeftOffset);", match.Value);
-        Assert.Contains("Canvas.SetTop(_graphLayer, layout.TopOffset);", match.Value);
+        Assert.Contains("_graphLayer.SetZoomTransform(layout.Zoom, layout.LeftOffset, layout.TopOffset);", match.Value);
+        Assert.Contains("Canvas.SetLeft(_graphLayer, 0f);", match.Value);
+        Assert.Contains("Canvas.SetTop(_graphLayer, 0f);", match.Value);
         Assert.DoesNotContain("UpdateNodeLayout", match.Value);
         Assert.DoesNotContain("UpdateConnectorLayout", match.Value);
     }
@@ -121,7 +121,7 @@ public sealed class DesignerHierarchyViewTests
 
         Assert.True(match.Success, "Expected to find DesignerHierarchyWorkspaceCanvas in DesignerHierarchyView.xml.cs.");
         Assert.Contains("protected override Vector2 MeasureOverride(Vector2 availableSize)", match.Value);
-        Assert.Contains("return new Vector2(_extentWidth, _extentHeight);", match.Value);
+        Assert.Contains("return new Vector2(_logicalExtentWidth, _logicalExtentHeight);", match.Value);
         Assert.DoesNotContain("frameworkChild.Measure", match.Value);
         Assert.DoesNotContain("child.Measure", match.Value);
         Assert.Contains("protected override Vector2 ArrangeOverride(Vector2 finalSize)", match.Value);

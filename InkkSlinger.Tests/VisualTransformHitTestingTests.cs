@@ -1,4 +1,5 @@
 using System.Linq;
+using InkkSlinger.Designer;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Xunit;
@@ -7,6 +8,159 @@ namespace InkkSlinger.Tests;
 
 public sealed class VisualTransformHitTestingTests
 {
+    [Fact]
+    public void HierarchySurfaces_OptIntoTransformStableScrollCompositionLayer()
+    {
+        var lab = new HierarchyLabView();
+        var labWorkspace = Assert.IsType<HierarchyLabWorkspaceCanvas>(lab.FindName("HierarchyLabWorkspace"));
+        var labGraphLayer = Assert.IsType<HierarchyLabGraphLayerCanvas>(lab.FindName("HierarchyLabGraphLayer"));
+
+        var designer = new DesignerHierarchyView();
+        var designerWorkspace = Assert.IsType<DesignerHierarchyWorkspaceCanvas>(designer.FindName("HierarchyCanvas"));
+        var designerGraphLayer = Assert.IsType<DesignerHierarchyView.GraphLayerCanvas>(designer.FindName("HierarchyGraphLayer"));
+
+        Assert.True(ScrollViewer.GetIsTransformContentLayerStable(labWorkspace));
+        Assert.True(ScrollViewer.GetIsTransformContentLayerStable(designerWorkspace));
+        Assert.Equal(RetainedCompositionCacheMode.None, labGraphLayer.RetainedCompositionCacheMode);
+        Assert.Equal(RetainedCompositionCacheMode.None, designerGraphLayer.RetainedCompositionCacheMode);
+    }
+
+    [Fact]
+    public void HierarchyLab_RepeatedZoom_DoesNotIncreaseMeasureInvalidationPerStep()
+    {
+        var view = new HierarchyLabView();
+        var root = new Panel();
+        root.AddChild(view);
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 1280, 820, 16);
+
+        var workspace = Assert.IsType<HierarchyLabWorkspaceCanvas>(view.FindName("HierarchyLabWorkspace"));
+
+        var workspaceInvalidationsPerStep = new List<long>();
+        var frameworkInvalidationsPerStep = new List<long>();
+        foreach (var zoom in new[] { 0.5f, 0.625f, 0.78f, 0.975f, 1.22f, 1.52f })
+        {
+            var workspaceBefore = workspace.GetFrameworkElementSnapshotForDiagnostics();
+            _ = FrameworkElement.GetTelemetryAndReset();
+
+            SetHierarchyLabZoom(view, zoom);
+            RunLayout(uiRoot, 1280, 820, 32);
+
+            var workspaceAfter = workspace.GetFrameworkElementSnapshotForDiagnostics();
+            var frameworkTelemetry = FrameworkElement.GetTelemetryAndReset();
+            workspaceInvalidationsPerStep.Add(workspaceAfter.InvalidateMeasureCallCount - workspaceBefore.InvalidateMeasureCallCount);
+            frameworkInvalidationsPerStep.Add(frameworkTelemetry.InvalidateMeasureCallCount);
+        }
+
+        var firstWorkspaceDelta = workspaceInvalidationsPerStep[0];
+        const long maximumFrameworkMeasureInvalidationsPerZoomStep = 3;
+        Assert.All(
+            workspaceInvalidationsPerStep,
+            delta => Assert.True(
+                delta <= firstWorkspaceDelta,
+                $"Hierarchy workspace zoom should not accumulate extra measure invalidations per step. " +
+                $"first={firstWorkspaceDelta}, deltas={string.Join(",", workspaceInvalidationsPerStep)}."));
+        Assert.All(
+            frameworkInvalidationsPerStep,
+            delta => Assert.True(
+                delta <= maximumFrameworkMeasureInvalidationsPerZoomStep,
+                $"Hierarchy zoom should keep aggregate framework measure invalidation bounded to scrollbar/metric repair. " +
+                $"maximum={maximumFrameworkMeasureInvalidationsPerZoomStep}, deltas={string.Join(",", frameworkInvalidationsPerStep)}."));
+    }
+
+    [Fact]
+    public void HierarchyLab_TransformOnlyZoom_UsesBoundedCompositionWorkAndPreservesHitTestingAfterScroll()
+    {
+        var view = new HierarchyLabView();
+        var root = new Panel();
+        root.AddChild(view);
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 1280, 820, 16);
+
+        var scrollViewer = Assert.IsType<ScrollViewer>(view.FindName("HierarchyLabScrollViewer"));
+        var workspace = Assert.IsType<HierarchyLabWorkspaceCanvas>(view.FindName("HierarchyLabWorkspace"));
+        var graphLayer = Assert.IsType<HierarchyLabGraphLayerCanvas>(view.FindName("HierarchyLabGraphLayer"));
+        var node52 = Assert.IsType<Button>(view.FindName("HierarchyLabNode52"));
+        var node62 = Assert.IsType<Button>(view.FindName("HierarchyLabNode62"));
+
+        PrepareRetainedGraphTest(uiRoot, root);
+        var workspaceCompositionNode = uiRoot.GetCompositionGraphForTests().Nodes.First(node => ReferenceEquals(node.Visual, workspace));
+        var graphLayerRecordBefore = uiRoot.GetVisualRecordForTests(graphLayer);
+        var workspaceMeasureInvalidationBefore = workspace.GetFrameworkElementSnapshotForDiagnostics().InvalidateMeasureCallCount;
+        uiRoot.GetTelemetryAndReset();
+
+        Assert.Equal(RetainedCompositionCacheMode.TransformStableLayer, workspaceCompositionNode.CacheMode);
+
+        SetHierarchyLabZoom(view, 2.5f);
+        SynchronizeAndRecord(uiRoot);
+
+        var retained = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+        var rootMetrics = uiRoot.GetMetricsSnapshot();
+        var workspaceMeasureInvalidationAfter = workspace.GetFrameworkElementSnapshotForDiagnostics().InvalidateMeasureCallCount;
+        Assert.Equal(workspaceMeasureInvalidationBefore, workspaceMeasureInvalidationAfter);
+        Assert.True(retained.TransformMetadataUpdateCount >= 1);
+        Assert.True(
+            rootMetrics.LastRetainedDirtyVisualCount <= 3,
+            $"transform-only zoom should keep retained sync anchored to the workspace/layer metadata, " +
+            $"not the graph children. actual={rootMetrics.LastRetainedDirtyVisualCount}");
+        Assert.Same(graphLayerRecordBefore, uiRoot.GetVisualRecordForTests(graphLayer));
+
+        RunLayout(uiRoot, 1280, 820, 32);
+        Assert.True(node62.TryGetRenderBoundsInRootSpace(out var unscrolledNode62Bounds));
+        scrollViewer.ScrollToHorizontalOffset(MathF.Max(0f, GetCenter(unscrolledNode62Bounds).X - 600f));
+        scrollViewer.ScrollToVerticalOffset(scrollViewer.ScrollableHeight);
+        RunLayout(uiRoot, 1280, 820, 48);
+
+        Assert.True(node62.TryGetRenderBoundsInRootSpace(out var node62Bounds));
+        var probe = GetCenter(node62Bounds);
+        var hit = VisualTreeHelper.HitTest(root, probe, out var metrics);
+
+        Assert.True(
+            IsDescendantOrSelf(node62, hit),
+            $"expected Node62; actual={Describe(hit)} probe={probe} node62Bounds={Format(node62Bounds)} " +
+            $"viewerOffset={scrollViewer.VerticalOffset:0.###} node52Hit={node52.HitTest(probe)} node62Hit={node62.HitTest(probe)} metrics={metrics}");
+        Assert.False(node52.HitTest(probe));
+    }
+
+    [Fact]
+    public void HitTest_NonTransformScrollViewerOptOut_StillUsesArrangedScrollOffset()
+    {
+        var root = new Panel();
+        var content = new StackPanel();
+        ScrollViewer.SetUseTransformContentScrolling(content, false);
+
+        var first = new Button { Height = 40f };
+        var second = new Button { Height = 40f };
+        var third = new Button { Height = 40f };
+        content.AddChild(first);
+        content.AddChild(second);
+        content.AddChild(third);
+
+        var viewer = new ScrollViewer
+        {
+            Width = 180f,
+            Height = 90f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 220, 16);
+
+        viewer.ScrollToVerticalOffset(40f);
+        RunLayout(uiRoot, 320, 220, 32);
+
+        var probe = GetCenter(second.LayoutSlot);
+        var hit = VisualTreeHelper.HitTest(root, probe);
+
+        Assert.False(content.HasLocalRenderTransform());
+        Assert.True(IsDescendantOrSelf(second, hit));
+        Assert.False(first.HitTest(probe));
+        Assert.False(third.HitTest(probe));
+    }
+
     [Fact]
     public void HitTest_UsesAncestorTransformForChildGeometry()
     {
@@ -362,6 +516,109 @@ public sealed class VisualTransformHitTestingTests
     }
 
     [Fact]
+    public void Zoom_HierarchyLabApplyZoom_AfterRetainedPreparation_ComposesMetadataAndScopedDirtyRecords()
+    {
+        var view = new HierarchyLabView();
+        var root = new Panel();
+        root.AddChild(view);
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 1280, 820, 16);
+        PrepareRetainedGraphTest(uiRoot, root);
+
+        SetHierarchyLabZoom(view, 1.12f);
+        SynchronizeAndRecord(uiRoot);
+
+        var telemetry = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+        Assert.True(
+            telemetry.LastCompositionPrimaryMode == "MetadataAndDirtyRecords",
+            $"mode={telemetry.LastCompositionPrimaryMode} reason={telemetry.LastCompositionPrimaryReason} " +
+            $"recordPass={telemetry.LastCompositionRecordPassCount} metadataPass={telemetry.LastCompositionMetadataPassCount} " +
+            $"fullPass={telemetry.LastCompositionFullPassCount} fullFrames={telemetry.FullCompositionFrameCount} " +
+            $"metadataUpdates={telemetry.CompositionMetadataUpdateCount} transformUpdates={telemetry.TransformMetadataUpdateCount} " +
+            $"metadataMiss={telemetry.CompositionMetadataUpdateMissCount} lastMetadata={telemetry.LastCompositionMetadataUpdateSource}/{telemetry.LastCompositionMetadataUpdateKind} " +
+            $"visualRebuilds={telemetry.VisualRecordRebuildCount} visualReuse={telemetry.VisualRecordReuseCount} " +
+            $"lastRecorded={telemetry.LastRecordedVisualType}#{telemetry.LastRecordedVisualName} " +
+            $"dirtyRoots={uiRoot.GetLastSynchronizedDirtyRootSummaryForTests(12)}");
+        Assert.Equal("composition-metadata-and-dirty-records", telemetry.LastCompositionPrimaryReason);
+        Assert.Equal(0, telemetry.FullCompositionFrameCount);
+        Assert.True(telemetry.VisualRecordRebuildCount <= 2);
+        Assert.True(telemetry.VisualRecordReuseCount <= 1);
+        Assert.Equal(0, telemetry.CompositionMetadataUpdateMissCount);
+    }
+
+    [Fact]
+    public void Zoom_HierarchyLabApplyZoom_SecondZoomStillUsesScopedDirtyRecords()
+    {
+        var view = new HierarchyLabView();
+        var root = new Panel();
+        root.AddChild(view);
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 1280, 820, 16);
+        PrepareRetainedGraphTest(uiRoot, root);
+
+        SetHierarchyLabZoom(view, 1.12f);
+        SynchronizeAndRecord(uiRoot);
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.GetTelemetryAndReset();
+
+        SetHierarchyLabZoom(view, 1.2544f);
+        SynchronizeAndRecord(uiRoot);
+
+        var telemetry = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+        Assert.True(
+            telemetry.LastCompositionPrimaryMode == "MetadataAndDirtyRecords",
+            $"mode={telemetry.LastCompositionPrimaryMode} reason={telemetry.LastCompositionPrimaryReason} " +
+            $"recordPass={telemetry.LastCompositionRecordPassCount} metadataPass={telemetry.LastCompositionMetadataPassCount} " +
+            $"fullPass={telemetry.LastCompositionFullPassCount} fullFrames={telemetry.FullCompositionFrameCount} " +
+            $"metadataUpdates={telemetry.CompositionMetadataUpdateCount} transformUpdates={telemetry.TransformMetadataUpdateCount} " +
+            $"metadataMiss={telemetry.CompositionMetadataUpdateMissCount} lastMetadata={telemetry.LastCompositionMetadataUpdateSource}/{telemetry.LastCompositionMetadataUpdateKind} " +
+            $"visualRebuilds={telemetry.VisualRecordRebuildCount} visualReuse={telemetry.VisualRecordReuseCount} " +
+            $"lastRecorded={telemetry.LastRecordedVisualType}#{telemetry.LastRecordedVisualName} " +
+            $"dirtyRoots={uiRoot.GetLastSynchronizedDirtyRootSummaryForTests(12)}");
+        Assert.Equal("composition-metadata-and-dirty-records", telemetry.LastCompositionPrimaryReason);
+        Assert.Equal(0, telemetry.FullCompositionFrameCount);
+        Assert.True(telemetry.VisualRecordRebuildCount <= 2);
+        Assert.True(telemetry.VisualRecordReuseCount <= 1);
+        Assert.Equal(0, telemetry.CompositionMetadataUpdateMissCount);
+    }
+
+    [Fact]
+    public void Zoom_HierarchyLabApplyZoom_WithScrollBarsDisabled_OnlyTouchesScrollViewerRecord()
+    {
+        var view = new HierarchyLabView();
+        var scrollViewer = Assert.IsType<ScrollViewer>(view.FindName("HierarchyLabScrollViewer"));
+        scrollViewer.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+        scrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+
+        var root = new Panel();
+        root.AddChild(view);
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 1280, 820, 16);
+        PrepareRetainedGraphTest(uiRoot, root);
+
+        SetHierarchyLabZoom(view, 1.12f);
+        SynchronizeAndRecord(uiRoot);
+
+        var telemetry = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+        Assert.True(
+            telemetry.LastCompositionPrimaryMode == "MetadataAndDirtyRecords",
+            $"mode={telemetry.LastCompositionPrimaryMode} reason={telemetry.LastCompositionPrimaryReason} " +
+            $"recordPass={telemetry.LastCompositionRecordPassCount} metadataPass={telemetry.LastCompositionMetadataPassCount} " +
+            $"fullPass={telemetry.LastCompositionFullPassCount} fullFrames={telemetry.FullCompositionFrameCount} " +
+            $"metadataUpdates={telemetry.CompositionMetadataUpdateCount} transformUpdates={telemetry.TransformMetadataUpdateCount} " +
+            $"metadataMiss={telemetry.CompositionMetadataUpdateMissCount} lastMetadata={telemetry.LastCompositionMetadataUpdateSource}/{telemetry.LastCompositionMetadataUpdateKind} " +
+            $"visualRebuilds={telemetry.VisualRecordRebuildCount} visualReuse={telemetry.VisualRecordReuseCount} " +
+            $"lastRecorded={telemetry.LastRecordedVisualType}#{telemetry.LastRecordedVisualName} " +
+            $"dirtyRoots={uiRoot.GetLastSynchronizedDirtyRootSummaryForTests(12)}");
+        Assert.Equal("composition-metadata-and-dirty-records", telemetry.LastCompositionPrimaryReason);
+        Assert.Equal(0, telemetry.FullCompositionFrameCount);
+        Assert.True(telemetry.VisualRecordRebuildCount <= 1);
+        Assert.True(telemetry.VisualRecordReuseCount <= 1);
+    }
+
+    [Fact]
     public void ScrollLayoutMutation_HierarchyLabNode62_AtBottomMaximumZoom_DoesNotKeepNode52Hover()
     {
         var view = new HierarchyLabView();
@@ -551,6 +808,22 @@ public sealed class VisualTransformHitTestingTests
         var method = typeof(HierarchyLabView).GetMethod("ApplyZoom", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         Assert.NotNull(method);
         method.Invoke(view, null);
+    }
+
+    private static void PrepareRetainedGraphTest(UiRoot uiRoot, UIElement root)
+    {
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.UpdateVisualRecordsForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.GetTelemetryAndReset();
+    }
+
+    private static void SynchronizeAndRecord(UiRoot uiRoot)
+    {
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        uiRoot.UpdateVisualRecordsForTests();
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)

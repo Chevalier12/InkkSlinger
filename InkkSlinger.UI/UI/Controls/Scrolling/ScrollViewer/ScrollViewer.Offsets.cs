@@ -287,12 +287,32 @@ public partial class ScrollViewer
     {
         _diagSetOffsetsTransformInvalidationPathCount++;
         _runtimeSetOffsetsTransformInvalidationPathCount++;
-        RecordTransformScrollDirtyHintFrame();
+        NotifyTransformContentRenderChanged();
+    }
+
+    private void NotifyTransformContentRenderChanged()
+    {
         if (TryGetContentViewportClipRect(out var contentViewport))
         {
-            UiRoot.Current?.NotifyScrollViewportChanged(this, contentViewport);
+            NotifyTransformContentRenderChanged(contentViewport);
         }
         else if (ContentElement is UIElement contentElement)
+        {
+            RecordTransformScrollDirtyHintFrame();
+            UiRoot.Current?.NotifyDirectRenderInvalidation(contentElement);
+        }
+    }
+
+    private void NotifyTransformContentRenderChanged(LayoutRect contentViewport)
+    {
+        RecordTransformScrollDirtyHintFrame();
+        if (HasTransformStableLayerContent())
+        {
+            UiRoot.Current?.NotifyScrollViewportChanged(this, contentViewport);
+            return;
+        }
+
+        if (ContentElement is UIElement contentElement)
         {
             UiRoot.Current?.NotifyDirectRenderInvalidation(contentElement);
         }

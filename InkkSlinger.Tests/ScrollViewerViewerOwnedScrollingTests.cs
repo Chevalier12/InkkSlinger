@@ -391,6 +391,75 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
+    public void TransformStableLayer_ContentScrollViewportInvalidation_ComposesMetadataOnly()
+    {
+        var root = new Panel();
+        var content = CreateTransformStableCanvas();
+        content.Name = "stableContent";
+        var graphLayer = new Canvas { Name = "graphLayer" };
+        graphLayer.Width = 400f;
+        graphLayer.Height = 600f;
+        content.AddChild(graphLayer);
+
+        var viewer = new ScrollViewer
+        {
+            Width = 320f,
+            Height = 200f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = PrepareRetainedScrollTest(root, viewer);
+
+        Assert.True(viewer.TryGetContentViewportClipRect(out var viewportClip));
+        uiRoot.NotifyScrollViewportChanged(viewer, viewportClip);
+        SynchronizeAndRecord(uiRoot);
+
+        var telemetry = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+        Assert.Equal("MetadataOnly", telemetry.LastCompositionPrimaryMode);
+        Assert.Equal("composition-metadata-only", telemetry.LastCompositionPrimaryReason);
+        Assert.Equal("TransformStableCanvas#stableContent", telemetry.LastCompositionMetadataUpdateSource);
+        Assert.Equal(1, telemetry.TransformMetadataUpdateCount);
+        Assert.Equal(0, telemetry.FullCompositionFrameCount);
+    }
+
+    [Fact]
+    public void TransformStableLayer_ChildTransformInvalidation_ComposesMetadataOnly()
+    {
+        var root = new Panel();
+        var content = CreateTransformStableCanvas();
+        content.Name = "stableContent";
+        var graphLayer = new Canvas { Name = "graphLayer" };
+        graphLayer.Width = 400f;
+        graphLayer.Height = 600f;
+        content.AddChild(graphLayer);
+
+        var viewer = new ScrollViewer
+        {
+            Width = 320f,
+            Height = 200f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = PrepareRetainedScrollTest(root, viewer);
+
+        uiRoot.NotifyDirectRenderInvalidation(graphLayer, RenderInvalidationKind.Transform);
+        SynchronizeAndRecord(uiRoot);
+
+        var telemetry = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+        Assert.Equal("MetadataOnly", telemetry.LastCompositionPrimaryMode);
+        Assert.Equal("composition-metadata-only", telemetry.LastCompositionPrimaryReason);
+        Assert.Equal("Canvas#graphLayer", telemetry.LastCompositionMetadataUpdateSource);
+        Assert.Equal(1, telemetry.TransformMetadataUpdateCount);
+        Assert.Equal(0, telemetry.FullCompositionFrameCount);
+    }
+
+    [Fact]
     public void AutoBars_RemainVisible_ForOversizedCanvasContent()
     {
         var root = new Panel();
@@ -826,12 +895,28 @@ public class ScrollViewerViewerOwnedScrollingTests
     private static TransformCapableStackPanel CreateTransformCapableTallStackPanel(int itemCount)
     {
         var panel = new TransformCapableStackPanel();
+        ScrollViewer.SetIsTransformContentLayerStable(panel, true);
         for (var i = 0; i < itemCount; i++)
         {
             panel.AddChild(new Border { Height = 20f, Margin = new Thickness(0f, 0f, 0f, 2f) });
         }
 
         return panel;
+    }
+
+    private static TransformStableCanvas CreateTransformStableCanvas()
+    {
+        var canvas = new TransformStableCanvas
+        {
+            Width = 400f,
+            Height = 600f
+        };
+        ScrollViewer.SetIsTransformContentLayerStable(canvas, true);
+        return canvas;
+    }
+
+    private sealed class TransformStableCanvas : Canvas
+    {
     }
 
     private static UiRoot PrepareRetainedScrollTest(Panel root, ScrollViewer viewer)

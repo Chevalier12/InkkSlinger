@@ -393,11 +393,12 @@ public partial class DesignerHierarchyView : UserControl
         _lastViewportWidth = viewport.X;
         _lastViewportHeight = viewport.Y;
         HierarchyCanvas.ApplyZoomLayout(layout);
+        HierarchyScrollViewer.InvalidateScrollInfo();
         _graphLayer.Width = _workspaceLogicalWidth;
         _graphLayer.Height = _workspaceLogicalHeight;
-        _graphLayer.Zoom = layout.Zoom;
-        Canvas.SetLeft(_graphLayer, layout.LeftOffset);
-        Canvas.SetTop(_graphLayer, layout.TopOffset);
+        _graphLayer.SetZoomTransform(layout.Zoom, layout.LeftOffset, layout.TopOffset);
+        Canvas.SetLeft(_graphLayer, 0f);
+        Canvas.SetTop(_graphLayer, 0f);
     }
 
     private void UpdateGraphLayout()
@@ -557,6 +558,8 @@ public partial class DesignerHierarchyView : UserControl
         var canvasHeight = MathF.Max(scaledHeight, viewportHeight);
         return new HierarchyZoomLayout(
             safeZoom,
+            logicalWidth,
+            logicalHeight,
             canvasWidth,
             canvasHeight,
             MathF.Max(0f, (canvasWidth - scaledWidth) / 2f),
@@ -604,6 +607,8 @@ public partial class DesignerHierarchyView : UserControl
     internal sealed class GraphLayerCanvas : Canvas
     {
         private float _zoom = 1f;
+        private float _visualOffsetX;
+        private float _visualOffsetY;
         private int _renderCallCount;
         private long _renderElapsedTicks;
         private int _localRenderTransformCallCount;
@@ -625,6 +630,24 @@ public partial class DesignerHierarchyView : UserControl
             }
         }
 
+        public void SetZoomTransform(float zoom, float visualOffsetX, float visualOffsetY)
+        {
+            var coercedZoom = MathF.Max(0.001f, zoom);
+            var changed =
+                MathF.Abs(_zoom - coercedZoom) >= 0.0001f ||
+                MathF.Abs(_visualOffsetX - visualOffsetX) >= 0.01f ||
+                MathF.Abs(_visualOffsetY - visualOffsetY) >= 0.01f;
+            if (!changed)
+            {
+                return;
+            }
+
+            _zoom = coercedZoom;
+            _visualOffsetX = visualOffsetX;
+            _visualOffsetY = visualOffsetY;
+            InvalidateTransformMetadata();
+        }
+
         protected override bool TryGetClipRect(out LayoutRect clipRect)
         {
             clipRect = default;
@@ -642,7 +665,9 @@ public partial class DesignerHierarchyView : UserControl
         protected override bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
         {
             _localRenderTransformCallCount++;
-            if (MathF.Abs(_zoom - 1f) < 0.0001f)
+            if (MathF.Abs(_zoom - 1f) < 0.0001f &&
+                MathF.Abs(_visualOffsetX) < 0.01f &&
+                MathF.Abs(_visualOffsetY) < 0.01f)
             {
                 transform = Matrix.Identity;
                 inverseTransform = Matrix.Identity;
@@ -654,11 +679,11 @@ public partial class DesignerHierarchyView : UserControl
             transform =
                 Matrix.CreateTranslation(-originX, -originY, 0f) *
                 Matrix.CreateScale(_zoom, _zoom, 1f) *
-                Matrix.CreateTranslation(originX, originY, 0f);
+                Matrix.CreateTranslation(originX + _visualOffsetX, originY + _visualOffsetY, 0f);
 
             var inverseZoom = 1f / _zoom;
             inverseTransform =
-                Matrix.CreateTranslation(-originX, -originY, 0f) *
+                Matrix.CreateTranslation(-(originX + _visualOffsetX), -(originY + _visualOffsetY), 0f) *
                 Matrix.CreateScale(inverseZoom, inverseZoom, 1f) *
                 Matrix.CreateTranslation(originX, originY, 0f);
             _localRenderTransformActiveCount++;
@@ -695,6 +720,8 @@ public partial class DesignerHierarchyView : UserControl
 
     internal readonly record struct HierarchyZoomLayout(
         float Zoom,
+        float LogicalWidth,
+        float LogicalHeight,
         float CanvasWidth,
         float CanvasHeight,
         float LeftOffset,
@@ -713,34 +740,76 @@ internal readonly record struct DesignerHierarchyGraphLayerRuntimeDiagnosticsSna
     int LocalRenderTransformCallCount,
     int LocalRenderTransformActiveCount);
 
-public sealed class DesignerHierarchyWorkspaceCanvas : Canvas
+public sealed class DesignerHierarchyWorkspaceCanvas : Canvas, IScrollTransformContent, IScrollViewerMeasureConstraintProvider
 {
     private const float DotSpacing = 16f;
     private const float DotSize = 1f;
     private static readonly Color WorkspaceBackground = new(24, 25, 27);
     private static readonly Color WorkspaceDotColor = new(46, 49, 54, 150);
-    private float _extentWidth;
-    private float _extentHeight;
+    private float _logicalExtentWidth;
+    private float _logicalExtentHeight;
+    private float _transformedExtentWidth;
+    private float _transformedExtentHeight;
+    private float _contentScale = 1f;
+
+    public DesignerHierarchyWorkspaceCanvas()
+    {
+        ScrollViewer.SetIsTransformContentLayerStable(this, true);
+    }
+
+    internal float LogicalExtentWidth => _logicalExtentWidth;
+
+    internal float LogicalExtentHeight => _logicalExtentHeight;
+
+    internal float TransformedExtentWidth => _transformedExtentWidth;
+
+    internal float TransformedExtentHeight => _transformedExtentHeight;
+
+    internal float ContentScale => _contentScale;
 
     internal void ApplyZoomLayout(DesignerHierarchyView.HierarchyZoomLayout layout)
     {
-        var nextExtentWidth = MathF.Max(0f, layout.CanvasWidth);
-        var nextExtentHeight = MathF.Max(0f, layout.CanvasHeight);
-        if (!AreClose(_extentWidth, nextExtentWidth) ||
-            !AreClose(_extentHeight, nextExtentHeight))
+        var nextLogicalWidth = MathF.Max(0f, layout.LogicalWidth);
+        var nextLogicalHeight = MathF.Max(0f, layout.LogicalHeight);
+        var logicalExtentChanged =
+            !AreClose(_logicalExtentWidth, nextLogicalWidth) ||
+            !AreClose(_logicalExtentHeight, nextLogicalHeight);
+        if (logicalExtentChanged)
         {
-            _extentWidth = nextExtentWidth;
-            _extentHeight = nextExtentHeight;
+            _logicalExtentWidth = nextLogicalWidth;
+            _logicalExtentHeight = nextLogicalHeight;
             InvalidateMeasure();
         }
 
-        InvalidateVisual();
+        _transformedExtentWidth = MathF.Max(0f, layout.CanvasWidth);
+        _transformedExtentHeight = MathF.Max(0f, layout.CanvasHeight);
+        _contentScale = MathF.Max(0.001f, layout.Zoom);
+    }
+
+    Vector2 IScrollViewerMeasureConstraintProvider.GetScrollViewerMeasureConstraint(
+        float viewportWidth,
+        float viewportHeight,
+        bool canScrollHorizontally,
+        bool canScrollVertically)
+    {
+        return new Vector2(
+            canScrollHorizontally ? float.PositiveInfinity : MathF.Max(0f, viewportWidth),
+            canScrollVertically ? float.PositiveInfinity : MathF.Max(0f, viewportHeight));
+    }
+
+    bool IScrollTransformContent.TryGetScrollTransformContentMetrics(out ScrollTransformContentMetrics metrics)
+    {
+        metrics = new ScrollTransformContentMetrics(
+            new Vector2(_logicalExtentWidth, _logicalExtentHeight),
+            new Vector2(_contentScale, _contentScale),
+            ResolveTransformOffset());
+        return true;
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         _ = availableSize;
-        return new Vector2(_extentWidth, _extentHeight);
+        return new Vector2(_logicalExtentWidth, _logicalExtentHeight);
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
@@ -771,6 +840,12 @@ public sealed class DesignerHierarchyWorkspaceCanvas : Canvas
         return finalSize;
     }
 
+    protected override bool TryGetClipRect(out LayoutRect clipRect)
+    {
+        clipRect = default;
+        return false;
+    }
+
     protected override void OnRender(SpriteBatch spriteBatch)
     {
         base.OnRender(spriteBatch);
@@ -791,6 +866,13 @@ public sealed class DesignerHierarchyWorkspaceCanvas : Canvas
     private static float ResolveOffset(float value)
     {
         return float.IsNaN(value) ? 0f : value;
+    }
+
+    private Vector2 ResolveTransformOffset()
+    {
+        return new Vector2(
+            MathF.Max(0f, (_transformedExtentWidth - (_logicalExtentWidth * _contentScale)) / 2f),
+            MathF.Max(0f, (_transformedExtentHeight - (_logicalExtentHeight * _contentScale)) / 2f));
     }
 
     private static bool AreClose(float left, float right)

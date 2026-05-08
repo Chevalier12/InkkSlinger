@@ -176,6 +176,8 @@ internal sealed class ScrollViewerContentPresenter
             extentWidth = _owner.ContentElementForScrollPresenter?.DesiredSize.X ?? 0f;
             extentHeight = _owner.ContentElementForScrollPresenter?.DesiredSize.Y ?? 0f;
         }
+
+        ApplyTransformContentMetrics(ref extentWidth, ref extentHeight);
         ScrollViewer._diagMeasureContentCallCount++;
         ScrollViewer._diagMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         _owner._runtimeMeasureContentCallCount++;
@@ -226,6 +228,7 @@ internal sealed class ScrollViewerContentPresenter
 
         extentWidth = content.DesiredSize.X;
         extentHeight = content.DesiredSize.Y;
+        ApplyTransformContentMetrics(ref extentWidth, ref extentHeight);
         return true;
     }
 
@@ -234,6 +237,21 @@ internal sealed class ScrollViewerContentPresenter
         return _owner.ContentElementForScrollPresenter is UIElement contentElement &&
                contentElement is IScrollTransformContent &&
                ScrollViewer.GetUseTransformContentScrolling(contentElement);
+    }
+
+    public bool TryGetTransformContentExtent(out float extentWidth, out float extentHeight)
+    {
+        extentWidth = 0f;
+        extentHeight = 0f;
+        if (!UsesTransformBasedScrolling() ||
+            _owner.ContentElementForScrollPresenter is not IScrollTransformContent transformContent ||
+            !transformContent.TryGetScrollTransformContentMetrics(out var metrics))
+        {
+            return false;
+        }
+
+        ApplyTransformContentMetrics(metrics, ref extentWidth, ref extentHeight);
+        return true;
     }
 
     public IScrollInfo? GetLogicalScrollInfo()
@@ -324,6 +342,55 @@ internal sealed class ScrollViewerContentPresenter
                (horizontalAxis
                    ? panel.Orientation == Orientation.Horizontal
                    : panel.Orientation == Orientation.Vertical);
+    }
+
+    private void ApplyTransformContentMetrics(ref float extentWidth, ref float extentHeight)
+    {
+        if (!UsesTransformBasedScrolling() ||
+            _owner.ContentElementForScrollPresenter is not IScrollTransformContent transformContent ||
+            !transformContent.TryGetScrollTransformContentMetrics(out var metrics))
+        {
+            return;
+        }
+
+        ApplyTransformContentMetrics(metrics, ref extentWidth, ref extentHeight);
+    }
+
+    private static void ApplyTransformContentMetrics(ScrollTransformContentMetrics metrics, ref float extentWidth, ref float extentHeight)
+    {
+        var logicalWidth = CoerceNonNegativeFinite(metrics.LogicalExtent.X, extentWidth);
+        var logicalHeight = CoerceNonNegativeFinite(metrics.LogicalExtent.Y, extentHeight);
+        var scaleX = CoerceFinite(metrics.Scale.X, 1f);
+        var scaleY = CoerceFinite(metrics.Scale.Y, 1f);
+        var offsetX = CoerceFinite(metrics.Offset.X, 0f);
+        var offsetY = CoerceFinite(metrics.Offset.Y, 0f);
+        extentWidth = ResolveTransformedExtent(logicalWidth, scaleX, offsetX);
+        extentHeight = ResolveTransformedExtent(logicalHeight, scaleY, offsetY);
+    }
+
+    private static float ResolveTransformedExtent(float logicalExtent, float scale, float offset)
+    {
+        var transformedEnd = offset + (logicalExtent * scale);
+        var min = MathF.Min(0f, MathF.Min(offset, transformedEnd));
+        var max = MathF.Max(0f, MathF.Max(offset, transformedEnd));
+        return MathF.Max(0f, max - min);
+    }
+
+    private static float CoerceFinite(float candidate, float fallback)
+    {
+        return float.IsFinite(candidate) ? candidate : fallback;
+    }
+
+    private static float CoerceNonNegativeFinite(float candidate, float fallback)
+    {
+        if (float.IsFinite(candidate) && candidate >= 0f)
+        {
+            return candidate;
+        }
+
+        return float.IsFinite(fallback) && fallback >= 0f
+            ? fallback
+            : 0f;
     }
 
     private void CacheArrange(FrameworkElement content, LayoutRect arrangeRect)

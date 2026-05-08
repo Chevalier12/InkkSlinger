@@ -368,6 +368,7 @@ public sealed partial class UiRoot
         {
             ResetRetainedSyncTrackingState();
             _lastCompositionMetadataOnlySyncSucceeded = false;
+            _lastCompositionMetadataOnlySyncWasTransformStableLayer = false;
             _lastAncestorMetadataRefreshNodeCount = 0;
             _pendingAncestorMetadataRefreshRoots.Clear();
             CompactDirtyRenderQueueForSync();
@@ -545,6 +546,7 @@ public sealed partial class UiRoot
             _ = BuildRenderSubtree(_visualRoot, traversalOrder: 0, depth: 0, parentNode: null);
             _renderListNeedsFullRebuild = false;
             SynchronizeCompositionTreeFromRetainedList();
+            _lastSyncUsedFullVisualRecordRefresh = true;
             MarkFullFrameDirty(UiFullDirtyReason.RetainedRebuild);
             ClearDirtyRenderQueue();
         }
@@ -1306,9 +1308,45 @@ public sealed partial class UiRoot
 
             var parentIndex = FindRetainedParentIndex(nodeIndex);
             var parentNode = parentIndex >= 0 ? RetainedRenderList[parentIndex] : (RenderNode?)null;
+            if (RetainedCompositionLayerBoundary.IsTransformStableLayer(visual))
+            {
+                RefreshRetainedTransformStableLayerMetadata(nodeIndex, parentNode);
+                RefreshRetainedAncestorSubtreeMetadata(parentIndex);
+                return true;
+            }
+
             _ = RefreshRetainedRenderMetadataSubtree(nodeIndex, parentNode);
             RefreshRetainedAncestorSubtreeMetadata(parentIndex);
             return true;
+        }
+
+        private void RefreshRetainedTransformStableLayerMetadata(int nodeIndex, RenderNode? parentNode)
+        {
+            var previous = RetainedRenderList[nodeIndex];
+            var refreshed = CreateRenderNode(
+                previous.Visual,
+                previous.TraversalOrder,
+                previous.Depth,
+                previous.SubtreeEndIndexExclusive,
+                parentNode);
+
+            var hasSubtreeBounds = RetainedCompositionLayerBoundary.TryGetTransformStableLayerViewport(
+                previous.Visual,
+                out var subtreeBounds);
+            if (!hasSubtreeBounds)
+            {
+                hasSubtreeBounds = refreshed.HasBoundsSnapshot;
+                subtreeBounds = refreshed.BoundsSnapshot;
+            }
+
+            RetainedRenderList[nodeIndex] = refreshed.WithSubtreeMetadata(
+                previous.SubtreeEndIndexExclusive,
+                hasSubtreeBounds,
+                subtreeBounds,
+                previous.SubtreeVisualCount,
+                previous.SubtreeHighCostVisualCount,
+                previous.SubtreeRenderVersionStamp,
+                previous.SubtreeLayoutVersionStamp);
         }
 
         private RenderNode RefreshRetainedRenderMetadataSubtree(int nodeIndex, RenderNode? parentNode)

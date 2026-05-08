@@ -33,7 +33,16 @@ internal sealed class CompositionTreeIndex
 
         if (kind is RenderInvalidationKind.Transform or RenderInvalidationKind.Clip or RenderInvalidationKind.Bounds)
         {
-            RefreshSubtreeMetadataAndBounds(nodes, nodeIndex, refreshCacheKeys: kind == RenderInvalidationKind.Bounds);
+            if (kind is RenderInvalidationKind.Transform or RenderInvalidationKind.Clip &&
+                RetainedCompositionLayerBoundary.IsTransformStableLayer(nodes[nodeIndex].Visual))
+            {
+                RefreshTransformStableLayerMetadata(nodes, nodeIndex);
+            }
+            else
+            {
+                RefreshSubtreeMetadataAndBounds(nodes, nodeIndex, refreshCacheKeys: kind == RenderInvalidationKind.Bounds);
+            }
+
             RefreshAncestorSubtreeBounds(nodes, nodes[nodeIndex].ParentIndex);
             _graph = new RetainedCompositionGraph(nodes, _graph.NodeIndices);
             return true;
@@ -209,7 +218,7 @@ internal sealed class CompositionTreeIndex
             isEffectivelyVisible,
             visual.RenderVersionStamp,
             CreateMetadataVersion(hasLocalTransform, localTransform, hasLocalClip, localClip, opacity, isEffectivelyVisible),
-            visual.RetainedCompositionCacheMode,
+            RetainedCompositionLayerBoundary.ResolveCacheMode(visual),
             CreateSelfCacheKey(visual));
     }
 
@@ -275,7 +284,7 @@ internal sealed class CompositionTreeIndex
             IsEffectivelyVisible(visual),
             visual.RenderVersionStamp,
             CreateMetadataVersion(hasLocalTransform, localTransform, hasLocalClip, localClip, visual.Opacity, visual.IsVisible),
-            visual.RetainedCompositionCacheMode,
+            RetainedCompositionLayerBoundary.ResolveCacheMode(visual),
             CreateSelfCacheKey(visual));
     }
 
@@ -338,6 +347,21 @@ internal sealed class CompositionTreeIndex
         };
 
         return new BoundsSnapshot(hasSubtreeBounds, subtreeBounds);
+    }
+
+    private static void RefreshTransformStableLayerMetadata(RetainedCompositionNode[] nodes, int nodeIndex)
+    {
+        var node = CaptureMetadata(nodes[nodeIndex]);
+        var hasSelfBounds = node.Visual.TryGetRenderBoundsInRootSpace(out var selfBounds);
+        var hasLayerBounds = RetainedCompositionLayerBoundary.TryGetTransformStableLayerViewport(node.Visual, out var layerBounds);
+        nodes[nodeIndex] = node with
+        {
+            HasBounds = hasSelfBounds,
+            Bounds = selfBounds,
+            HasSubtreeBounds = hasLayerBounds || hasSelfBounds,
+            SubtreeBounds = hasLayerBounds ? layerBounds : selfBounds,
+            CacheMode = RetainedCompositionLayerBoundary.ResolveCacheMode(node.Visual)
+        };
     }
 
     private static void RefreshAncestorSubtreeBounds(RetainedCompositionNode[] nodes, int nodeIndex)

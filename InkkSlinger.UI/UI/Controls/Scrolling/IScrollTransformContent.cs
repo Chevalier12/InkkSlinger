@@ -2,8 +2,18 @@ using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
+internal readonly record struct ScrollTransformContentMetrics(
+    Vector2 LogicalExtent,
+    Vector2 Scale,
+    Vector2 Offset);
+
 internal interface IScrollTransformContent
 {
+    bool TryGetScrollTransformContentMetrics(out ScrollTransformContentMetrics metrics)
+    {
+        metrics = default;
+        return false;
+    }
 }
 
 internal interface IScrollViewerMeasureConstraintProvider

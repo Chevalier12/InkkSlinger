@@ -221,6 +221,32 @@ public partial class ScrollViewer : ContentControl
                     }
                 }));
 
+    public static readonly DependencyProperty IsTransformContentLayerStableProperty =
+        DependencyProperty.RegisterAttached(
+            "IsTransformContentLayerStable",
+            typeof(bool),
+            typeof(ScrollViewer),
+            new FrameworkPropertyMetadata(
+                false,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is not UIElement element)
+                    {
+                        return;
+                    }
+
+                    element.InvalidateVisual();
+                    if (element.VisualParent is ScrollViewer visualViewer)
+                    {
+                        visualViewer.InvalidateVisual();
+                    }
+                    else if (element.LogicalParent is ScrollViewer logicalViewer)
+                    {
+                        logicalViewer.InvalidateVisual();
+                    }
+                }));
+
     public static readonly DependencyProperty ScrollBarThicknessProperty =
         DependencyProperty.Register(
             nameof(ScrollBarThickness),

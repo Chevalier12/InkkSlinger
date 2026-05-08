@@ -3,6 +3,7 @@ namespace InkkSlinger;
 internal enum RetainedCompositionCacheMode
 {
     None,
+    TransformStableLayer,
     Bitmap
 }
 

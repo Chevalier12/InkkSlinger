@@ -56,9 +56,13 @@ public sealed partial class UiRoot
         private string _lastCompositionPrimaryReason = "none";
         private int _lastCompositionFrameVisualRecordRebuildTotal;
         private int _lastCompositionFrameMetadataUpdateTotal;
+        private int _lastCompositionFrameVisualRecordTouchedTotal;
+        private int _visualRecordTouchedCount;
         private int _fullCompositionFrameCount;
         private int _compositorOnlyFrameCount;
         private bool _lastCompositionMetadataOnlySyncSucceeded;
+        private bool _lastCompositionMetadataOnlySyncWasTransformStableLayer;
+        private bool _lastSyncUsedFullVisualRecordRefresh;
         private int _commandReplayCount;
         private int _commandReplayFallbackCount;
         private int _unsupportedCommandFallbackCount;
@@ -560,7 +564,8 @@ public sealed partial class UiRoot
 
         private static bool IsTransformScrollRetainedSyncCandidate(UIElement element)
         {
-            return element is IScrollTransformContent or VirtualizingStackPanel;
+            return element is VirtualizingStackPanel ||
+                   element is IScrollTransformContent && ScrollViewer.GetIsTransformContentLayerStable(element);
         }
 
         internal UIElement? FindEscapingRenderClipAncestor(UIElement source)
@@ -720,27 +725,78 @@ public sealed partial class UiRoot
                 return;
             }
 
+            var requiresFullRefresh =
+                VisualRecords.RecordCount != RetainedRenderList.Count ||
+                _lastSyncUsedFullVisualRecordRefresh ||
+                _renderListNeedsFullRebuild;
+            if (_lastCompositionMetadataOnlySyncSucceeded &&
+                !requiresFullRefresh &&
+                LastCompletedSynchronizedDirtyRenderRoots.Count == 0)
+            {
+                UpdateCompositionFrameTelemetry();
+                return;
+            }
+
+            if (requiresFullRefresh)
+            {
+                RefreshAllVisualRecords();
+                _lastSyncUsedFullVisualRecordRefresh = false;
+                UpdateCompositionFrameTelemetry();
+                return;
+            }
+
+            UpdateDirtyVisualRecords();
+            UpdateCompositionFrameTelemetry();
+        }
+
+        private void UpdateDirtyVisualRecords()
+        {
+            if (LastCompletedSynchronizedDirtyRenderRoots.Count == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < LastCompletedSynchronizedDirtyRenderRoots.Count; i++)
+            {
+                var root = LastCompletedSynchronizedDirtyRenderRoots[i];
+                if (!RenderNodeIndices.TryGetValue(root, out var nodeIndex) ||
+                    (uint)nodeIndex >= (uint)RetainedRenderList.Count)
+                {
+                    RefreshAllVisualRecords();
+                    _lastSyncUsedFullVisualRecordRefresh = false;
+                    return;
+                }
+
+                _ = VisualRecords.RecordOrReuse(RetainedRenderList[nodeIndex].Visual);
+                _visualRecordTouchedCount++;
+            }
+        }
+
+        private void RefreshAllVisualRecords()
+        {
             var retainedVisuals = new List<UIElement>(RetainedRenderList.Count);
             for (var i = 0; i < RetainedRenderList.Count; i++)
             {
                 var visual = RetainedRenderList[i].Visual;
                 retainedVisuals.Add(visual);
                 _ = VisualRecords.RecordOrReuse(visual);
+                _visualRecordTouchedCount++;
             }
 
             VisualRecords.RetainOnly(retainedVisuals);
-            UpdateCompositionFrameTelemetry();
         }
 
         private void UpdateCompositionFrameTelemetry()
         {
             var visualRecordRebuildDelta = Math.Max(0, VisualRecords.RebuildCount - _lastCompositionFrameVisualRecordRebuildTotal);
+            var visualRecordTouchedDelta = Math.Max(0, _visualRecordTouchedCount - _lastCompositionFrameVisualRecordTouchedTotal);
             var compositionMetadataUpdateDelta = Math.Max(0, CompositionMetadataUpdateCount - _lastCompositionFrameMetadataUpdateTotal);
 
             _lastCompositionFrameVisualRecordRebuildTotal = VisualRecords.RebuildCount;
+            _lastCompositionFrameVisualRecordTouchedTotal = _visualRecordTouchedCount;
             _lastCompositionFrameMetadataUpdateTotal = CompositionMetadataUpdateCount;
 
-            _lastCompositionRecordPassCount = visualRecordRebuildDelta > 0 ? 1 : 0;
+            _lastCompositionRecordPassCount = visualRecordTouchedDelta > 0 ? 1 : 0;
             _lastCompositionMetadataPassCount = 0;
             _lastCompositionFullPassCount = 0;
             _lastCompositionPrimaryMode = "none";
@@ -762,6 +818,16 @@ public sealed partial class UiRoot
                 _lastCompositionMetadataPassCount = 1;
                 _lastCompositionPrimaryMode = "MetadataOnly";
                 _lastCompositionPrimaryReason = "composition-metadata-only";
+                _compositorOnlyFrameCount++;
+                return;
+            }
+
+            if (compositionMetadataUpdateDelta > 0 &&
+                visualRecordTouchedDelta > 0)
+            {
+                _lastCompositionMetadataPassCount = 1;
+                _lastCompositionPrimaryMode = "MetadataAndDirtyRecords";
+                _lastCompositionPrimaryReason = "composition-metadata-and-dirty-records";
                 _compositorOnlyFrameCount++;
                 return;
             }
@@ -1637,9 +1703,13 @@ public sealed partial class UiRoot
             _lastCompositionPrimaryReason = "none";
             _lastCompositionFrameVisualRecordRebuildTotal = 0;
             _lastCompositionFrameMetadataUpdateTotal = 0;
+            _lastCompositionFrameVisualRecordTouchedTotal = 0;
+            _visualRecordTouchedCount = 0;
             _fullCompositionFrameCount = 0;
             _compositorOnlyFrameCount = 0;
             _lastCompositionMetadataOnlySyncSucceeded = false;
+            _lastCompositionMetadataOnlySyncWasTransformStableLayer = false;
+            _lastSyncUsedFullVisualRecordRefresh = false;
             _commandReplayCount = 0;
             _commandReplayFallbackCount = 0;
             _unsupportedCommandFallbackCount = 0;
@@ -1697,12 +1767,18 @@ public sealed partial class UiRoot
         {
             if (PendingCompositionMetadataUpdates.Count == 0)
             {
+                _lastCompositionMetadataOnlySyncWasTransformStableLayer = false;
                 return true;
             }
 
             var allApplied = true;
+            var allUpdatesAreTransformStableLayers = true;
             foreach (var update in PendingCompositionMetadataUpdates)
             {
+                allUpdatesAreTransformStableLayers &=
+                    update.Value is RenderInvalidationKind.Transform or RenderInvalidationKind.Clip &&
+                    RetainedCompositionLayerBoundary.IsTransformStableLayer(update.Key);
+
                 var retainedMetadataApplied = TryRefreshRetainedRenderMetadata(update.Key);
                 if (!CompositionTreeIndex.TryUpdateMetadata(update.Key, update.Value))
                 {
@@ -1726,6 +1802,7 @@ public sealed partial class UiRoot
             }
 
             PendingCompositionMetadataUpdates.Clear();
+            _lastCompositionMetadataOnlySyncWasTransformStableLayer = allUpdatesAreTransformStableLayers;
             return allApplied;
         }
 

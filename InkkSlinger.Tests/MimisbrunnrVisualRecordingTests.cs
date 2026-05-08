@@ -118,7 +118,7 @@ public sealed class MimisbrunnrVisualRecordingTests
         uiRoot.UpdateVisualRecordsForTests();
         var reused = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
         Assert.Equal(0, reused.VisualRecordRebuildCount);
-        Assert.Equal(2, reused.VisualRecordReuseCount);
+        Assert.Equal(0, reused.VisualRecordReuseCount);
 
         uiRoot.GetTelemetryAndReset();
         border.Background = new SolidColorBrush(Color.Blue);
@@ -127,7 +127,7 @@ public sealed class MimisbrunnrVisualRecordingTests
 
         var rebuilt = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
         Assert.Equal(1, rebuilt.VisualRecordRebuildCount);
-        Assert.Equal(1, rebuilt.VisualRecordReuseCount);
+        Assert.Equal(0, rebuilt.VisualRecordReuseCount);
         Assert.Equal("Border", rebuilt.LastRecordedVisualType);
     }
 
@@ -159,7 +159,7 @@ public sealed class MimisbrunnrVisualRecordingTests
         Assert.Equal("Transform", telemetry.LastCompositionMetadataUpdateKind);
         Assert.Equal("Border#recordedBorder", telemetry.LastCompositionMetadataUpdateSource);
         Assert.Equal(0, telemetry.VisualRecordRebuildCount);
-        Assert.Equal(2, telemetry.VisualRecordReuseCount);
+        Assert.Equal(0, telemetry.VisualRecordReuseCount);
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public sealed class MimisbrunnrVisualRecordingTests
         Assert.Equal(0, telemetry.CompositionMetadataUpdateMissCount);
         Assert.Equal(kind.ToString(), telemetry.LastCompositionMetadataUpdateKind);
         Assert.Equal(0, telemetry.VisualRecordRebuildCount);
-        Assert.Equal(2, telemetry.VisualRecordReuseCount);
+        Assert.Equal(0, telemetry.VisualRecordReuseCount);
     }
 
     [Fact]
@@ -244,7 +244,7 @@ public sealed class MimisbrunnrVisualRecordingTests
         Assert.Equal(1, telemetry.TransformMetadataUpdateCount);
         Assert.Equal(0, telemetry.ContentInvalidationCount);
         Assert.Equal(0, telemetry.VisualRecordRebuildCount);
-        Assert.Equal(3, telemetry.VisualRecordReuseCount);
+        Assert.Equal(0, telemetry.VisualRecordReuseCount);
         Assert.Equal("MetadataOnly", telemetry.LastCompositionPrimaryMode);
         Assert.Equal("composition-metadata-only", telemetry.LastCompositionPrimaryReason);
     }
@@ -271,7 +271,7 @@ public sealed class MimisbrunnrVisualRecordingTests
         Assert.Equal(kind.ToString(), telemetry.LastCompositionMetadataUpdateKind);
         Assert.Equal("Border#recordedBorder", telemetry.LastCompositionMetadataUpdateSource);
         Assert.Equal(0, telemetry.VisualRecordRebuildCount);
-        Assert.Equal(2, telemetry.VisualRecordReuseCount);
+        Assert.Equal(0, telemetry.VisualRecordReuseCount);
 
         Assert.Equal(kind == RenderInvalidationKind.Opacity ? 1 : 0, telemetry.OpacityMetadataUpdateCount);
         Assert.Equal(kind == RenderInvalidationKind.Visibility ? 1 : 0, telemetry.VisibilityMetadataUpdateCount);

@@ -51,6 +51,16 @@ public partial class ScrollViewer
         element.SetValue(UseTransformContentScrollingProperty, value);
     }
 
+    public static bool GetIsTransformContentLayerStable(UIElement element)
+    {
+        return element.GetValue<bool>(IsTransformContentLayerStableProperty);
+    }
+
+    public static void SetIsTransformContentLayerStable(UIElement element, bool value)
+    {
+        element.SetValue(IsTransformContentLayerStableProperty, value);
+    }
+
     public override IEnumerable<UIElement> GetVisualChildren()
     {
         foreach (var child in base.GetVisualChildren())
@@ -145,6 +155,11 @@ public partial class ScrollViewer
     {
         _diagInvalidateScrollInfoCallCount++;
         _runtimeInvalidateScrollInfoCallCount++;
+        if (TryRefreshTransformContentScrollInfo())
+        {
+            return;
+        }
+
         if (LogicalScrollInfo is { } scrollInfo)
         {
             _ = ApplyScrollMetrics(
@@ -158,6 +173,89 @@ public partial class ScrollViewer
         }
 
         InvalidateMeasure();
+    }
+
+    private bool TryRefreshTransformContentScrollInfo()
+    {
+        if (!_contentPresenter.TryGetTransformContentExtent(out var extentWidth, out var extentHeight))
+        {
+            return false;
+        }
+
+        var previousHorizontalOffset = HorizontalOffset;
+        var previousVerticalOffset = VerticalOffset;
+        var metricsChanged = ApplyScrollMetrics(
+            extentWidth,
+            extentHeight,
+            ViewportWidth,
+            ViewportHeight,
+            publishViewportMetrics: true);
+        var scrollBarVisibilityChanged = metricsChanged && HasTransformContentScrollBarVisibilityChange();
+        var offsetsChanged = CoerceOffsetsToCurrentMetrics(closeAnchoredPopups: false);
+        UpdateScrollBars();
+
+        if (metricsChanged || offsetsChanged)
+        {
+            ViewportChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        if (scrollBarVisibilityChanged)
+        {
+            InvalidateArrangeForDirectLayoutOnly();
+            return true;
+        }
+
+        if (offsetsChanged)
+        {
+            ApplyOffsetToContent(
+                previousHorizontalOffset,
+                HorizontalOffset,
+                previousVerticalOffset,
+                VerticalOffset,
+                canApplyOffsetWithoutDeferredLayout: true);
+        }
+        else if (TryGetContentViewportClipRect(out var contentViewport))
+        {
+            NotifyTransformContentRenderChanged(contentViewport);
+        }
+
+        return true;
+    }
+
+    private bool HasTransformContentScrollBarVisibilityChange()
+    {
+        var border = MathF.Max(0f, BorderThickness);
+        var bounds = new LayoutRect(
+            LayoutSlot.X + border,
+            LayoutSlot.Y + border,
+            MathF.Max(0f, LayoutSlot.Width - (border * 2f)),
+            MathF.Max(0f, LayoutSlot.Height - (border * 2f)));
+        var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
+        var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
+        var showHorizontal = ResolveInitialHorizontalScrollBarVisibility();
+        var showVertical = ResolveInitialVerticalScrollBarVisibility();
+        for (var i = 0; i < 3; i++)
+        {
+            var viewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
+            var viewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
+            var nextShowHorizontal = HorizontalScrollBarVisibility == ScrollBarVisibility.Auto
+                ? ExtentWidth > viewportWidth + 0.01f
+                : showHorizontal;
+            var nextShowVertical = VerticalScrollBarVisibility == ScrollBarVisibility.Auto
+                ? ExtentHeight > viewportHeight + 0.01f
+                : showVertical;
+
+            if (nextShowHorizontal == showHorizontal && nextShowVertical == showVertical)
+            {
+                break;
+            }
+
+            showHorizontal = nextShowHorizontal;
+            showVertical = nextShowVertical;
+        }
+
+        return showHorizontal != _showHorizontalBar ||
+               showVertical != _showVerticalBar;
     }
 
     public bool MakeVisible(UIElement child, LayoutRect rectangle)
@@ -216,6 +314,13 @@ public partial class ScrollViewer
         }
 
         return _lastTransformScrollDirtyHintDrawCount >= uiRoot.DrawExecutedFrameCount;
+    }
+
+    internal bool HasTransformStableLayerContent()
+    {
+        return ContentElement is UIElement contentElement &&
+               _contentPresenter.UsesTransformBasedScrolling() &&
+               GetIsTransformContentLayerStable(contentElement);
     }
 
 }

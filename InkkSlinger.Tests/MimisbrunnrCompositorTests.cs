@@ -29,7 +29,7 @@ public sealed class MimisbrunnrCompositorTests
         Assert.DoesNotContain(child, oldClipOrder);
         Assert.Contains(child, translatedClipOrder);
         Assert.Equal(0, telemetry.VisualRecordRebuildCount);
-        Assert.True(telemetry.VisualRecordReuseCount >= 3);
+        Assert.Equal(0, telemetry.VisualRecordReuseCount);
         Assert.Equal(1, telemetry.TransformMetadataUpdateCount);
         Assert.True(telemetry.CompositionTransformPushCount >= 1);
     }
