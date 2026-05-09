@@ -205,7 +205,7 @@ public sealed class ScrollViewerReviewReproTests
     }
 
     [Fact]
-    public void ScrollBarThatAppearsAfterLoad_ShouldBeLoadedWhenItEntersVisualTree()
+    public void ScrollBarsRemainStableLoadedChildren_WhenComputedVisibilityChanges()
     {
         var root = new Panel();
         var content = new StackPanel();
@@ -223,9 +223,14 @@ public sealed class ScrollViewerReviewReproTests
 
         var verticalBar = GetPrivateScrollBar(viewer, "_verticalBar");
         var uiRoot = new UiRoot(root);
+        viewer.RaiseLoaded();
         RunLayout(uiRoot, 260, 160, 16);
 
-        Assert.DoesNotContain(viewer.GetVisualChildren(), child => ReferenceEquals(child, verticalBar));
+        Assert.Contains(viewer.GetVisualChildren(), child => ReferenceEquals(child, verticalBar));
+        Assert.True(verticalBar.IsLoaded);
+        Assert.Equal(Visibility.Collapsed, viewer.ComputedVerticalScrollBarVisibility);
+        Assert.False(verticalBar.IsHitTestVisible);
+        Assert.Equal(0f, verticalBar.LayoutSlot.Height, 0.01f);
 
         for (var i = 0; i < 50; i++)
         {
@@ -235,9 +240,21 @@ public sealed class ScrollViewerReviewReproTests
         RunLayout(uiRoot, 260, 160, 32);
 
         Assert.Contains(viewer.GetVisualChildren(), child => ReferenceEquals(child, verticalBar));
-        Assert.True(verticalBar.IsLoaded, "Expected the internal scrollbar to be loaded when it becomes visible.");
+        Assert.True(verticalBar.IsLoaded);
+        Assert.Equal(Visibility.Visible, viewer.ComputedVerticalScrollBarVisibility);
+        Assert.True(verticalBar.IsHitTestVisible);
+        Assert.True(verticalBar.LayoutSlot.Width > 0f);
 
         uiRoot.Shutdown();
+    }
+
+    [Fact]
+    public void DefaultScrollBarVisibility_ShouldMatchWpfDefaults()
+    {
+        var viewer = new ScrollViewer();
+
+        Assert.Equal(ScrollBarVisibility.Disabled, viewer.HorizontalScrollBarVisibility);
+        Assert.Equal(ScrollBarVisibility.Visible, viewer.VerticalScrollBarVisibility);
     }
 
     private static StackPanel CreateTallStackPanel(int itemCount)

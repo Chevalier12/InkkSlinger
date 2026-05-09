@@ -8,6 +8,7 @@ internal sealed class ScrollViewerContentPresenter
 {
     private readonly ScrollViewer _owner;
     private LayoutRect _lastArrangedContentRect;
+    private LayoutRect _lastArrangedViewportRect;
     private FrameworkElement? _lastArrangedContentElement;
     private bool _hasArrangedContentRect;
 
@@ -71,6 +72,7 @@ internal sealed class ScrollViewerContentPresenter
 
         if (CanReuseExistingArrange(content, arrangeRect))
         {
+            CacheArrange(content, arrangeRect);
             RecordArrangeElapsed(startTicks);
             return;
         }
@@ -92,11 +94,21 @@ internal sealed class ScrollViewerContentPresenter
 
     public bool CanReuseExistingArrange(FrameworkElement content, LayoutRect nextArrangeRect)
     {
-        return _hasArrangedContentRect &&
-               ReferenceEquals(_lastArrangedContentElement, content) &&
-               !content.NeedsMeasure &&
-               !content.NeedsArrange &&
-               ScrollViewer.AreLayoutRectsClose(_lastArrangedContentRect, nextArrangeRect);
+        if (content.NeedsMeasure || content.NeedsArrange)
+        {
+            return false;
+        }
+
+        if (_hasArrangedContentRect &&
+            ReferenceEquals(_lastArrangedContentElement, content) &&
+            ScrollViewer.AreLayoutRectsClose(_lastArrangedContentRect, nextArrangeRect))
+        {
+            return true;
+        }
+
+        return content.IsMeasureValidForTests &&
+               content.IsArrangeValidForTests &&
+               ScrollViewer.AreLayoutRectsClose(content.LayoutSlot, nextArrangeRect);
     }
 
     public float ResolveArrangeWidth(FrameworkElement content, LayoutRect previousViewportRect)
@@ -217,6 +229,13 @@ internal sealed class ScrollViewerContentPresenter
             return false;
         }
 
+        if (content.HasPendingMeasureInvalidationInVisualSubtreeForLayout())
+        {
+            extentWidth = 0f;
+            extentHeight = 0f;
+            return false;
+        }
+
         var previousConstraint = CreateMeasureConstraint(previousViewportWidth, previousViewportHeight);
         var nextConstraint = CreateMeasureConstraint(nextViewportWidth, nextViewportHeight);
         if (!content.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousConstraint, nextConstraint))
@@ -303,7 +322,7 @@ internal sealed class ScrollViewerContentPresenter
             return false;
         }
 
-        var previousViewportSpan = horizontalAxis ? previousViewportRect.Width : previousViewportRect.Height;
+        var previousViewportSpan = horizontalAxis ? _lastArrangedViewportRect.Width : _lastArrangedViewportRect.Height;
         var nextViewportSpan = horizontalAxis ? _owner._contentViewportRect.Width : _owner._contentViewportRect.Height;
         var previousArrangedSpan = horizontalAxis ? _lastArrangedContentRect.Width : _lastArrangedContentRect.Height;
         if (previousArrangedSpan <= nextViewportSpan + 0.01f ||
@@ -313,7 +332,7 @@ internal sealed class ScrollViewerContentPresenter
             return false;
         }
 
-        var previousAvailable = CreateMeasureConstraint(previousViewportRect.Width, previousViewportRect.Height);
+        var previousAvailable = CreateMeasureConstraint(_lastArrangedViewportRect.Width, _lastArrangedViewportRect.Height);
         var nextAvailable = CreateMeasureConstraint(_owner._contentViewportRect.Width, _owner._contentViewportRect.Height);
         if (!content.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailable, nextAvailable))
         {
@@ -397,6 +416,7 @@ internal sealed class ScrollViewerContentPresenter
     {
         _hasArrangedContentRect = true;
         _lastArrangedContentRect = arrangeRect;
+        _lastArrangedViewportRect = _owner._contentViewportRect;
         _lastArrangedContentElement = content;
     }
 

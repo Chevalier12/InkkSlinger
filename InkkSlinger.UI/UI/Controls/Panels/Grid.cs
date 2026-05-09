@@ -1138,7 +1138,7 @@ public class Grid : Panel
 
         if (TryResolveSplitterResizeAsArrangeOnly())
         {
-            InvalidateArrange();
+            InvalidateArrangeForDirectLayoutOnly();
             return true;
         }
 

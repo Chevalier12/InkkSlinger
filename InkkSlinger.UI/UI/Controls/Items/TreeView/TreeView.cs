@@ -492,9 +492,7 @@ public partial class TreeView : ItemsControl
         _diagMeasureOverrideFallbackPathCount++;
         var padding = Padding;
         var border = BorderThickness;
-        var innerSize = new Vector2(
-            MathF.Max(0f, availableSize.X - (border * 2f) - padding.Horizontal),
-            MathF.Max(0f, availableSize.Y - (border * 2f) - padding.Vertical));
+        var innerSize = ResolveFallbackScrollViewerMeasureSize(availableSize);
 
         var scrollViewer = ActiveScrollViewer;
         _activeScrollViewerLayoutDepth++;
@@ -512,6 +510,18 @@ public partial class TreeView : ItemsControl
         return new Vector2(
             desired.X + (border * 2f) + padding.Horizontal,
             desired.Y + (border * 2f) + padding.Vertical);
+    }
+
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        if (HasTemplateRoot)
+        {
+            return base.CanReuseMeasureForAvailableSizeChange(previousAvailableSize, nextAvailableSize);
+        }
+
+        var previousInnerSize = ResolveFallbackScrollViewerMeasureSize(previousAvailableSize);
+        var nextInnerSize = ResolveFallbackScrollViewerMeasureSize(nextAvailableSize);
+        return ActiveScrollViewer.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousInnerSize, nextInnerSize);
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
@@ -547,6 +557,15 @@ public partial class TreeView : ItemsControl
 
         _diagArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         return finalSize;
+    }
+
+    private Vector2 ResolveFallbackScrollViewerMeasureSize(Vector2 availableSize)
+    {
+        var padding = Padding;
+        var border = BorderThickness;
+        return new Vector2(
+            MathF.Max(0f, availableSize.X - (border * 2f) - padding.Horizontal),
+            MathF.Max(0f, availableSize.Y - (border * 2f) - padding.Vertical));
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)

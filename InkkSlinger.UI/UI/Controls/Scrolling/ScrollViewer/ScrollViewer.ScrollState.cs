@@ -14,6 +14,8 @@ public partial class ScrollViewer
         SetIfChanged(
             ComputedVerticalScrollBarVisibilityProperty,
             _showVerticalBar ? Visibility.Visible : Visibility.Collapsed);
+        _horizontalBar.IsHitTestVisible = _showHorizontalBar;
+        _verticalBar.IsHitTestVisible = _showVerticalBar;
         UpdateContentOffsetsFromLiveOffsets();
     }
 

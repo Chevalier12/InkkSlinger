@@ -72,7 +72,7 @@ public partial class ScrollViewer : ContentControl
             nameof(VerticalScrollBarVisibility),
             typeof(ScrollBarVisibility),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(ScrollBarVisibility.Auto, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
+            new FrameworkPropertyMetadata(ScrollBarVisibility.Visible, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
     public static readonly DependencyProperty HorizontalOffsetProperty =
         DependencyProperty.Register(
@@ -329,6 +329,9 @@ public partial class ScrollViewer : ContentControl
         _verticalBar.ValueChanged += OnVerticalScrollBarValueChanged;
         _horizontalBar.ThumbDragCompleted += OnScrollBarThumbDragCompleted;
         _verticalBar.ThumbDragCompleted += OnScrollBarThumbDragCompleted;
+        Loaded += (_, _) => EnsureInternalScrollBarsLoaded();
+        Unloaded += (_, _) => UnloadInternalScrollBars();
+        SyncInternalScrollBarParents();
     }
 
     public ScrollBarVisibility HorizontalScrollBarVisibility

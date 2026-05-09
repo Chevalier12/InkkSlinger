@@ -316,6 +316,31 @@ public class ItemsControl : Control
         return desired;
     }
 
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        if (HasTemplateRoot)
+        {
+            return base.CanReuseMeasureForAvailableSizeChange(previousAvailableSize, nextAvailableSize);
+        }
+
+        if (_activeItemsHost is FrameworkElement itemsHost)
+        {
+            return itemsHost.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize);
+        }
+
+        var source = IsGroupedVisualProjectionActive ? _groupContainers : _itemContainers;
+        for (var i = 0; i < source.Count; i++)
+        {
+            if (source[i] is FrameworkElement element &&
+                !element.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         base.ArrangeOverride(finalSize);

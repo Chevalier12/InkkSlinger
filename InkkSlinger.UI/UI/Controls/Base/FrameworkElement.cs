@@ -1516,10 +1516,19 @@ public class FrameworkElement : UIElement
     internal bool CanReuseMeasureForAvailableSizeChangeForParentLayout(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
     {
         if (NeedsMeasure ||
-            !_isMeasureValid ||
-            HasPendingMeasureInvalidationInVisualSubtreeForLayout())
+            !_isMeasureValid)
         {
             return false;
+        }
+
+        if (!IsVisible && AreSizesEqual(DesiredSize, Vector2.Zero))
+        {
+            return true;
+        }
+
+        if (AreMeasureAvailableSizesEqual(previousAvailableSize, nextAvailableSize))
+        {
+            return true;
         }
 
         return CanReuseMeasureForAvailableSizeChange(previousAvailableSize, nextAvailableSize);
@@ -2140,6 +2149,23 @@ public class FrameworkElement : UIElement
         const float epsilon = 0.0001f;
         return MathF.Abs(left.X - right.X) <= epsilon &&
                MathF.Abs(left.Y - right.Y) <= epsilon;
+    }
+
+    private static bool AreMeasureAvailableSizesEqual(Vector2 left, Vector2 right)
+    {
+        return AreMeasureAvailableScalarsEqual(left.X, right.X) &&
+               AreMeasureAvailableScalarsEqual(left.Y, right.Y);
+    }
+
+    private static bool AreMeasureAvailableScalarsEqual(float left, float right)
+    {
+        if (float.IsInfinity(left) || float.IsInfinity(right))
+        {
+            return float.IsPositiveInfinity(left) == float.IsPositiveInfinity(right) &&
+                   float.IsNegativeInfinity(left) == float.IsNegativeInfinity(right);
+        }
+
+        return AreScalarValuesEqual(left, right);
     }
 
     private static bool AreScalarValuesEqual(float left, float right)

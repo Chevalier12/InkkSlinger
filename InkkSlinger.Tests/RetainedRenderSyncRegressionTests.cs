@@ -614,6 +614,157 @@ public sealed class RetainedRenderSyncRegressionTests
     }
 
     [Fact]
+    public void TransformScrolledStableContent_StructureChange_UpdatesCompositionSpanWithoutFullRebuild()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 240f));
+
+        var content = new TransformStableStackPanel();
+        content.SetLayoutSlot(new LayoutRect(0f, 0f, 180f, 160f));
+        ScrollViewer.SetIsTransformContentLayerStable(content, true);
+        for (var i = 0; i < 4; i++)
+        {
+            content.AddChild(new Border { Height = 24f });
+        }
+
+        var viewer = new ScrollViewer
+        {
+            Content = content,
+            Width = 180f,
+            Height = 120f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        var viewport = new Microsoft.Xna.Framework.Graphics.Viewport(0, 0, 320, 240);
+        uiRoot.Update(new Microsoft.Xna.Framework.GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), viewport);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        var compositionRebuildCount = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests().CompositionRebuildCount;
+
+        var added = new Border { Height = 24f };
+        content.AddChildWithSuppressedLayoutInvalidation(added);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var retainedOrder = uiRoot.GetRetainedVisualOrderForTests();
+        var compositionOrder = uiRoot.GetCompositionVisualOrderForTests();
+        var telemetry = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+
+        Assert.Contains(added, retainedOrder);
+        Assert.Contains(added, compositionOrder);
+        Assert.Equal(retainedOrder, compositionOrder);
+        Assert.Equal(uiRoot.RetainedRenderNodeCount, uiRoot.CompositionNodeCount);
+        Assert.True(
+            telemetry.CompositionRebuildCount == compositionRebuildCount,
+            $"Expected no full composition rebuild. Before={compositionRebuildCount}, After={telemetry.CompositionRebuildCount}, DirtyRoots={uiRoot.GetLastSynchronizedDirtyRootSummaryForTests()}, RetainedCount={uiRoot.RetainedRenderNodeCount}, CompositionCount={uiRoot.CompositionNodeCount}.");
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
+    public void TransformScrolledStableContent_OffsetChange_UsesCompositionMetadataOnlySync()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 240f));
+
+        var content = new StackPanel();
+        ScrollViewer.SetIsTransformContentLayerStable(content, true);
+        for (var i = 0; i < 12; i++)
+        {
+            content.AddChild(new Border { Height = 40f });
+        }
+
+        var viewer = new ScrollViewer
+        {
+            Content = content,
+            Width = 180f,
+            Height = 120f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        var viewport = new Microsoft.Xna.Framework.Graphics.Viewport(0, 0, 320, 240);
+        uiRoot.Update(new Microsoft.Xna.Framework.GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), viewport);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        var compositionRebuildCount = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests().CompositionRebuildCount;
+
+        viewer.ScrollToVerticalOffset(24f);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var telemetry = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+        var perf = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        var graph = uiRoot.GetCompositionGraphForTests();
+        var contentNode = graph.Nodes[graph.NodeIndices[content]];
+
+        Assert.Equal(compositionRebuildCount, telemetry.CompositionRebuildCount);
+        Assert.Equal(1, telemetry.TransformMetadataUpdateCount);
+        Assert.Equal(0, perf.RetainedForceDeepSyncCount);
+        Assert.True(contentNode.HasLocalTransform);
+        Assert.True(MathF.Abs(contentNode.LocalTransform.Translation.Y + viewer.VerticalOffset) <= 0.05f);
+    }
+
+    [Fact]
+    public void TransformStableLayer_WithNestedTransformAndDirtyDescendant_DoesNotDropNestedMetadata()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 240f));
+
+        var content = new TransformStableCanvas(400f, 400f);
+        content.Width = 400f;
+        content.Height = 400f;
+        ScrollViewer.SetIsTransformContentLayerStable(content, true);
+
+        var transformedChild = new Border { Width = 80f, Height = 40f };
+        Canvas.SetLeft(transformedChild, 24f);
+        Canvas.SetTop(transformedChild, 72f);
+        content.AddChild(transformedChild);
+
+        var viewer = new ScrollViewer
+        {
+            Content = content,
+            Width = 180f,
+            Height = 120f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        var viewport = new Viewport(0, 0, 320, 240);
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), viewport);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        uiRoot.NotifyDirectRenderInvalidation(content, RenderInvalidationKind.Transform);
+        transformedChild.RenderTransform = new TranslateTransform { X = 32f, Y = -18f };
+        transformedChild.InvalidateVisual();
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var telemetry = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+        var perf = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        var graph = uiRoot.GetCompositionGraphForTests();
+        var transformedNode = graph.Nodes[graph.NodeIndices[transformedChild]];
+        Assert.True(
+            telemetry.TransformInvalidationCount > 0,
+            $"Expected a transform-stable metadata update. telemetry={telemetry}");
+        Assert.True(
+            perf.DirtyRootCount > 0,
+            $"Expected descendant dirty work to be present. perf={perf}");
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+        Assert.True(transformedNode.HasLocalTransform);
+        Assert.True(MathF.Abs(transformedNode.LocalTransform.Translation.X - 32f) <= 0.05f);
+        Assert.True(MathF.Abs(transformedNode.LocalTransform.Translation.Y + 18f) <= 0.05f);
+    }
+
+    [Fact]
     public void TransformScrolledContent_WhenViewerAlreadyNeedsArrange_StillSynchronizesRetainedTree()
     {
         var root = new Panel();
@@ -860,5 +1011,26 @@ public sealed class RetainedRenderSyncRegressionTests
         Assert.False(child.SubtreeDirty);
         Assert.False(root.NeedsRender);
         Assert.False(root.SubtreeDirty);
+    }
+
+    private sealed class TransformStableStackPanel : StackPanel
+    {
+        public void AddChildWithSuppressedLayoutInvalidation(UIElement child)
+        {
+            using var _ = DeferChildMutationLayoutInvalidations();
+            AddChild(child);
+        }
+    }
+
+    private sealed class TransformStableCanvas(float logicalWidth, float logicalHeight) : Canvas, IScrollTransformContent
+    {
+        public bool TryGetScrollTransformContentMetrics(out ScrollTransformContentMetrics metrics)
+        {
+            metrics = new ScrollTransformContentMetrics(
+                new Vector2(logicalWidth, logicalHeight),
+                Vector2.One,
+                Vector2.Zero);
+            return true;
+        }
     }
 }

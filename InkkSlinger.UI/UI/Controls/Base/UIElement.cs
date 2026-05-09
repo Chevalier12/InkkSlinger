@@ -1573,7 +1573,7 @@ public class UIElement : DependencyObject
         {
             if (invalidateRender)
             {
-                InvalidateVisual();
+                InvalidateBounds();
             }
 
             return;
@@ -1585,8 +1585,13 @@ public class UIElement : DependencyObject
         MarkSubtreeDirty();
         if (invalidateRender)
         {
-            InvalidateVisual();
+            InvalidateBounds();
         }
+    }
+
+    private void InvalidateBounds()
+    {
+        InvalidateVisualCore(this, source: null, reason: "bounds", RenderInvalidationKind.Bounds);
     }
 
     private static bool AreRectsEqual(LayoutRect left, LayoutRect right)

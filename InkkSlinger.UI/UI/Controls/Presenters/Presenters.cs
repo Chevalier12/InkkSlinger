@@ -1763,6 +1763,26 @@ public class ItemsPresenter : FrameworkElement
         return desired;
     }
 
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        EnsureOwner();
+        if (_itemsOwner == null)
+        {
+            return true;
+        }
+
+        foreach (var child in _itemsOwner.GetItemContainersForPresenter())
+        {
+            if (child is FrameworkElement element &&
+                !element.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         EnsureOwner();

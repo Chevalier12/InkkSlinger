@@ -632,6 +632,12 @@ public class Control : FrameworkElement, ICommandSource
 
         if (_templateRoot is not FrameworkElement element)
         {
+            if (previousAvailableSize == nextAvailableSize ||
+                AreLocalLayoutSizesClose(previousAvailableSize, nextAvailableSize))
+            {
+                return true;
+            }
+
             _runtimeCanReuseMeasureNoTemplateRootRejectedCount++;
             IncrementAggregate(ref _diagCanReuseMeasureNoTemplateRootRejectedCount);
             return false;

@@ -28,8 +28,10 @@ public sealed partial class UiRoot
         private List<DirtyRenderSpan> _lastSynchronizedDirtyRenderSpans => LastSynchronizedDirtyRenderSpans;
         private List<UIElement> _lastCoalescedDirtyRenderRoots => LastCoalescedDirtyRenderRoots;
         private List<UIElement> _dirtyRenderCompactionBuffer => DirtyRenderCompactionBuffer;
+        private List<int> _retainedCompositionRefreshNodeIndices => RetainedCompositionRefreshNodeIndices;
         private DirtyRegionTracker _dirtyRegions => DirtyRegions;
         private Dictionary<UIElement, RenderInvalidationKind> _pendingCompositionMetadataUpdates => PendingCompositionMetadataUpdates;
+        private List<UIElement> _pendingCompositionMetadataRemovalBuffer => PendingCompositionMetadataRemovalBuffer;
         private bool _hasViewportBounds { get => _root._hasViewportBounds; set => _root._hasViewportBounds = value; }
         private LayoutRect _lastViewportBounds { get => _root._lastViewportBounds; set => _root._lastViewportBounds = value; }
         private bool _mustDrawNextFrame { get => _root._mustDrawNextFrame; set => _root._mustDrawNextFrame = value; }
@@ -370,6 +372,7 @@ public sealed partial class UiRoot
             _lastCompositionMetadataOnlySyncSucceeded = false;
             _lastCompositionMetadataOnlySyncWasTransformStableLayer = false;
             _lastAncestorMetadataRefreshNodeCount = 0;
+            _retainedCompositionRefreshNodeIndices.Clear();
             _pendingAncestorMetadataRefreshRoots.Clear();
             CompactDirtyRenderQueueForSync();
             _lastRetainedDirtyVisualCount = _dirtyRenderWorkItems.Count;
@@ -446,13 +449,16 @@ public sealed partial class UiRoot
                 return;
             }
 
-            _dirtyRenderWorkItems.Clear();
             _dirtyRenderSet.Clear();
             if (!compositionMetadataOnlySync)
             {
-                SynchronizeCompositionTreeFromRetainedList();
+                if (!TrySynchronizeCompositionTreeIncrementallyFromRetainedList())
+                {
+                    SynchronizeCompositionTreeFromRetainedList();
+                }
             }
 
+            _dirtyRenderWorkItems.Clear();
             var appliedCompositionMetadata = ApplyPendingCompositionMetadataUpdates();
             _lastCompositionMetadataOnlySyncSucceeded = compositionMetadataOnlySync && appliedCompositionMetadata;
         }
@@ -554,6 +560,85 @@ public sealed partial class UiRoot
         private void SynchronizeCompositionTreeFromRetainedList()
         {
             CompositionTreeIndex.BuildFromRetainedList(_retainedRenderList);
+            _pendingCompositionMetadataUpdates.Clear();
+        }
+
+        private bool TrySynchronizeCompositionTreeIncrementallyFromRetainedList()
+        {
+            if (_retainedCompositionRefreshNodeIndices.Count > 0 &&
+                CompositionTreeIndex.TryRefreshRetainedNodes(
+                    _retainedRenderList,
+                    _retainedCompositionRefreshNodeIndices))
+            {
+                RemovePendingCompositionMetadataUpdatesForRetainedIndices(_retainedCompositionRefreshNodeIndices);
+                return true;
+            }
+
+            if (_dirtyRenderWorkItems.Count != 1)
+            {
+                return false;
+            }
+
+            var item = _dirtyRenderWorkItems[0];
+            if (item.RenderNodeIndex < 0 ||
+                item.SubtreeEndIndexExclusive <= item.RenderNodeIndex)
+            {
+                return false;
+            }
+
+            if (!CompositionTreeIndex.TryReplaceRetainedSubtree(
+                _retainedRenderList,
+                item.RenderNodeIndex,
+                item.SubtreeEndIndexExclusive))
+            {
+                return false;
+            }
+
+            RemovePendingCompositionMetadataUpdatesInRetainedSpan(item.RenderNodeIndex, item.SubtreeEndIndexExclusive);
+            return true;
+        }
+
+        private void RemovePendingCompositionMetadataUpdatesForRetainedIndices(IReadOnlyList<int> retainedNodeIndices)
+        {
+            if (_pendingCompositionMetadataUpdates.Count == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < retainedNodeIndices.Count; i++)
+            {
+                var nodeIndex = retainedNodeIndices[i];
+                if ((uint)nodeIndex < (uint)_retainedRenderList.Count)
+                {
+                    _pendingCompositionMetadataUpdates.Remove(_retainedRenderList[nodeIndex].Visual);
+                }
+            }
+        }
+
+        private void RemovePendingCompositionMetadataUpdatesInRetainedSpan(int startIndex, int endIndexExclusive)
+        {
+            if (_pendingCompositionMetadataUpdates.Count == 0)
+            {
+                return;
+            }
+
+            _pendingCompositionMetadataRemovalBuffer.Clear();
+            foreach (var update in _pendingCompositionMetadataUpdates)
+            {
+                if (_renderNodeIndices.TryGetValue(update.Key, out var nodeIndex) &&
+                    nodeIndex >= startIndex &&
+                    nodeIndex < endIndexExclusive)
+                {
+                    _pendingCompositionMetadataRemovalBuffer.Add(update.Key);
+                }
+            }
+
+            for (var i = 0; i < _pendingCompositionMetadataRemovalBuffer.Count; i++)
+            {
+                _pendingCompositionMetadataUpdates.Remove(_pendingCompositionMetadataRemovalBuffer[i]);
+            }
+
+            _pendingCompositionMetadataRemovalBuffer.Clear();
         }
 
         private (int TraversalOrder, SubtreeMetadata Metadata) BuildRenderSubtree(UIElement visual, int traversalOrder, int depth, RenderNode? parentNode)
@@ -684,7 +769,10 @@ public sealed partial class UiRoot
             }
         }
 
-        private void RebuildRetainedSubtreeRange(UIElement dirtySubtreeRoot, int dirtySubtreeRootIndex)
+        private void RebuildRetainedSubtreeRange(
+            UIElement dirtySubtreeRoot,
+            int dirtySubtreeRootIndex,
+            RenderNode? parentNodeOverride = null)
         {
             if (ReferenceEquals(dirtySubtreeRoot, _visualRoot))
             {
@@ -693,8 +781,9 @@ public sealed partial class UiRoot
             }
 
             var previousRootNode = _retainedRenderList[dirtySubtreeRootIndex];
-            RenderNode? parentNode = null;
-            if (dirtySubtreeRoot.VisualParent != null &&
+            var parentNode = parentNodeOverride;
+            if (!parentNode.HasValue &&
+                dirtySubtreeRoot.VisualParent != null &&
                 _renderNodeIndices.TryGetValue(dirtySubtreeRoot.VisualParent, out var parentNodeIndex))
             {
                 parentNode = _retainedRenderList[parentNodeIndex];
@@ -946,6 +1035,7 @@ public sealed partial class UiRoot
                 metadata.RenderVersionStamp,
                 metadata.LayoutVersionStamp);
             RecordBoundsDelta(previous, updated);
+            RecordCompositionRefreshNodeIfNeeded(renderNodeIndex, previous, updated);
             _retainedRenderList[renderNodeIndex] = updated;
             return metadata;
         }
@@ -1142,8 +1232,28 @@ public sealed partial class UiRoot
             }
 
             RecordBoundsDelta(previous, updated);
+            RecordCompositionRefreshNodeIfNeeded(renderNodeIndex, previous, updated);
             _retainedRenderList[renderNodeIndex] = updated;
             return true;
+        }
+
+        private void RecordCompositionRefreshNodeIfNeeded(int nodeIndex, RenderNode previous, RenderNode updated)
+        {
+            if (RequiresCompositionNodeRefresh(previous, updated))
+            {
+                _retainedCompositionRefreshNodeIndices.Add(nodeIndex);
+            }
+        }
+
+        private static bool RequiresCompositionNodeRefresh(RenderNode previous, RenderNode updated)
+        {
+            return previous.RenderStateSignature != updated.RenderStateSignature ||
+                   previous.LocalRenderStateSignature != updated.LocalRenderStateSignature ||
+                   previous.IsEffectivelyVisible != updated.IsEffectivelyVisible ||
+                   previous.HasBoundsSnapshot != updated.HasBoundsSnapshot ||
+                   (previous.HasBoundsSnapshot && !AreRectsEqual(previous.BoundsSnapshot, updated.BoundsSnapshot)) ||
+                   previous.HasSubtreeBoundsSnapshot != updated.HasSubtreeBoundsSnapshot ||
+                   (previous.HasSubtreeBoundsSnapshot && !AreRectsEqual(previous.SubtreeBoundsSnapshot, updated.SubtreeBoundsSnapshot));
         }
 
         internal string ValidateRetainedTreeAgainstCurrentVisualState(int maxMismatches)
@@ -1323,30 +1433,177 @@ public sealed partial class UiRoot
         private void RefreshRetainedTransformStableLayerMetadata(int nodeIndex, RenderNode? parentNode)
         {
             var previous = RetainedRenderList[nodeIndex];
-            var refreshed = CreateRenderNode(
+            var refreshedRoot = CreateRenderNode(
                 previous.Visual,
                 previous.TraversalOrder,
                 previous.Depth,
                 previous.SubtreeEndIndexExclusive,
                 parentNode);
 
+            var previousTransform = previous.HasLocalTransform ? previous.LocalTransform : Matrix.Identity;
+            var currentTransform = refreshedRoot.HasLocalTransform ? refreshedRoot.LocalTransform : Matrix.Identity;
+            var transformDelta = Matrix.Invert(previousTransform) * currentTransform;
+            var transformedRootBounds = previous.HasBoundsSnapshot
+                ? TransformRect(previous.BoundsSnapshot, transformDelta)
+                : previous.BoundsSnapshot;
+            if (previous.HasBoundsSnapshot != refreshedRoot.HasBoundsSnapshot ||
+                (refreshedRoot.HasBoundsSnapshot && !AreRectsEqual(transformedRootBounds, refreshedRoot.BoundsSnapshot)))
+            {
+                refreshedRoot = RefreshRetainedRenderMetadataSubtree(nodeIndex, parentNode);
+            }
+            else
+            {
+                RefreshRetainedTransformStableLayerMetadataByDelta(nodeIndex, parentNode, refreshedRoot, transformDelta);
+                refreshedRoot = RetainedRenderList[nodeIndex];
+            }
+
             var hasSubtreeBounds = RetainedCompositionLayerBoundary.TryGetTransformStableLayerViewport(
                 previous.Visual,
                 out var subtreeBounds);
             if (!hasSubtreeBounds)
             {
-                hasSubtreeBounds = refreshed.HasBoundsSnapshot;
-                subtreeBounds = refreshed.BoundsSnapshot;
+                hasSubtreeBounds = refreshedRoot.HasSubtreeBoundsSnapshot;
+                subtreeBounds = refreshedRoot.SubtreeBoundsSnapshot;
             }
 
-            RetainedRenderList[nodeIndex] = refreshed.WithSubtreeMetadata(
-                previous.SubtreeEndIndexExclusive,
+            RetainedRenderList[nodeIndex] = refreshedRoot.WithSubtreeMetadata(
+                refreshedRoot.SubtreeEndIndexExclusive,
                 hasSubtreeBounds,
                 subtreeBounds,
-                previous.SubtreeVisualCount,
-                previous.SubtreeHighCostVisualCount,
-                previous.SubtreeRenderVersionStamp,
-                previous.SubtreeLayoutVersionStamp);
+                refreshedRoot.SubtreeVisualCount,
+                refreshedRoot.SubtreeHighCostVisualCount,
+                refreshedRoot.SubtreeRenderVersionStamp,
+                refreshedRoot.SubtreeLayoutVersionStamp);
+        }
+
+        private void RefreshRetainedTransformStableLayerMetadataByDelta(
+            int nodeIndex,
+            RenderNode? parentNode,
+            RenderNode refreshedRoot,
+            Matrix transformDelta)
+        {
+            var rootDepth = RetainedRenderList[nodeIndex].Depth;
+            var parentByDepth = new List<int>();
+            EnsureDepthSlot(parentByDepth, rootDepth);
+            if (rootDepth > 0)
+            {
+                parentByDepth[rootDepth - 1] = FindRetainedParentIndex(nodeIndex);
+            }
+
+            for (var i = nodeIndex; i < refreshedRoot.SubtreeEndIndexExclusive && i < RetainedRenderList.Count; i++)
+            {
+                var previous = RetainedRenderList[i];
+                EnsureDepthSlot(parentByDepth, previous.Depth);
+                var currentParent = previous.Depth == rootDepth
+                    ? parentNode
+                    : RetainedRenderList[parentByDepth[previous.Depth - 1]];
+                var hasLocalTransform = previous.HasLocalTransform;
+                var localTransform = previous.LocalTransform;
+                var localRenderStateSignature = previous.LocalRenderStateSignature;
+                var hasLocalClip = previous.HasLocalClip;
+                var localClipRect = previous.LocalClipRect;
+                var isEffectivelyVisible = currentParent.HasValue
+                    ? currentParent.Value.IsEffectivelyVisible && previous.Visual.IsVisible
+                    : IsEffectivelyVisible(previous.Visual);
+
+                if (i == nodeIndex)
+                {
+                    hasLocalTransform = refreshedRoot.HasLocalTransform;
+                    localTransform = refreshedRoot.LocalTransform;
+                    localRenderStateSignature = refreshedRoot.LocalRenderStateSignature;
+                    hasLocalClip = refreshedRoot.HasLocalClip;
+                    localClipRect = refreshedRoot.LocalClipRect;
+                    isEffectivelyVisible = refreshedRoot.IsEffectivelyVisible;
+                }
+
+                ResolveTransformFromParentState(
+                    currentParent,
+                    hasLocalTransform,
+                    localTransform,
+                    out var hasTransformFromThisToRoot,
+                    out var transformFromThisToRoot);
+                var renderStateSignature = MixHash(currentParent?.RenderStateSignature ?? 17, localRenderStateSignature);
+                var boundsSnapshot = previous.HasBoundsSnapshot
+                    ? TransformRect(previous.BoundsSnapshot, transformDelta)
+                    : previous.BoundsSnapshot;
+                var subtreeBoundsSnapshot = previous.HasSubtreeBoundsSnapshot
+                    ? TransformRect(previous.SubtreeBoundsSnapshot, transformDelta)
+                    : previous.SubtreeBoundsSnapshot;
+
+                RetainedRenderList[i] = new RenderNode(
+                    previous.Visual,
+                    previous.TraversalOrder,
+                    previous.Depth,
+                    boundsSnapshot,
+                    previous.HasBoundsSnapshot,
+                    hasLocalClip,
+                    localClipRect,
+                    hasLocalTransform,
+                    localTransform,
+                    renderStateSignature,
+                    localRenderStateSignature,
+                    hasTransformFromThisToRoot,
+                    transformFromThisToRoot,
+                    isEffectivelyVisible,
+                    previous.SubtreeEndIndexExclusive,
+                    previous.HasSubtreeBoundsSnapshot,
+                    subtreeBoundsSnapshot,
+                    previous.SubtreeVisualCount,
+                    previous.SubtreeHighCostVisualCount,
+                    previous.SubtreeRenderVersionStamp,
+                    previous.SubtreeLayoutVersionStamp);
+                parentByDepth[previous.Depth] = i;
+            }
+        }
+
+        private static void ResolveTransformFromParentState(
+            RenderNode? parentNode,
+            bool hasLocalTransform,
+            Matrix localTransform,
+            out bool hasTransformFromThisToRoot,
+            out Matrix transformFromThisToRoot)
+        {
+            if (parentNode.HasValue)
+            {
+                var parent = parentNode.Value;
+                if (hasLocalTransform && parent.HasTransformFromThisToRoot)
+                {
+                    transformFromThisToRoot = localTransform * parent.TransformFromThisToRoot;
+                    hasTransformFromThisToRoot = true;
+                    return;
+                }
+
+                if (hasLocalTransform)
+                {
+                    transformFromThisToRoot = localTransform;
+                    hasTransformFromThisToRoot = true;
+                    return;
+                }
+
+                if (parent.HasTransformFromThisToRoot)
+                {
+                    transformFromThisToRoot = parent.TransformFromThisToRoot;
+                    hasTransformFromThisToRoot = true;
+                    return;
+                }
+            }
+            else if (hasLocalTransform)
+            {
+                transformFromThisToRoot = localTransform;
+                hasTransformFromThisToRoot = true;
+                return;
+            }
+
+            transformFromThisToRoot = Matrix.Identity;
+            hasTransformFromThisToRoot = false;
+        }
+
+        private static void EnsureDepthSlot(List<int> parentByDepth, int depth)
+        {
+            while (parentByDepth.Count <= depth)
+            {
+                parentByDepth.Add(-1);
+            }
         }
 
         private RenderNode RefreshRetainedRenderMetadataSubtree(int nodeIndex, RenderNode? parentNode)

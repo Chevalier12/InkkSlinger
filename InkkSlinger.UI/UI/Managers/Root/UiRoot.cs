@@ -945,6 +945,11 @@ public sealed partial class UiRoot
         return _retainedRender.GetLastSynchronizedDirtyRootSummary(limit, DescribeElementForDiagnostics);
     }
 
+    internal int GetRetainedCompositionRefreshNodeCountForTests()
+    {
+        return _retainedRender.RetainedCompositionRefreshNodeIndices.Count;
+    }
+
     internal string GetDirtyRegionSummaryForTests(int limit = 6)
     {
         return _retainedRender.GetDirtyRegionSummary(limit);

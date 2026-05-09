@@ -177,7 +177,7 @@ public sealed class DesignerSplitterHangCaptureTests
     }
 
     [Fact]
-    public void PreviewScrollViewer_ScrollBarVisibilityToggle_TriggersVisualStructureDirty()
+    public void PreviewScrollViewer_ScrollBarVisibilityToggle_KeepsStableScrollBarChildren()
     {
         var snapshot = CaptureApplicationResources();
         try
@@ -199,14 +199,18 @@ public sealed class DesignerSplitterHangCaptureTests
 
             Assert.True(previewViewer.ExtentWidth <= previewViewer.ViewportWidth + 0.01f);
             Assert.True(previewViewer.ExtentHeight <= previewViewer.ViewportHeight + 0.01f);
-            Assert.Equal(0, CountVisualChildrenOfType<ScrollBar>(previewViewer));
+            Assert.Equal(2, CountVisualChildrenOfType<ScrollBar>(previewViewer));
+            Assert.Equal(Visibility.Collapsed, previewViewer.ComputedHorizontalScrollBarVisibility);
+            Assert.Equal(Visibility.Collapsed, previewViewer.ComputedVerticalScrollBarVisibility);
 
             DragSplitter(uiRoot, previewDockSplitter, new Vector2(-650f, 0f), travelFrames: 18);
             RunFrames(uiRoot, 18);
 
             Assert.True(previewViewer.ExtentWidth > previewViewer.ViewportWidth + 0.01f ||
                         previewViewer.ExtentHeight > previewViewer.ViewportHeight + 0.01f);
-            Assert.True(CountVisualChildrenOfType<ScrollBar>(previewViewer) > 0);
+            Assert.Equal(2, CountVisualChildrenOfType<ScrollBar>(previewViewer));
+            Assert.True(previewViewer.ComputedHorizontalScrollBarVisibility == Visibility.Visible ||
+                        previewViewer.ComputedVerticalScrollBarVisibility == Visibility.Visible);
 
             uiRoot.CompleteDrawStateForTests();
             uiRoot.ResetDirtyStateForTests();
@@ -220,8 +224,10 @@ public sealed class DesignerSplitterHangCaptureTests
 
             Assert.True(previewViewer.ExtentWidth <= previewViewer.ViewportWidth + 0.01f);
             Assert.True(previewViewer.ExtentHeight <= previewViewer.ViewportHeight + 0.01f);
-            Assert.Equal(0, CountVisualChildrenOfType<ScrollBar>(previewViewer));
-            Assert.True(afterMetrics.VisualStructureChangeCount > beforeMetrics.VisualStructureChangeCount);
+            Assert.Equal(2, CountVisualChildrenOfType<ScrollBar>(previewViewer));
+            Assert.Equal(Visibility.Collapsed, previewViewer.ComputedHorizontalScrollBarVisibility);
+            Assert.Equal(Visibility.Collapsed, previewViewer.ComputedVerticalScrollBarVisibility);
+            Assert.Equal(beforeMetrics.VisualStructureChangeCount, afterMetrics.VisualStructureChangeCount);
             Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
         }
         finally

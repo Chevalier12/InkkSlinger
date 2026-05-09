@@ -67,6 +67,53 @@ public sealed class TreeViewMeasurePerformanceTests
     }
 
     [Fact]
+    public void TreeView_HierarchicalViewportShrink_DoesNotRebindUnchangedLeadingRows()
+    {
+        var root = new ProjectNode("Root", isFolder: true);
+        for (var index = 0; index < 120; index++)
+        {
+            root.Children.Add(new ProjectNode($"File{index:000}.xml", isFolder: false));
+        }
+
+        var treeView = new TreeView
+        {
+            Width = 260f,
+            Height = 500f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HierarchicalChildrenSelector = static item => item is ProjectNode node ? node.Children : Array.Empty<ProjectNode>(),
+            HierarchicalHasChildrenSelector = static item => item is ProjectNode node && node.Children.Count > 0,
+            HierarchicalHeaderSelector = static item => item is ProjectNode node ? node.Name : string.Empty,
+            HierarchicalExpandedSelector = static item => item is ProjectNode { IsFolder: true },
+            HierarchicalItemsSource = new[] { root }
+        };
+        var host = new Canvas { Width = 320f, Height = 560f };
+        host.AddChild(treeView);
+        var uiRoot = new UiRoot(host);
+
+        RunLayout(uiRoot, width: 320, height: 560);
+        RunLayout(uiRoot, width: 320, height: 560);
+
+        var firstChildContainer = treeView.ContainerFromHierarchicalItem(root.Children[0]);
+        Assert.NotNull(firstChildContainer);
+        Assert.True(treeView.RealizedHierarchicalContainerCount > 20);
+
+        _ = TreeView.GetTelemetryAndReset();
+
+        treeView.Height = 320f;
+        RunLayout(uiRoot, width: 320, height: 560);
+        treeView.Height = 160f;
+        RunLayout(uiRoot, width: 320, height: 560);
+
+        var telemetry = TreeView.GetTelemetryAndReset();
+        var firstChildAfterShrink = treeView.ContainerFromHierarchicalItem(root.Children[0]);
+
+        Assert.Same(firstChildContainer, firstChildAfterShrink);
+        Assert.Equal(0, telemetry.HierarchicalApplyContainerCallCount);
+        Assert.Equal(0, telemetry.HierarchicalRecycleContainerCallCount);
+    }
+
+    [Fact]
     public void TreeView_HierarchicalHasChildrenSelector_DoesNotEnumerateCollapsedChildren()
     {
         var root = new LazyProjectNode("Root", isFolder: true);

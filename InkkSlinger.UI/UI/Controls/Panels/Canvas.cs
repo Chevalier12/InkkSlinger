@@ -138,11 +138,16 @@ public class Canvas : Panel, IScrollTransformContent
             left = ResolveArrangeOffset(left, right, finalSize.X, frameworkChild.DesiredSize.X);
             top = ResolveArrangeOffset(top, bottom, finalSize.Y, frameworkChild.DesiredSize.Y);
 
-            frameworkChild.Arrange(new LayoutRect(
+            var arrangeRect = new LayoutRect(
                 LayoutSlot.X + left,
                 LayoutSlot.Y + top,
                 frameworkChild.DesiredSize.X,
-                frameworkChild.DesiredSize.Y));
+                frameworkChild.DesiredSize.Y);
+
+            if (!frameworkChild.TryTranslateArrangedSubtree(arrangeRect))
+            {
+                frameworkChild.Arrange(arrangeRect);
+            }
         }
 
         _diagArrangeCallCount++;

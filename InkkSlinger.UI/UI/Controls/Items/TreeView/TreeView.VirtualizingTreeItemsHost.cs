@@ -12,6 +12,27 @@ public partial class TreeView
 {
     private sealed class VirtualizingTreeItemsHost : VirtualizingStackPanel
     {
+        protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+        {
+            if (AreLocalLayoutSizesClose(previousAvailableSize, nextAvailableSize))
+            {
+                return true;
+            }
+
+            var previousChildConstraint = new Vector2(previousAvailableSize.X, float.PositiveInfinity);
+            var nextChildConstraint = new Vector2(nextAvailableSize.X, float.PositiveInfinity);
+            foreach (var child in Children)
+            {
+                if (child is FrameworkElement element &&
+                    !element.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousChildConstraint, nextChildConstraint))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         public override IEnumerable<UIElement> GetVisualChildren()
         {
             if (!IsVirtualizationActive || FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex)

@@ -11,27 +11,23 @@ public partial class ScrollViewer
 {
     private void SyncInternalScrollBarParents()
     {
-        SyncInternalScrollBarParent(_horizontalBar, _showHorizontalBar);
-        SyncInternalScrollBarParent(_verticalBar, _showVerticalBar);
+        SyncInternalScrollBarParent(_horizontalBar);
+        SyncInternalScrollBarParent(_verticalBar);
     }
 
-    private void SyncInternalScrollBarParent(ScrollBar scrollBar, bool showInTree)
+    private void SyncInternalScrollBarParent(ScrollBar scrollBar)
     {
-        if (!showInTree)
+        if (!ReferenceEquals(scrollBar.VisualParent, this))
         {
-            if (scrollBar.IsLoaded)
-            {
-                scrollBar.RaiseUnloaded();
-            }
-
-            scrollBar.SetVisualParent(null);
-            scrollBar.SetLogicalParent(null);
-            return;
+            scrollBar.SetVisualParent(this);
         }
 
-        scrollBar.SetVisualParent(this);
-        scrollBar.SetLogicalParent(this);
-        if (!scrollBar.IsLoaded)
+        if (!ReferenceEquals(scrollBar.LogicalParent, this))
+        {
+            scrollBar.SetLogicalParent(this);
+        }
+
+        if (IsLoaded && !scrollBar.IsLoaded)
         {
             scrollBar.RaiseLoaded();
         }
@@ -135,7 +131,7 @@ public partial class ScrollViewer
     {
         var startTicks = Stopwatch.GetTimestamp();
         _runtimeUpdateScrollBarsCallCount++;
-        EnsureVisibleInternalScrollBarsLoaded();
+        EnsureInternalScrollBarsLoaded();
         var desiredHorizontalViewportSize = ViewportWidth;
         var desiredVerticalViewportSize = ViewportHeight;
         var desiredHorizontalMaximum = ExtentWidth;
@@ -215,16 +211,29 @@ public partial class ScrollViewer
         _diagUpdateScrollBarsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
-    private void EnsureVisibleInternalScrollBarsLoaded()
+    private void EnsureInternalScrollBarsLoaded()
     {
-        if (_showHorizontalBar && !_horizontalBar.IsLoaded)
+        if (IsLoaded && !_horizontalBar.IsLoaded)
         {
             _horizontalBar.RaiseLoaded();
         }
 
-        if (_showVerticalBar && !_verticalBar.IsLoaded)
+        if (IsLoaded && !_verticalBar.IsLoaded)
         {
             _verticalBar.RaiseLoaded();
+        }
+    }
+
+    private void UnloadInternalScrollBars()
+    {
+        if (_horizontalBar.IsLoaded)
+        {
+            _horizontalBar.RaiseUnloaded();
+        }
+
+        if (_verticalBar.IsLoaded)
+        {
+            _verticalBar.RaiseUnloaded();
         }
     }
 

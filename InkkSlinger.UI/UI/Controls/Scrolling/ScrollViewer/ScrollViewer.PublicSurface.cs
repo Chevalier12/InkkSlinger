@@ -72,22 +72,13 @@ public partial class ScrollViewer
             yield return child;
         }
 
-        if (_showHorizontalBar)
-        {
-            yield return _horizontalBar;
-        }
-
-        if (_showVerticalBar)
-        {
-            yield return _verticalBar;
-        }
+        yield return _horizontalBar;
+        yield return _verticalBar;
     }
 
     internal override int GetVisualChildCountForTraversal()
     {
-        return base.GetVisualChildCountForTraversal() +
-               (_showHorizontalBar ? 1 : 0) +
-               (_showVerticalBar ? 1 : 0);
+        return base.GetVisualChildCountForTraversal() + 2;
     }
 
     internal override UIElement GetVisualChildAtForTraversal(int index)
@@ -98,23 +89,12 @@ public partial class ScrollViewer
             return base.GetVisualChildAtForTraversal(index);
         }
 
-        var extraIndex = index - baseCount;
-        if (_showHorizontalBar)
+        return (index - baseCount) switch
         {
-            if (extraIndex == 0)
-            {
-                return _horizontalBar;
-            }
-
-            extraIndex--;
-        }
-
-        if (_showVerticalBar && extraIndex == 0)
-        {
-            return _verticalBar;
-        }
-
-        throw new ArgumentOutOfRangeException(nameof(index));
+            0 => _horizontalBar,
+            1 => _verticalBar,
+            _ => throw new ArgumentOutOfRangeException(nameof(index))
+        };
     }
 
     internal ScrollBar AutomationVerticalScrollBar => _verticalBar;
@@ -130,15 +110,8 @@ public partial class ScrollViewer
             yield return child;
         }
 
-        if (_showHorizontalBar)
-        {
-            yield return _horizontalBar;
-        }
-
-        if (_showVerticalBar)
-        {
-            yield return _verticalBar;
-        }
+        yield return _horizontalBar;
+        yield return _verticalBar;
     }
 
     public void ScrollToHorizontalOffset(float offset)
@@ -164,19 +137,30 @@ public partial class ScrollViewer
             return;
         }
 
-        if (LogicalScrollInfo is { } scrollInfo)
+        if (LogicalScrollInfo is not { } scrollInfo)
         {
-            _ = ApplyScrollMetrics(
-                scrollInfo.ExtentWidth,
-                scrollInfo.ExtentHeight,
-                scrollInfo.ViewportWidth,
-                scrollInfo.ViewportHeight,
-                publishViewportMetrics: true);
-            CoerceOffsetsToCurrentMetrics(closeAnchoredPopups: false);
-            UpdateScrollBars();
+            return;
         }
 
-        InvalidateMeasure();
+        var metricsChanged = ApplyScrollMetrics(
+            scrollInfo.ExtentWidth,
+            scrollInfo.ExtentHeight,
+            scrollInfo.ViewportWidth,
+            scrollInfo.ViewportHeight,
+            publishViewportMetrics: true);
+        var scrollBarVisibilityChanged = metricsChanged && HasAutoScrollBarVisibilityChange();
+        var offsetsChanged = CoerceOffsetsToCurrentMetrics(closeAnchoredPopups: false);
+        UpdateScrollBars();
+
+        if (metricsChanged || offsetsChanged)
+        {
+            ViewportChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        if (scrollBarVisibilityChanged)
+        {
+            InvalidateMeasure();
+        }
     }
 
     private bool TryRefreshTransformContentScrollInfo()
@@ -194,7 +178,7 @@ public partial class ScrollViewer
             ViewportWidth,
             ViewportHeight,
             publishViewportMetrics: true);
-        var scrollBarVisibilityChanged = metricsChanged && HasTransformContentScrollBarVisibilityChange();
+        var scrollBarVisibilityChanged = metricsChanged && HasAutoScrollBarVisibilityChange();
         var offsetsChanged = CoerceOffsetsToCurrentMetrics(closeAnchoredPopups: false);
         UpdateScrollBars();
 
@@ -226,8 +210,14 @@ public partial class ScrollViewer
         return true;
     }
 
-    private bool HasTransformContentScrollBarVisibilityChange()
+    private bool HasAutoScrollBarVisibilityChange()
     {
+        if (HorizontalScrollBarVisibility != ScrollBarVisibility.Auto &&
+            VerticalScrollBarVisibility != ScrollBarVisibility.Auto)
+        {
+            return false;
+        }
+
         var border = MathF.Max(0f, BorderThickness);
         var bounds = new LayoutRect(
             LayoutSlot.X + border,

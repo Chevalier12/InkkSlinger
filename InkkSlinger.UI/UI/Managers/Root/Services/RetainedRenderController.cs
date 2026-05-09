@@ -43,11 +43,13 @@ public sealed partial class UiRoot
         internal readonly List<DirtyRenderSpan> LastSynchronizedDirtyRenderSpans = new();
         internal readonly List<UIElement> LastCoalescedDirtyRenderRoots = new();
         internal readonly List<UIElement> DirtyRenderCompactionBuffer = new();
+        internal readonly List<int> RetainedCompositionRefreshNodeIndices = new();
         internal readonly List<RenderNode> ActiveRetainedDrawPath = new();
         internal readonly DirtyRegionTracker DirtyRegions = new();
         internal readonly CompositionTreeIndex CompositionTreeIndex = new();
         internal readonly RetainedCompositionCompositor CompositionCompositor = new();
         internal readonly Dictionary<UIElement, RenderInvalidationKind> PendingCompositionMetadataUpdates = new(ReferenceEqualityComparer.Instance);
+        internal readonly List<UIElement> PendingCompositionMetadataRemovalBuffer = new();
         private readonly Dictionary<UIElement, int> _pendingDirtyAncestorCounts = new(ReferenceEqualityComparer.Instance);
         private int _lastCompositionRecordPassCount;
         private int _lastCompositionMetadataPassCount;
@@ -731,7 +733,8 @@ public sealed partial class UiRoot
                 _renderListNeedsFullRebuild;
             if (_lastCompositionMetadataOnlySyncSucceeded &&
                 !requiresFullRefresh &&
-                LastCompletedSynchronizedDirtyRenderRoots.Count == 0)
+                (LastCompletedSynchronizedDirtyRenderRoots.Count == 0 ||
+                 _lastCompositionMetadataOnlySyncWasTransformStableLayer))
             {
                 UpdateCompositionFrameTelemetry();
                 return;
@@ -1815,20 +1818,27 @@ public sealed partial class UiRoot
                 }
 
                 allApplied &= retainedMetadataApplied;
-                CompositionMetadataUpdateCount++;
-                var kindIndex = (int)update.Value;
-                if ((uint)kindIndex < (uint)_compositionMetadataUpdateKindCounts.Length)
-                {
-                    _compositionMetadataUpdateKindCounts[kindIndex]++;
-                }
-
-                _lastCompositionMetadataUpdateKind = update.Value.ToString();
-                _lastCompositionMetadataUpdateSource = DescribeElementForDiagnostics(update.Key);
+                RecordAppliedCompositionMetadataUpdate(update.Key, update.Value);
             }
 
             PendingCompositionMetadataUpdates.Clear();
             _lastCompositionMetadataOnlySyncWasTransformStableLayer = allUpdatesAreTransformStableLayers;
             return allApplied;
+        }
+
+        private void RecordAppliedCompositionMetadataUpdate(
+            UIElement visual,
+            RenderInvalidationKind kind)
+        {
+            CompositionMetadataUpdateCount++;
+            var kindIndex = (int)kind;
+            if ((uint)kindIndex < (uint)_compositionMetadataUpdateKindCounts.Length)
+            {
+                _compositionMetadataUpdateKindCounts[kindIndex]++;
+            }
+
+            _lastCompositionMetadataUpdateKind = kind.ToString();
+            _lastCompositionMetadataUpdateSource = DescribeElementForDiagnostics(visual);
         }
 
         private bool HasPendingCompositionMetadataUpdate(UIElement visual)

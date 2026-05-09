@@ -23,15 +23,6 @@ public partial class ScrollViewer
             return false;
         }
 
-        if (source is FrameworkElement sourceElement &&
-            (!sourceElement.IsMeasureValidForTests ||
-             !sourceElement.IsArrangeValidForTests ||
-             sourceElement.NeedsMeasure ||
-             sourceElement.NeedsArrange))
-        {
-            return false;
-        }
-
         var availableSize = PreviousAvailableSizeForTests;
         if (float.IsNaN(availableSize.X) || float.IsNaN(availableSize.Y))
         {
@@ -183,6 +174,10 @@ public partial class ScrollViewer
                 MathF.Max(0f, fullRect.Width - GetVerticalBarReservation(_showVerticalBar, verticalBarThickness)),
                 horizontalBarThickness));
         }
+        else
+        {
+            _horizontalBar.Arrange(new LayoutRect(fullRect.X, fullRect.Y + fullRect.Height, 0f, 0f));
+        }
 
         if (_showVerticalBar)
         {
@@ -191,6 +186,10 @@ public partial class ScrollViewer
                 fullRect.Y,
                 verticalBarThickness,
                 MathF.Max(0f, fullRect.Height - GetHorizontalBarReservation(_showHorizontalBar, horizontalBarThickness))));
+        }
+        else
+        {
+            _verticalBar.Arrange(new LayoutRect(fullRect.X + fullRect.Width, fullRect.Y, 0f, 0f));
         }
 
         UpdateScrollBars();
@@ -225,12 +224,23 @@ public partial class ScrollViewer
             return true;
         }
 
-        if (ContentElement is not FrameworkElement content)
+        if (ContentElement is not FrameworkElement)
         {
             return true;
         }
 
-        return content.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize);
+        var border = MathF.Max(0f, BorderThickness);
+        var previousContentWidth = MathF.Max(0f, previousAvailableSize.X - (border * 2f));
+        var previousContentHeight = MathF.Max(0f, previousAvailableSize.Y - (border * 2f));
+        var nextContentWidth = MathF.Max(0f, nextAvailableSize.X - (border * 2f));
+        var nextContentHeight = MathF.Max(0f, nextAvailableSize.Y - (border * 2f));
+        return _contentPresenter.TryReuseMeasure(
+            previousContentWidth,
+            previousContentHeight,
+            nextContentWidth,
+            nextContentHeight,
+            out _,
+            out _);
     }
 
     private bool TryCanReuseSingleAutoAxisMeasure(Vector2 previousAvailableSize, Vector2 nextAvailableSize, out bool canReuse)
@@ -257,6 +267,12 @@ public partial class ScrollViewer
         if (ContentElement is not FrameworkElement content)
         {
             canReuse = true;
+            return true;
+        }
+
+        if (content.HasPendingMeasureInvalidationInVisualSubtreeForLayout())
+        {
+            canReuse = false;
             return true;
         }
 
@@ -734,18 +750,9 @@ public partial class ScrollViewer
 
     private void CacheResolvedScrollBarVisibility(bool showHorizontalBar, bool showVerticalBar)
     {
-        var visibilityChanged = _hasPreviousScrollBarResolution &&
-            (_previousShowHorizontalScrollBar != showHorizontalBar ||
-             _previousShowVerticalScrollBar != showVerticalBar);
-
         _hasPreviousScrollBarResolution = true;
         _previousShowHorizontalScrollBar = showHorizontalBar;
         _previousShowVerticalScrollBar = showVerticalBar;
-
-        if (visibilityChanged)
-        {
-            UiRoot.NotifyStableSubtreeVisualStructureChangedForOwner(this, VisualParent, VisualParent);
-        }
     }
 
     private bool ResolveInitialHorizontalScrollBarVisibility()

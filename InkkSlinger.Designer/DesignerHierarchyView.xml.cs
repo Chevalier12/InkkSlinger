@@ -55,6 +55,8 @@ public partial class DesignerHierarchyView : UserControl
     private float _workspaceLogicalHeight = MinimumWorkspaceHeight;
     private float _lastViewportWidth = -1f;
     private float _lastViewportHeight = -1f;
+    private bool _hasAppliedZoomLayout;
+    private HierarchyZoomLayout _lastAppliedZoomLayout;
 
     public DesignerHierarchyView()
     {
@@ -392,6 +394,13 @@ public partial class DesignerHierarchyView : UserControl
         var layout = CalculateZoomLayout(_workspaceLogicalWidth, _workspaceLogicalHeight, _zoom, viewport);
         _lastViewportWidth = viewport.X;
         _lastViewportHeight = viewport.Y;
+        if (_hasAppliedZoomLayout && AreZoomLayoutsClose(_lastAppliedZoomLayout, layout))
+        {
+            return;
+        }
+
+        _hasAppliedZoomLayout = true;
+        _lastAppliedZoomLayout = layout;
         HierarchyCanvas.ApplyZoomLayout(layout);
         HierarchyScrollViewer.InvalidateScrollInfo();
         _graphLayer.Width = _workspaceLogicalWidth;
@@ -564,6 +573,22 @@ public partial class DesignerHierarchyView : UserControl
             canvasHeight,
             MathF.Max(0f, (canvasWidth - scaledWidth) / 2f),
             MathF.Max(0f, (canvasHeight - scaledHeight) / 2f));
+    }
+
+    private static bool AreZoomLayoutsClose(HierarchyZoomLayout left, HierarchyZoomLayout right)
+    {
+        return AreLayoutValuesClose(left.Zoom, right.Zoom) &&
+               AreLayoutValuesClose(left.LogicalWidth, right.LogicalWidth) &&
+               AreLayoutValuesClose(left.LogicalHeight, right.LogicalHeight) &&
+               AreLayoutValuesClose(left.CanvasWidth, right.CanvasWidth) &&
+               AreLayoutValuesClose(left.CanvasHeight, right.CanvasHeight) &&
+               AreLayoutValuesClose(left.LeftOffset, right.LeftOffset) &&
+               AreLayoutValuesClose(left.TopOffset, right.TopOffset);
+    }
+
+    private static bool AreLayoutValuesClose(float left, float right)
+    {
+        return MathF.Abs(left - right) <= 0.01f;
     }
 
     private sealed record GraphNode(DesignerVisualTreeNodeViewModel Source, float X, float Y);

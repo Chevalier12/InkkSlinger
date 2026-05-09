@@ -80,9 +80,155 @@ public sealed class GridSplitterResizeInvalidationTests
     }
 
     [Fact]
-    public void SplitterColumnResize_WrappedTextInsideScrollViewer_RemeasuresWhenDesiredSizeChanges()
+    public void SplitterRowResize_NoTemplateRootControlWithUnchangedConstraint_UsesArrangeOnly()
+    {
+        var root = new Panel();
+        var grid = CreateNoTemplateRootControlRowGridContent(out var picker);
+        var viewer = CreateCountingViewer(grid);
+        root.AddChild(viewer);
+        var uiRoot = new UiRoot(root);
+
+        RunLayout(uiRoot, 640, 480, 16);
+
+        var pickerMeasureWorkBefore = picker.MeasureWorkCount;
+        var gridMeasureWorkBefore = grid.MeasureWorkCount;
+        var viewerMeasureWorkBefore = viewer.MeasureWorkCount;
+
+        var changed = grid.ApplySplitterRowResize(0, 1, 144f, 136f);
+
+        Assert.True(changed);
+        Assert.False(grid.NeedsMeasure);
+        Assert.True(grid.NeedsArrange);
+        Assert.False(viewer.NeedsMeasure);
+
+        RunLayout(uiRoot, 640, 480, 32);
+
+        Assert.Equal(pickerMeasureWorkBefore, picker.MeasureWorkCount);
+        Assert.Equal(gridMeasureWorkBefore, grid.MeasureWorkCount);
+        Assert.Equal(viewerMeasureWorkBefore, viewer.MeasureWorkCount);
+    }
+
+    [Fact]
+    public void SplitterRowResize_CollapsedNoTemplateRootControlInAutoRow_UsesArrangeOnly()
+    {
+        var root = new Panel();
+        var grid = CreateCollapsedAutoRowNoTemplateRootControlGridContent(out var pathTextBox);
+        var viewer = CreateCountingViewer(grid);
+        root.AddChild(viewer);
+        var uiRoot = new UiRoot(root);
+
+        RunLayout(uiRoot, 640, 480, 16);
+
+        pathTextBox.Measure(new Vector2(pathTextBox.PreviousAvailableSizeForTests.X, 0f));
+
+        Assert.Equal(Vector2.Zero, pathTextBox.DesiredSize);
+        Assert.True(
+            pathTextBox.CanReuseMeasureForAvailableSizeChangeForParentLayout(
+                pathTextBox.PreviousAvailableSizeForTests,
+                new Vector2(pathTextBox.PreviousAvailableSizeForTests.X, float.PositiveInfinity)));
+
+        var pathTextBoxMeasureWorkBefore = pathTextBox.MeasureWorkCount;
+        var gridMeasureWorkBefore = grid.MeasureWorkCount;
+        var viewerMeasureWorkBefore = viewer.MeasureWorkCount;
+
+        var changed = grid.ApplySplitterRowResize(0, 1, 144f, 136f);
+
+        Assert.True(changed);
+        Assert.False(grid.NeedsMeasure);
+        Assert.True(grid.NeedsArrange);
+        Assert.False(viewer.NeedsMeasure);
+
+        RunLayout(uiRoot, 640, 480, 32);
+
+        Assert.Equal(pathTextBoxMeasureWorkBefore, pathTextBox.MeasureWorkCount);
+        Assert.Equal(gridMeasureWorkBefore, grid.MeasureWorkCount);
+        Assert.Equal(viewerMeasureWorkBefore, viewer.MeasureWorkCount);
+    }
+
+    [Fact]
+    public void SplitterRowResize_TreeViewFallbackScrollHostWithStableDesiredSize_UsesArrangeOnly()
+    {
+        var root = new Panel();
+        var grid = CreateTreeViewFallbackScrollHostRowGridContent(out var treeView);
+        var viewer = CreateCountingViewer(grid);
+        root.AddChild(viewer);
+        var uiRoot = new UiRoot(root);
+
+        RunLayout(uiRoot, 640, 480, 16);
+
+        var treeViewMeasureWorkBefore = treeView.MeasureWorkCount;
+        var gridMeasureWorkBefore = grid.MeasureWorkCount;
+        var viewerMeasureWorkBefore = viewer.MeasureWorkCount;
+
+        var changed = grid.ApplySplitterRowResize(0, 1, 144f, 136f);
+
+        Assert.True(changed);
+        Assert.False(grid.NeedsMeasure);
+        Assert.True(grid.NeedsArrange);
+        Assert.False(viewer.NeedsMeasure);
+
+        RunLayout(uiRoot, 640, 480, 32);
+
+        Assert.Equal(treeViewMeasureWorkBefore, treeView.MeasureWorkCount);
+        Assert.Equal(gridMeasureWorkBefore, grid.MeasureWorkCount);
+        Assert.Equal(viewerMeasureWorkBefore, viewer.MeasureWorkCount);
+    }
+
+    [Fact]
+    public void SplitterRowResize_ItemsControlGeneratedChildrenWithStableDesiredSize_UsesArrangeOnly()
+    {
+        var root = new Panel();
+        var grid = CreateItemsControlRowGridContent(out var inspectorPanel);
+        var viewer = CreateCountingViewer(grid);
+        root.AddChild(viewer);
+        var uiRoot = new UiRoot(root);
+
+        RunLayout(uiRoot, 640, 480, 16);
+
+        var inspectorMeasureWorkBefore = inspectorPanel.MeasureWorkCount;
+        var gridMeasureWorkBefore = grid.MeasureWorkCount;
+        var viewerMeasureWorkBefore = viewer.MeasureWorkCount;
+
+        var changed = grid.ApplySplitterRowResize(0, 1, 144f, 136f);
+
+        Assert.True(changed);
+        Assert.False(grid.NeedsMeasure);
+        Assert.True(grid.NeedsArrange);
+        Assert.False(viewer.NeedsMeasure);
+
+        RunLayout(uiRoot, 640, 480, 32);
+
+        Assert.Equal(inspectorMeasureWorkBefore, inspectorPanel.MeasureWorkCount);
+        Assert.Equal(gridMeasureWorkBefore, grid.MeasureWorkCount);
+        Assert.Equal(viewerMeasureWorkBefore, viewer.MeasureWorkCount);
+    }
+
+    [Fact]
+    public void SplitterColumnResize_WrappedTextInsideScrollViewer_ReconcilesDesiredSizeWithoutViewerMeasureRebubble()
     {
         var (uiRoot, viewer, grid) = CreateViewerFixture(CreateWrappedTextGridContent());
+        RunLayout(uiRoot, 640, 480, 16);
+
+        Assert.False(grid.NeedsMeasure);
+        Assert.False(viewer.NeedsMeasure);
+        var desiredHeightBefore = grid.DesiredSize.Y;
+
+        var changed = grid.ApplySplitterColumnResize(0, 1, 60f, 240f);
+
+        Assert.True(changed);
+        Assert.False(grid.NeedsMeasure);
+        Assert.False(viewer.NeedsMeasure);
+        Assert.True(grid.DesiredSize.Y > desiredHeightBefore);
+
+        RunLayout(uiRoot, 640, 480, 32);
+
+        Assert.True(grid.DesiredSize.Y > desiredHeightBefore);
+    }
+
+    [Fact]
+    public void SplitterColumnResize_WrappedItemsControlText_RemeasuresWhenDesiredSizeChanges()
+    {
+        var (uiRoot, viewer, grid) = CreateViewerFixture(CreateWrappedItemsControlGridContent());
         RunLayout(uiRoot, 640, 480, 16);
 
         Assert.False(grid.NeedsMeasure);
@@ -444,6 +590,133 @@ public sealed class GridSplitterResizeInvalidationTests
         return grid;
     }
 
+    private static Grid CreateNoTemplateRootControlRowGridContent(out ComboBox picker)
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(140f, GridUnitType.Pixel), MinHeight = 80f });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(140f, GridUnitType.Pixel), MinHeight = 80f });
+
+        var top = new Border
+        {
+            Height = 32f
+        };
+
+        var bottomStack = new StackPanel();
+        picker = new ComboBox
+        {
+            SelectedItem = "Root template"
+        };
+        bottomStack.AddChild(picker);
+
+        Grid.SetRow(bottomStack, 1);
+        grid.AddChild(top);
+        grid.AddChild(bottomStack);
+        return grid;
+    }
+
+    private static Grid CreateCollapsedAutoRowNoTemplateRootControlGridContent(out TextBox pathTextBox)
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(140f, GridUnitType.Pixel), MinHeight = 80f });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(140f, GridUnitType.Pixel), MinHeight = 80f });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var top = new Border
+        {
+            Height = 32f
+        };
+        var bottom = new Border
+        {
+            Height = 32f
+        };
+        pathTextBox = new TextBox
+        {
+            Name = "DocumentPathTextBox",
+            Text = "C:\\Work\\Document.inkk",
+            Visibility = Visibility.Collapsed
+        };
+
+        Grid.SetRow(bottom, 1);
+        Grid.SetRow(pathTextBox, 2);
+        grid.AddChild(top);
+        grid.AddChild(bottom);
+        grid.AddChild(pathTextBox);
+        return grid;
+    }
+
+    private static Grid CreateTreeViewFallbackScrollHostRowGridContent(out TreeView projectExplorerTree)
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(140f, GridUnitType.Pixel), MinHeight = 80f });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(140f, GridUnitType.Pixel), MinHeight = 80f });
+
+        var top = new Border
+        {
+            Height = 32f
+        };
+        projectExplorerTree = new TreeView
+        {
+            Name = "ProjectExplorerTree",
+            BorderThickness = 0f,
+            Padding = new Thickness(0f)
+        };
+        projectExplorerTree.Items.Add(new TreeViewItem { Header = "Project" });
+
+        Grid.SetRow(projectExplorerTree, 1);
+        grid.AddChild(top);
+        grid.AddChild(projectExplorerTree);
+        return grid;
+    }
+
+    private static Grid CreateItemsControlRowGridContent(out ItemsControl inspectorPanel)
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(140f, GridUnitType.Pixel), MinHeight = 80f });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(140f, GridUnitType.Pixel), MinHeight = 80f });
+
+        var top = new Border
+        {
+            Height = 32f
+        };
+        inspectorPanel = new ItemsControl
+        {
+            Name = "InspectorPanel"
+        };
+        inspectorPanel.Items.Add(new StableMeasureReuseElement(96f, 24f));
+        inspectorPanel.Items.Add(new StableMeasureReuseElement(128f, 24f));
+
+        Grid.SetRow(inspectorPanel, 1);
+        grid.AddChild(top);
+        grid.AddChild(inspectorPanel);
+        return grid;
+    }
+
+    private static Grid CreateWrappedItemsControlGridContent()
+    {
+        var grid = CreateBaseGrid();
+        var left = new ItemsControl();
+        left.Items.Add(new TextBlock
+        {
+            Text = "The inspector item wraps when the first column narrows, which changes the generated item host desired height.",
+            TextWrapping = TextWrapping.Wrap
+        });
+        var right = new Border
+        {
+            Width = 90f,
+            Height = 48f
+        };
+
+        Grid.SetColumn(left, 0);
+        Grid.SetColumn(right, 1);
+        grid.AddChild(left);
+        grid.AddChild(right);
+        return grid;
+    }
+
     private static Grid CreateBaseGrid()
     {
         var grid = new Grid();
@@ -649,6 +922,47 @@ public sealed class GridSplitterResizeInvalidationTests
         {
             ArrangeOverrideCount++;
             return base.ArrangeOverride(finalSize);
+        }
+    }
+
+    private sealed class StableMeasureReuseElement : FrameworkElement
+    {
+        private readonly Vector2 _desiredSize;
+
+        public StableMeasureReuseElement(float desiredWidth, float desiredHeight)
+        {
+            _desiredSize = new Vector2(desiredWidth, desiredHeight);
+        }
+
+        protected override Vector2 MeasureOverride(Vector2 availableSize)
+        {
+            return new Vector2(ResolveDesiredAxis(_desiredSize.X, availableSize.X), ResolveDesiredAxis(_desiredSize.Y, availableSize.Y));
+        }
+
+        protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+        {
+            return FitsDesiredSize(previousAvailableSize) && FitsDesiredSize(nextAvailableSize);
+        }
+
+        protected override Vector2 ArrangeOverride(Vector2 finalSize)
+        {
+            return finalSize;
+        }
+
+        private bool FitsDesiredSize(Vector2 availableSize)
+        {
+            return FitsDesiredAxis(_desiredSize.X, availableSize.X) &&
+                   FitsDesiredAxis(_desiredSize.Y, availableSize.Y);
+        }
+
+        private static bool FitsDesiredAxis(float desired, float available)
+        {
+            return !float.IsFinite(available) || desired <= MathF.Max(0f, available) + 0.01f;
+        }
+
+        private static float ResolveDesiredAxis(float desired, float available)
+        {
+            return float.IsFinite(available) ? MathF.Min(desired, MathF.Max(0f, available)) : desired;
         }
     }
 
