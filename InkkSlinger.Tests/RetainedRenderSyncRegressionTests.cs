@@ -208,6 +208,62 @@ public sealed class RetainedRenderSyncRegressionTests
     }
 
     [Fact]
+    public void DirtyQueueCompaction_OverlappingNonDeepInvalidations_DoNotPromoteAncestorToForcedDeepSync()
+    {
+        var root = new Panel();
+        var parent = new Panel();
+        var child = new Border();
+        parent.AddChild(child);
+        root.AddChild(parent);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 260, 160));
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        parent.InvalidateArrangeForDirectLayoutOnly();
+        child.InvalidateVisual();
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        Assert.Equal(1, perfSnapshot.DirtyRootCount);
+        Assert.Equal(0, perfSnapshot.RetainedForceDeepSyncCount);
+        Assert.Equal(0, perfSnapshot.RetainedOverlapForcedDeepCount);
+        Assert.True(perfSnapshot.RetainedShallowSuccessCount >= 1);
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
+    public void BoundsMetadataInvalidation_UpdatesCompositionWithoutDirtyRenderSubtree()
+    {
+        var root = new Panel();
+        var child = new Border();
+        root.AddChild(child);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        child.InvalidateLayoutBoundsMetadata();
+
+        Assert.Equal(0, uiRoot.DirtyRenderQueueCount);
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        var telemetry = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+
+        Assert.Equal(0, telemetry.DirtyRootCount);
+        Assert.Equal(1, telemetry.CompositionMetadataUpdateCount);
+        Assert.Equal("Bounds", telemetry.LastCompositionMetadataUpdateKind);
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
     public void RenderInvalidationTelemetry_DefaultVisualInvalidation_MapsToContentKind()
     {
         var root = new Panel();
@@ -704,6 +760,7 @@ public sealed class RetainedRenderSyncRegressionTests
 
         Assert.Equal(compositionRebuildCount, telemetry.CompositionRebuildCount);
         Assert.Equal(1, telemetry.TransformMetadataUpdateCount);
+        Assert.Equal("Transform", telemetry.LastCompositionMetadataUpdateKind);
         Assert.Equal(0, perf.RetainedForceDeepSyncCount);
         Assert.True(contentNode.HasLocalTransform);
         Assert.True(MathF.Abs(contentNode.LocalTransform.Translation.Y + viewer.VerticalOffset) <= 0.05f);

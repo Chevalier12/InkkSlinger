@@ -167,20 +167,20 @@ public sealed partial class UiRoot
 
         internal string GetDirtyRenderQueueSummary(int limit, Func<UIElement, string> describe)
         {
-            if (LastCoalescedDirtyRenderRoots.Count > 0)
-            {
-                var count = Math.Min(limit, LastCoalescedDirtyRenderRoots.Count);
-                var coalescedItems = new string[count];
-                for (var i = 0; i < count; i++)
-                {
-                    coalescedItems[i] = describe(LastCoalescedDirtyRenderRoots[i]);
-                }
-
-                return string.Join(" | ", coalescedItems);
-            }
-
             if (DirtyRenderQueue.Count == 0)
             {
+                if (LastCoalescedDirtyRenderRoots.Count > 0)
+                {
+                    var count = Math.Min(limit, LastCoalescedDirtyRenderRoots.Count);
+                    var coalescedItems = new string[count];
+                    for (var i = 0; i < count; i++)
+                    {
+                        coalescedItems[i] = describe(LastCoalescedDirtyRenderRoots[i]);
+                    }
+
+                    return string.Join(" | ", coalescedItems);
+                }
+
                 return "none";
             }
 
@@ -660,11 +660,27 @@ public sealed partial class UiRoot
             }
         }
 
+        internal void NotifyLayoutBoundsChanged(UIElement requestedSource, UIElement effectiveSource)
+        {
+            var invalidation = new RetainedInvalidation(
+                requestedSource,
+                effectiveSource,
+                null,
+                effectiveSource,
+                RetainedInvalidationKind.RenderState,
+                RequireDeepSync: false);
+            RecordRenderInvalidationTelemetry(invalidation, RenderInvalidationKind.Bounds);
+            QueueCompositionMetadataUpdate(invalidation, RenderInvalidationKind.Bounds);
+            if (_root.UseDirtyRegionRendering)
+            {
+                TrackDirtyBoundsForVisual(effectiveSource);
+            }
+        }
+
         internal void Sync(Viewport viewport)
         {
             SyncDirtyRegionViewport(viewport);
-            _root.EnsureVisualIndexCurrent();
-            SynchronizeRetainedRenderList();
+            SyncIfNeeded();
         }
 
         internal void SyncIfNeeded()
@@ -1799,31 +1815,80 @@ public sealed partial class UiRoot
                 return true;
             }
 
+            var updates = CoalescePendingCompositionMetadataUpdates();
             var allApplied = true;
             var allUpdatesAreTransformStableLayers = true;
-            foreach (var update in PendingCompositionMetadataUpdates)
+            foreach (var update in updates)
             {
                 allUpdatesAreTransformStableLayers &=
                     update.Value is RenderInvalidationKind.Transform or RenderInvalidationKind.Clip &&
                     RetainedCompositionLayerBoundary.IsTransformStableLayer(update.Key);
+            }
 
-                var retainedMetadataApplied = TryRefreshRetainedRenderMetadata(update.Key);
-                if (!CompositionTreeIndex.TryUpdateMetadata(update.Key, update.Value))
+            allApplied &= TryRefreshRetainedRenderMetadataBatch(updates);
+
+            if (!CompositionTreeIndex.TryUpdateMetadataBatch(updates))
+            {
+                allApplied = false;
+                for (var i = 0; i < updates.Count; i++)
                 {
-                    allApplied = false;
-                    CompositionMetadataUpdateMissCount++;
-                    _lastCompositionMetadataUpdateKind = update.Value.ToString();
-                    _lastCompositionMetadataUpdateSource = DescribeElementForDiagnostics(update.Key);
-                    continue;
+                    var update = updates[i];
+                    if (!CompositionTreeIndex.TryUpdateMetadata(update.Key, update.Value))
+                    {
+                        CompositionMetadataUpdateMissCount++;
+                        _lastCompositionMetadataUpdateKind = update.Value.ToString();
+                        _lastCompositionMetadataUpdateSource = DescribeElementForDiagnostics(update.Key);
+                    }
                 }
+            }
 
-                allApplied &= retainedMetadataApplied;
-                RecordAppliedCompositionMetadataUpdate(update.Key, update.Value);
+            for (var i = 0; i < updates.Count; i++)
+            {
+                RecordAppliedCompositionMetadataUpdate(updates[i].Key, updates[i].Value);
             }
 
             PendingCompositionMetadataUpdates.Clear();
             _lastCompositionMetadataOnlySyncWasTransformStableLayer = allUpdatesAreTransformStableLayers;
             return allApplied;
+        }
+
+        private List<KeyValuePair<UIElement, RenderInvalidationKind>> CoalescePendingCompositionMetadataUpdates()
+        {
+            var updates = new List<PendingMetadataUpdate>(PendingCompositionMetadataUpdates.Count);
+            foreach (var update in PendingCompositionMetadataUpdates)
+            {
+                if (!RenderNodeIndices.TryGetValue(update.Key, out var nodeIndex) ||
+                    (uint)nodeIndex >= (uint)RetainedRenderList.Count)
+                {
+                    updates.Add(new PendingMetadataUpdate(update.Key, update.Value, int.MaxValue, int.MaxValue));
+                    continue;
+                }
+
+                updates.Add(new PendingMetadataUpdate(
+                    update.Key,
+                    update.Value,
+                    nodeIndex,
+                    RetainedRenderList[nodeIndex].SubtreeEndIndexExclusive));
+            }
+
+            updates.Sort(static (left, right) => left.NodeIndex.CompareTo(right.NodeIndex));
+            var coalesced = new List<KeyValuePair<UIElement, RenderInvalidationKind>>(updates.Count);
+            var activeBoundsEnd = -1;
+            for (var i = 0; i < updates.Count; i++)
+            {
+                var update = updates[i];
+                if (update.NodeIndex < activeBoundsEnd)
+                {
+                    continue;
+                }
+
+                coalesced.Add(new KeyValuePair<UIElement, RenderInvalidationKind>(update.Visual, update.Kind));
+                activeBoundsEnd = update.Kind == RenderInvalidationKind.Bounds
+                    ? update.SubtreeEndIndexExclusive
+                    : -1;
+            }
+
+            return coalesced;
         }
 
         private void RecordAppliedCompositionMetadataUpdate(
@@ -1850,6 +1915,7 @@ public sealed partial class UiRoot
         {
             return kind == RenderInvalidationKind.Transform ||
                    kind == RenderInvalidationKind.Clip ||
+                   kind == RenderInvalidationKind.Bounds ||
                    kind == RenderInvalidationKind.Opacity ||
                    kind == RenderInvalidationKind.Visibility;
         }
@@ -1864,11 +1930,16 @@ public sealed partial class UiRoot
             }
 
             return renderInvalidationKind == RenderInvalidationKind.Content ||
-                   renderInvalidationKind == RenderInvalidationKind.Bounds ||
                    renderInvalidationKind == RenderInvalidationKind.Effect ||
                    renderInvalidationKind == RenderInvalidationKind.Overlay ||
                    renderInvalidationKind == RenderInvalidationKind.DeviceResource;
         }
+
+        private readonly record struct PendingMetadataUpdate(
+            UIElement Visual,
+            RenderInvalidationKind Kind,
+            int NodeIndex,
+            int SubtreeEndIndexExclusive);
 
         private readonly record struct RenderTraversalMetrics(
             int NodesVisited,

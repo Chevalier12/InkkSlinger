@@ -251,6 +251,8 @@ public class Panel : FrameworkElement
         return finalSize;
     }
 
+    internal override bool CanRetainRenderContentDuringLayoutMetadataUpdate => Background.A == 0;
+
     protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
     {
         return (IsMeasuring ||

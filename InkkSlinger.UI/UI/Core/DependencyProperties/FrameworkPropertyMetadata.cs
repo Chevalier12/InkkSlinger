@@ -28,6 +28,10 @@ public class FrameworkPropertyMetadata
 
     public bool AffectsArrange => (Options & FrameworkPropertyMetadataOptions.AffectsArrange) != 0;
 
+    public bool AffectsParentMeasure => (Options & FrameworkPropertyMetadataOptions.AffectsParentMeasure) != 0;
+
+    public bool AffectsParentArrange => (Options & FrameworkPropertyMetadataOptions.AffectsParentArrange) != 0;
+
     public bool AffectsRender => (Options & FrameworkPropertyMetadataOptions.AffectsRender) != 0;
 
     public bool BindsTwoWayByDefault => (Options & FrameworkPropertyMetadataOptions.BindsTwoWayByDefault) != 0;

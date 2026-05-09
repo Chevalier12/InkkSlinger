@@ -306,10 +306,9 @@ public sealed partial class UiRoot
                     return;
                 }
 
-                _lastRetainedOverlapForcedDeepCount++;
                 _dirtyRenderWorkItems[lastIndex] = last with
                 {
-                    RequiresDeepSync = true,
+                    RequiresDeepSync = last.RequiresDeepSync || candidate.RequiresDeepSync,
                     AllowsSubtreeRebuild = last.AllowsSubtreeRebuild || candidate.AllowsSubtreeRebuild
                 };
                 return;
@@ -972,15 +971,20 @@ public sealed partial class UiRoot
                 return false;
             }
 
+            return !HasDirtyRetainedRenderChildren(root);
+        }
+
+        private static bool HasDirtyRetainedRenderChildren(UIElement root)
+        {
             foreach (var child in root.GetRetainedRenderChildren())
             {
                 if (child.SubtreeDirty)
                 {
-                    return false;
+                    return true;
                 }
             }
 
-            return true;
+            return false;
         }
 
         private SubtreeMetadata UpdateRenderNodeSubtreeRecursive(UIElement visual, RenderNode? parentNode)
@@ -1430,6 +1434,48 @@ public sealed partial class UiRoot
             return true;
         }
 
+        private bool TryRefreshRetainedRenderMetadataBatch(
+            IReadOnlyList<KeyValuePair<UIElement, RenderInvalidationKind>> updates)
+        {
+            if (updates.Count == 0)
+            {
+                return true;
+            }
+
+            var nodeIndices = new int[updates.Count];
+            for (var i = 0; i < updates.Count; i++)
+            {
+                if (!RenderNodeIndices.TryGetValue(updates[i].Key, out var nodeIndex) ||
+                    (uint)nodeIndex >= (uint)RetainedRenderList.Count)
+                {
+                    return false;
+                }
+
+                nodeIndices[i] = nodeIndex;
+            }
+
+            var refreshAncestors = new bool[RetainedRenderList.Count];
+            for (var i = 0; i < updates.Count; i++)
+            {
+                var nodeIndex = nodeIndices[i];
+                var parentIndex = FindRetainedParentIndex(nodeIndex);
+                var parentNode = parentIndex >= 0 ? RetainedRenderList[parentIndex] : (RenderNode?)null;
+                if (RetainedCompositionLayerBoundary.IsTransformStableLayer(updates[i].Key))
+                {
+                    RefreshRetainedTransformStableLayerMetadata(nodeIndex, parentNode);
+                }
+                else
+                {
+                    _ = RefreshRetainedRenderMetadataSubtree(nodeIndex, parentNode);
+                }
+
+                MarkRetainedAncestorsForRefresh(parentIndex, refreshAncestors);
+            }
+
+            RefreshMarkedRetainedAncestorSubtreeMetadata(refreshAncestors);
+            return true;
+        }
+
         private void RefreshRetainedTransformStableLayerMetadata(int nodeIndex, RenderNode? parentNode)
         {
             var previous = RetainedRenderList[nodeIndex];
@@ -1649,6 +1695,51 @@ public sealed partial class UiRoot
         {
             for (var currentIndex = nodeIndex; currentIndex >= 0; currentIndex = FindRetainedParentIndex(currentIndex))
             {
+                var current = RetainedRenderList[currentIndex];
+                var metadata = CreateSubtreeMetadataForNode(current);
+                for (var childIndex = currentIndex + 1;
+                     childIndex < current.SubtreeEndIndexExclusive &&
+                     childIndex < RetainedRenderList.Count;)
+                {
+                    var child = RetainedRenderList[childIndex];
+                    if (child.Depth != current.Depth + 1)
+                    {
+                        childIndex++;
+                        continue;
+                    }
+
+                    metadata = MergeSubtreeMetadata(metadata, CreateSubtreeMetadataFromSubtreeNode(child));
+                    childIndex = child.SubtreeEndIndexExclusive;
+                }
+
+                RetainedRenderList[currentIndex] = current.WithSubtreeMetadata(
+                    current.SubtreeEndIndexExclusive,
+                    metadata.HasBoundsSnapshot,
+                    metadata.BoundsSnapshot,
+                    metadata.VisualCount,
+                    metadata.HighCostVisualCount,
+                    metadata.RenderVersionStamp,
+                    metadata.LayoutVersionStamp);
+            }
+        }
+
+        private void MarkRetainedAncestorsForRefresh(int nodeIndex, bool[] refreshAncestors)
+        {
+            for (var currentIndex = nodeIndex; currentIndex >= 0; currentIndex = FindRetainedParentIndex(currentIndex))
+            {
+                refreshAncestors[currentIndex] = true;
+            }
+        }
+
+        private void RefreshMarkedRetainedAncestorSubtreeMetadata(bool[] refreshAncestors)
+        {
+            for (var currentIndex = RetainedRenderList.Count - 1; currentIndex >= 0; currentIndex--)
+            {
+                if (!refreshAncestors[currentIndex])
+                {
+                    continue;
+                }
+
                 var current = RetainedRenderList[currentIndex];
                 var metadata = CreateSubtreeMetadataForNode(current);
                 for (var childIndex = currentIndex + 1;

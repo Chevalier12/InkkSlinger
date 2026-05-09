@@ -17,6 +17,11 @@ internal sealed class CompositionTreeIndex
 
     public bool TryUpdateMetadata(UIElement visual, RenderInvalidationKind kind)
     {
+        if (TryUpdateSparseLeafMetadataBatch(new[] { new KeyValuePair<UIElement, RenderInvalidationKind>(visual, kind) }))
+        {
+            return true;
+        }
+
         if (!_graph.NodeIndices.TryGetValue(visual, out var nodeIndex) ||
             (uint)nodeIndex >= (uint)_graph.Nodes.Count)
         {
@@ -59,6 +64,134 @@ internal sealed class CompositionTreeIndex
 
         nodes[nodeIndex] = CaptureMetadata(nodes[nodeIndex]);
         _graph = new RetainedCompositionGraph(nodes, _graph.NodeIndices);
+        return true;
+    }
+
+    public bool TryUpdateMetadataBatch(IReadOnlyList<KeyValuePair<UIElement, RenderInvalidationKind>> updates)
+    {
+        if (updates.Count == 0)
+        {
+            return true;
+        }
+
+        if (TryUpdateSparseLeafMetadataBatch(updates))
+        {
+            return true;
+        }
+
+        var oldNodes = _graph.Nodes;
+        var updateNodes = new int[updates.Count];
+        for (var i = 0; i < updates.Count; i++)
+        {
+            if (!_graph.NodeIndices.TryGetValue(updates[i].Key, out var nodeIndex) ||
+                (uint)nodeIndex >= (uint)oldNodes.Count)
+            {
+                return false;
+            }
+
+            updateNodes[i] = nodeIndex;
+        }
+
+        var nodes = CopyNodes(oldNodes);
+        var refreshAncestors = new bool[nodes.Length];
+        for (var i = 0; i < updates.Count; i++)
+        {
+            var nodeIndex = updateNodes[i];
+            var kind = updates[i].Value;
+            if (kind == RenderInvalidationKind.Visibility)
+            {
+                UpdateVisibilitySubtree(nodes, nodeIndex);
+                MarkAncestorsForRefresh(nodes, nodes[nodeIndex].ParentIndex, refreshAncestors);
+                continue;
+            }
+
+            if (kind is RenderInvalidationKind.Transform or RenderInvalidationKind.Clip or RenderInvalidationKind.Bounds)
+            {
+                if (kind == RenderInvalidationKind.Transform &&
+                    RetainedCompositionLayerBoundary.IsTransformStableLayer(nodes[nodeIndex].Visual) &&
+                    TryUpdateTransformStableLayerMetadataByDelta(nodes, nodeIndex))
+                {
+                    MarkAncestorsForRefresh(nodes, nodes[nodeIndex].ParentIndex, refreshAncestors);
+                    continue;
+                }
+
+                if (kind is RenderInvalidationKind.Transform or RenderInvalidationKind.Clip &&
+                    RetainedCompositionLayerBoundary.IsTransformStableLayer(nodes[nodeIndex].Visual))
+                {
+                    RefreshTransformStableLayerMetadata(nodes, nodeIndex);
+                }
+                else
+                {
+                    RefreshSubtreeMetadataAndBounds(nodes, nodeIndex, refreshCacheKeys: kind == RenderInvalidationKind.Bounds);
+                }
+
+                MarkAncestorsForRefresh(nodes, nodes[nodeIndex].ParentIndex, refreshAncestors);
+                continue;
+            }
+
+            nodes[nodeIndex] = CaptureMetadata(nodes[nodeIndex]);
+            MarkAncestorsForRefresh(nodes, nodes[nodeIndex].ParentIndex, refreshAncestors);
+        }
+
+        RefreshMarkedAncestors(nodes, refreshAncestors);
+        _graph = new RetainedCompositionGraph(nodes, _graph.NodeIndices);
+        return true;
+    }
+
+    private bool TryUpdateSparseLeafMetadataBatch(IReadOnlyList<KeyValuePair<UIElement, RenderInvalidationKind>> updates)
+    {
+        var nodes = _graph.Nodes as RetainedCompositionNode[];
+        if (nodes == null)
+        {
+            return false;
+        }
+
+        var nodeIndices = new int[updates.Count];
+        for (var i = 0; i < updates.Count; i++)
+        {
+            var kind = updates[i].Value;
+            if (kind is not (RenderInvalidationKind.Bounds or RenderInvalidationKind.Transform or RenderInvalidationKind.Clip or RenderInvalidationKind.Opacity) ||
+                !_graph.NodeIndices.TryGetValue(updates[i].Key, out var nodeIndex) ||
+                (uint)nodeIndex >= (uint)nodes.Length ||
+                nodes[nodeIndex].SubtreeEndIndexExclusive - nodeIndex > 4096 ||
+                RetainedCompositionLayerBoundary.IsTransformStableLayer(nodes[nodeIndex].Visual))
+            {
+                return false;
+            }
+
+            nodeIndices[i] = nodeIndex;
+        }
+
+        var touchedNodeIndices = new List<int>(updates.Count * 4);
+        for (var i = 0; i < updates.Count; i++)
+        {
+            var nodeIndex = nodeIndices[i];
+            if (nodes[nodeIndex].ChildCount == 0 ||
+                updates[i].Value == RenderInvalidationKind.Opacity)
+            {
+                nodes[nodeIndex] = CaptureSparseLeafMetadata(nodes[nodeIndex], updates[i].Value);
+            }
+            else
+            {
+                _ = RefreshSubtreeMetadataAndBounds(
+                    nodes,
+                    nodeIndex,
+                    refreshCacheKeys: updates[i].Value == RenderInvalidationKind.Bounds);
+            }
+
+            AddUniqueNodeIndex(touchedNodeIndices, nodeIndex);
+            AddAncestorNodeIndices(nodes, nodes[nodeIndex].ParentIndex, touchedNodeIndices);
+        }
+
+        touchedNodeIndices.Sort((left, right) => nodes[right].Depth.CompareTo(nodes[left].Depth));
+        for (var i = 0; i < touchedNodeIndices.Count; i++)
+        {
+            if (!ContainsNodeIndex(nodeIndices, touchedNodeIndices[i]))
+            {
+                RefreshNodeSubtreeBounds(nodes, touchedNodeIndices[i]);
+            }
+        }
+
         return true;
     }
 
@@ -788,6 +921,88 @@ internal sealed class CompositionTreeIndex
             RefreshNodeSubtreeBounds(nodes, currentIndex);
             currentIndex = nodes[currentIndex].ParentIndex;
         }
+    }
+
+    private static void MarkAncestorsForRefresh(
+        RetainedCompositionNode[] nodes,
+        int nodeIndex,
+        bool[] refreshAncestors)
+    {
+        for (var currentIndex = nodeIndex; currentIndex >= 0;)
+        {
+            refreshAncestors[currentIndex] = true;
+            currentIndex = nodes[currentIndex].ParentIndex;
+        }
+    }
+
+    private static void AddAncestorNodeIndices(
+        RetainedCompositionNode[] nodes,
+        int nodeIndex,
+        List<int> nodeIndices)
+    {
+        for (var currentIndex = nodeIndex; currentIndex >= 0;)
+        {
+            AddUniqueNodeIndex(nodeIndices, currentIndex);
+            currentIndex = nodes[currentIndex].ParentIndex;
+        }
+    }
+
+    private static void AddUniqueNodeIndex(List<int> nodeIndices, int nodeIndex)
+    {
+        for (var i = 0; i < nodeIndices.Count; i++)
+        {
+            if (nodeIndices[i] == nodeIndex)
+            {
+                return;
+            }
+        }
+
+        nodeIndices.Add(nodeIndex);
+    }
+
+    private static bool ContainsNodeIndex(IReadOnlyList<int> nodeIndices, int nodeIndex)
+    {
+        for (var i = 0; i < nodeIndices.Count; i++)
+        {
+            if (nodeIndices[i] == nodeIndex)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void RefreshMarkedAncestors(RetainedCompositionNode[] nodes, bool[] refreshAncestors)
+    {
+        for (var nodeIndex = nodes.Length - 1; nodeIndex >= 0; nodeIndex--)
+        {
+            if (refreshAncestors[nodeIndex])
+            {
+                RefreshNodeSubtreeBounds(nodes, nodeIndex);
+            }
+        }
+    }
+
+    private static RetainedCompositionNode CaptureSparseLeafMetadata(
+        RetainedCompositionNode node,
+        RenderInvalidationKind kind)
+    {
+        var refreshed = CaptureMetadata(node);
+        if (kind == RenderInvalidationKind.Bounds)
+        {
+            var hasBounds = refreshed.Visual.TryGetRenderBoundsInRootSpace(out var bounds);
+            return refreshed with
+            {
+                HasBounds = hasBounds,
+                Bounds = bounds,
+                HasSubtreeBounds = hasBounds,
+                SubtreeBounds = bounds,
+                CacheKey = CreateSelfCacheKey(refreshed.Visual)
+            };
+        }
+
+        return refreshed;
     }
 
     private static void RefreshNodeSubtreeBounds(RetainedCompositionNode[] nodes, int nodeIndex)

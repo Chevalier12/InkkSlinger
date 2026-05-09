@@ -648,6 +648,17 @@ public class Control : FrameworkElement, ICommandSource
         return element.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize);
     }
 
+    internal override bool CanRetainRenderContentDuringLayoutMetadataUpdate =>
+        Background.A == 0 && (IsZero(BorderThickness) || BorderBrush.A == 0);
+
+    private static bool IsZero(Thickness thickness)
+    {
+        return thickness.Left <= 0f &&
+               thickness.Top <= 0f &&
+               thickness.Right <= 0f &&
+               thickness.Bottom <= 0f;
+    }
+
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var start = Stopwatch.GetTimestamp();

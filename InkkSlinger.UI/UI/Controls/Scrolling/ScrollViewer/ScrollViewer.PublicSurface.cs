@@ -9,6 +9,9 @@ namespace InkkSlinger;
 
 public partial class ScrollViewer
 {
+    internal override bool CanRetainRenderContentDuringLayoutMetadataUpdate =>
+        Background.A == 0 && (BorderThickness <= 0f || BorderBrush.A == 0);
+
     protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
     {
         return _isReconcilingDescendantMeasureInvalidation && IsContentDescendant(descendant);

@@ -15,6 +15,7 @@ public partial class ScrollViewer
         _ = reason;
 
         if (ReferenceEquals(origin, this) ||
+            !origin.AllowsAncestorMeasureInvalidationReconciliation ||
             _isReconcilingDescendantMeasureInvalidation ||
             NeedsMeasure ||
             ContentElement is not FrameworkElement content ||
@@ -154,16 +155,25 @@ public partial class ScrollViewer
         CacheResolvedScrollBarVisibility(decision.ShowHorizontalBar, decision.ShowVerticalBar);
         UpdateDerivedScrollState();
         _contentViewportRect = decision.ViewportRect;
-        var clipStateChanged =
+        var scrollBarVisibilityChanged =
             previousShowHorizontalBar != _showHorizontalBar ||
-            previousShowVerticalBar != _showVerticalBar ||
+            previousShowVerticalBar != _showVerticalBar;
+        var clipStateChanged =
+            scrollBarVisibilityChanged ||
             !AreLayoutRectsClose(previousViewportRect, _contentViewportRect);
         var offsetsChanged = CoerceOffsetsToCurrentMetrics(closeAnchoredPopups: true);
         ArrangeContentForCurrentOffsets(previousViewportRect);
 
         if (clipStateChanged)
         {
-            InvalidateVisual();
+            if (scrollBarVisibilityChanged)
+            {
+                InvalidateVisual();
+            }
+            else
+            {
+                UiRoot.Current?.NotifyDirectRenderInvalidation(this, RenderInvalidationKind.Clip);
+            }
         }
 
         if (_showHorizontalBar)

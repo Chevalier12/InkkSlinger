@@ -81,14 +81,21 @@ internal sealed class ScrollViewerContentPresenter
             content.TryTranslateArrangedSubtree(arrangeRect))
         {
             CacheArrange(content, arrangeRect);
-            content.InvalidateVisual();
+            content.InvalidateLayoutBoundsMetadata();
             RecordArrangeElapsed(startTicks);
             return;
         }
 
         content.Arrange(arrangeRect);
         CacheArrange(content, arrangeRect);
-        content.InvalidateVisual();
+        if (content.CanRetainRenderContentDuringLayoutMetadataUpdate)
+        {
+            content.InvalidateLayoutBoundsMetadata();
+        }
+        else
+        {
+            content.InvalidateVisual();
+        }
         RecordArrangeElapsed(startTicks);
     }
 

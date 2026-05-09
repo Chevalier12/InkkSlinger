@@ -48,6 +48,9 @@ public class UIElement : DependencyObject
     private static readonly object InheritablePropertyCacheLock = new();
     private static readonly Dictionary<Type, List<DependencyProperty>> InheritablePropertiesByType = new();
 
+    [ThreadStatic]
+    private static int _scopedLayoutBoundsMetadataDepth;
+
     private readonly Dictionary<RoutedEvent, List<RoutedHandlerEntry>> _routedHandlers = new();
     private readonly List<CommandBinding> _commandBindings = new();
     private readonly List<InputBinding> _inputBindings = new();
@@ -679,6 +682,10 @@ public class UIElement : DependencyObject
         _ = reason;
         return false;
     }
+
+    internal virtual bool AllowsAncestorMeasureInvalidationReconciliation => true;
+
+    internal virtual bool AllowsAncestorMeasureInvalidationReconciliationAfterFailedParentMeasureSimulation => true;
 
     protected virtual bool TryHandleArrangeInvalidation(UIElement origin, UIElement? source, string reason)
     {
@@ -1357,6 +1364,20 @@ public class UIElement : DependencyObject
             InvalidateArrangeCore(this, source: null, reason: $"property:{args.Property.Name}");
         }
 
+        if ((options & FrameworkPropertyMetadataOptions.AffectsParentMeasure) != 0 &&
+            ShouldInvalidateParentMeasureForPropertyChange(args, metadata) &&
+            GetInvalidationParent() is { } measureParent)
+        {
+            measureParent.InvalidateMeasureCore(this, source: this, reason: $"property:{args.Property.Name}");
+        }
+
+        if ((options & FrameworkPropertyMetadataOptions.AffectsParentArrange) != 0 &&
+            ShouldInvalidateParentArrangeForPropertyChange(args, metadata) &&
+            GetInvalidationParent() is { } arrangeParent)
+        {
+            arrangeParent.InvalidateArrangeCore(this, source: this, reason: $"property:{args.Property.Name}");
+        }
+
         if ((options & FrameworkPropertyMetadataOptions.AffectsRender) != 0 &&
             ShouldInvalidateVisualForPropertyChange(args, metadata))
         {
@@ -1402,6 +1423,24 @@ public class UIElement : DependencyObject
     }
 
     protected virtual bool ShouldInvalidateArrangeForPropertyChange(
+        DependencyPropertyChangedEventArgs args,
+        FrameworkPropertyMetadata metadata)
+    {
+        _ = args;
+        _ = metadata;
+        return true;
+    }
+
+    protected virtual bool ShouldInvalidateParentMeasureForPropertyChange(
+        DependencyPropertyChangedEventArgs args,
+        FrameworkPropertyMetadata metadata)
+    {
+        _ = args;
+        _ = metadata;
+        return true;
+    }
+
+    protected virtual bool ShouldInvalidateParentArrangeForPropertyChange(
         DependencyPropertyChangedEventArgs args,
         FrameworkPropertyMetadata metadata)
     {
@@ -1569,23 +1608,83 @@ public class UIElement : DependencyObject
     private void PrepareArrangeForDirectLayoutCore(bool invalidateRender)
     {
         Dispatcher.VerifyAccess();
+        MarkArrangeInvalidForDirectLayoutOnly();
         if (NeedsArrange)
         {
-            if (invalidateRender)
-            {
-                InvalidateBounds();
-            }
-
+            PropagateArrangeInvalidationForDirectLayoutOnly(invalidateRender);
             return;
         }
 
         NeedsArrange = true;
         _arrangeInvalidationCount++;
         _layoutVersionStamp++;
-        MarkSubtreeDirty();
-        if (invalidateRender)
+        if (IsConnectedToCurrentUiRoot())
         {
-            InvalidateBounds();
+            UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Arrange, this);
+        }
+
+        MarkSubtreeDirty();
+        PropagateArrangeInvalidationForDirectLayoutOnly(invalidateRender);
+    }
+
+    protected virtual void MarkArrangeInvalidForDirectLayoutOnly()
+    {
+    }
+
+    private void PropagateArrangeInvalidationForDirectLayoutOnly(bool invalidateRender)
+    {
+        if (this is ScrollViewer)
+        {
+            return;
+        }
+
+        var parent = GetInvalidationParent();
+        if (parent == null)
+        {
+            return;
+        }
+
+        parent.PrepareArrangeForDirectLayoutCore(invalidateRender);
+    }
+
+    internal void InvalidateLayoutBoundsMetadata()
+    {
+        if (!IsConnectedToCurrentUiRoot())
+        {
+            return;
+        }
+
+        if (_scopedLayoutBoundsMetadataDepth > 0)
+        {
+            return;
+        }
+
+        UiRoot.Current?.NotifyLayoutBoundsChanged(
+            this,
+            useLayoutMetadataTransactionRoot: true);
+    }
+
+    internal void InvalidateLayoutBoundsMetadataForScopedLayoutSlot()
+    {
+        if (!IsConnectedToCurrentUiRoot())
+        {
+            return;
+        }
+
+        UiRoot.Current?.NotifyLayoutBoundsChanged(this, useLayoutMetadataTransactionRoot: false);
+    }
+
+    internal static ScopedLayoutBoundsMetadataInvalidation UseScopedLayoutBoundsMetadataInvalidation()
+    {
+        _scopedLayoutBoundsMetadataDepth++;
+        return new ScopedLayoutBoundsMetadataInvalidation();
+    }
+
+    internal readonly struct ScopedLayoutBoundsMetadataInvalidation : IDisposable
+    {
+        public void Dispose()
+        {
+            _scopedLayoutBoundsMetadataDepth = Math.Max(0, _scopedLayoutBoundsMetadataDepth - 1);
         }
     }
 
@@ -1935,7 +2034,7 @@ public class UIElement : DependencyObject
         var isConnectedToCurrentUiRoot = IsConnectedToCurrentUiRoot();
         if (!isConnectedToCurrentUiRoot && IsNeverMeasuredFrameworkElement(this))
         {
-            RunWithInvalidationContext(origin, this, $"arrange<={reason}", InvalidateVisual);
+            InvalidateRenderForLayoutInvalidation(origin, source, $"arrange<={reason}");
             return;
         }
 
@@ -1946,12 +2045,30 @@ public class UIElement : DependencyObject
         }
 
         MarkSubtreeDirty();
-        RunWithInvalidationContext(origin, this, $"arrange<={reason}", InvalidateVisual);
+        InvalidateRenderForLayoutInvalidation(origin, source, $"arrange<={reason}");
         var invalidationParent = GetInvalidationParent();
         if (invalidationParent != null)
         {
             RunWithInvalidationContext(origin, this, reason, invalidationParent.InvalidateArrange);
         }
+    }
+
+    private void InvalidateRenderForLayoutInvalidation(UIElement origin, UIElement? source, string reason)
+    {
+        if (CanRetainRenderContentForLayoutInvalidation(origin, source, reason))
+        {
+            return;
+        }
+
+        RunWithInvalidationContext(origin, this, reason, InvalidateVisual);
+    }
+
+    protected virtual bool CanRetainRenderContentForLayoutInvalidation(UIElement origin, UIElement? source, string reason)
+    {
+        _ = origin;
+        _ = source;
+        _ = reason;
+        return false;
     }
 
     private void InvalidateVisualCore(

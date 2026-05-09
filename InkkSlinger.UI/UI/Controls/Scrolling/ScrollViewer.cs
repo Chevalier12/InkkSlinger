@@ -133,28 +133,28 @@ public partial class ScrollViewer : ContentControl
             nameof(ExtentWidth),
             typeof(float),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(0f));
 
     public static readonly DependencyProperty ExtentHeightProperty =
         DependencyProperty.Register(
             nameof(ExtentHeight),
             typeof(float),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(0f));
 
     public static readonly DependencyProperty ViewportWidthProperty =
         DependencyProperty.Register(
             nameof(ViewportWidth),
             typeof(float),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(0f));
 
     public static readonly DependencyProperty ViewportHeightProperty =
         DependencyProperty.Register(
             nameof(ViewportHeight),
             typeof(float),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(0f));
 
     public static readonly DependencyProperty ScrollableWidthProperty =
         DependencyProperty.Register(

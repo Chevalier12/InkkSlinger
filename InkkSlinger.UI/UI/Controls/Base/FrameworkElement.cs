@@ -1040,6 +1040,7 @@ public class FrameworkElement : UIElement
         var arrangeStart = Stopwatch.GetTimestamp();
         var arrangeChildTickStack = _activeArrangeChildTickStack ??= new List<long>();
         arrangeChildTickStack.Add(0L);
+        var previousLayoutSlot = LayoutSlot;
 
         if (!IsVisible)
         {
@@ -1048,6 +1049,7 @@ public class FrameworkElement : UIElement
             RenderSize = Vector2.Zero;
             _isArrangeValid = true;
             ClearArrangeInvalidation();
+            InvalidateRetainedLayoutMetadataIfSlotChanged(previousLayoutSlot, LayoutSlot);
             RecordArrangeTiming(arrangeStart, arrangeChildTickStack);
             return;
         }
@@ -1140,6 +1142,7 @@ public class FrameworkElement : UIElement
         {
             _isArrangeValid = true;
             ClearArrangeInvalidation();
+            InvalidateRetainedLayoutMetadataIfSlotChanged(previousLayoutSlot, LayoutSlot);
             IncrementDiagnostic(ref _runtimeLayoutUpdatedRaiseCount, ref _diagLayoutUpdatedRaiseCount);
             LayoutUpdated?.Invoke(this, EventArgs.Empty);
         }
@@ -1148,6 +1151,14 @@ public class FrameworkElement : UIElement
             IncrementDiagnostic(ref _runtimeArrangeInvalidatedDuringArrangeCount, ref _diagArrangeInvalidatedDuringArrangeCount);
         }
         RecordArrangeTiming(arrangeStart, arrangeChildTickStack);
+    }
+
+    private void InvalidateRetainedLayoutMetadataIfSlotChanged(LayoutRect previousLayoutSlot, LayoutRect currentLayoutSlot)
+    {
+        if (!AreRectsEqual(previousLayoutSlot, currentLayoutSlot))
+        {
+            InvalidateLayoutBoundsMetadata();
+        }
     }
 
     internal bool TryTranslateArrangedSubtree(LayoutRect nextArrangeRect)
@@ -1372,7 +1383,6 @@ public class FrameworkElement : UIElement
     internal void InvalidateArrangeForDirectLayoutOnly(bool invalidateRender = true)
     {
         IncrementDiagnostic(ref _runtimeInvalidateArrangeDirectLayoutOnlyCallCount, ref _diagInvalidateArrangeDirectLayoutOnlyCallCount);
-        _isArrangeValid = false;
         if (invalidateRender)
         {
             PrepareArrangeForDirectLayoutOnly();
@@ -1381,6 +1391,11 @@ public class FrameworkElement : UIElement
 
         IncrementDiagnostic(ref _runtimeInvalidateArrangeDirectLayoutOnlyWithoutRenderCount, ref _diagInvalidateArrangeDirectLayoutOnlyWithoutRenderCount);
         PrepareArrangeForDirectLayoutWithoutRenderInvalidation();
+    }
+
+    protected override void MarkArrangeInvalidForDirectLayoutOnly()
+    {
+        _isArrangeValid = false;
     }
 
     public void UpdateLayout()
@@ -1564,6 +1579,8 @@ public class FrameworkElement : UIElement
         _ = finalRect;
         return arrangedRect;
     }
+
+    internal virtual bool CanRetainRenderContentDuringLayoutMetadataUpdate => false;
 
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {

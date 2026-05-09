@@ -26,6 +26,89 @@ public sealed class GridSplitterResizeInvalidationTests
     }
 
     [Fact]
+    public void SplitterColumnResize_StableGridScopesBoundsMetadataToChangedChildSlots()
+    {
+        var grid = new Grid
+        {
+            Name = "metadataRootGrid"
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150f, GridUnitType.Pixel), MinWidth = 60f });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150f, GridUnitType.Pixel), MinWidth = 60f });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(80f, GridUnitType.Pixel) });
+
+        var left = new Border
+        {
+            Name = "metadataLeftSlot"
+        };
+        var right = new Border
+        {
+            Name = "metadataRightSlot"
+        };
+
+        Grid.SetColumn(left, 0);
+        Grid.SetColumn(right, 1);
+        grid.AddChild(left);
+        grid.AddChild(right);
+
+        var root = new Panel();
+        root.AddChild(grid);
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 360, 160, 16);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        grid.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.GetTelemetryAndReset();
+
+        var changed = grid.ApplySplitterColumnResize(0, 1, 120f, 180f);
+
+        Assert.True(changed);
+        Assert.False(grid.NeedsMeasure);
+        Assert.True(grid.NeedsArrange);
+
+        RunLayout(uiRoot, 360, 160, 32);
+
+        var telemetry = uiRoot.GetRetainedRenderControllerTelemetrySnapshotForTests();
+
+        Assert.Equal(0, telemetry.DirtyRootCount);
+        Assert.Equal(0, telemetry.CompositionMetadataUpdateMissCount);
+        Assert.Equal(2, telemetry.CompositionMetadataUpdateCount);
+        Assert.Equal("Bounds", telemetry.LastCompositionMetadataUpdateKind);
+        Assert.NotEqual("Grid#metadataRootGrid", telemetry.LastCompositionMetadataUpdateSource);
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
+    public void GridCellAttachedProperty_InvalidatesParentLayoutWithoutInvalidatingChildContent()
+    {
+        var parent = new Grid();
+        parent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100f) });
+        parent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100f) });
+        parent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(40f) });
+
+        var child = new CountingGrid();
+        child.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        child.AddChild(new Border { Width = 20f, Height = 20f });
+        parent.AddChild(child);
+
+        var uiRoot = new UiRoot(parent);
+        RunLayout(uiRoot, 240, 80, 16);
+        uiRoot.ResetDirtyStateForTests();
+        parent.ClearRenderInvalidationRecursive();
+
+        var childMeasureBefore = child.MeasureOverrideCount;
+        var childRenderBefore = child.RenderInvalidationCount;
+
+        Grid.SetColumn(child, 1);
+
+        Assert.False(child.NeedsMeasure);
+        Assert.Equal(childMeasureBefore, child.MeasureOverrideCount);
+        Assert.Equal(childRenderBefore, child.RenderInvalidationCount);
+        Assert.True(parent.NeedsMeasure || parent.NeedsArrange);
+    }
+
+
+    [Fact]
     public void SplitterRowResize_RepeatedMicroDeltasWithStableNoWrapContent_AvoidsRepeatedMeasureInvalidation()
     {
         var root = new Panel();
@@ -238,7 +321,7 @@ public sealed class GridSplitterResizeInvalidationTests
         var changed = grid.ApplySplitterColumnResize(0, 1, 60f, 240f);
 
         Assert.True(changed);
-        Assert.True(grid.NeedsMeasure);
+        Assert.True(grid.NeedsMeasure, grid.GetGridSnapshotForDiagnostics().ToString());
         Assert.True(viewer.NeedsMeasure);
 
         RunLayout(uiRoot, 640, 480, 32);
@@ -887,7 +970,14 @@ public sealed class GridSplitterResizeInvalidationTests
 
     private sealed class CountingGrid : Grid
     {
+        public int MeasureOverrideCount { get; private set; }
         public new int ArrangeCallCount { get; private set; }
+
+        protected override Vector2 MeasureOverride(Vector2 availableSize)
+        {
+            MeasureOverrideCount++;
+            return base.MeasureOverride(availableSize);
+        }
 
         protected override Vector2 ArrangeOverride(Vector2 finalSize)
         {

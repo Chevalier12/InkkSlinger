@@ -148,6 +148,58 @@ public sealed partial class UiRoot
         }
     }
 
+    internal void NotifyLayoutBoundsChanged(UIElement visual, bool useLayoutMetadataTransactionRoot = true)
+    {
+        var transactionRoot = useLayoutMetadataTransactionRoot
+            ? ResolveLayoutMetadataTransactionRoot(visual)
+            : visual;
+        if (!_retainedRender.TryResolveInvalidationSource(transactionRoot, allowRetainedAncestorFallback: true, out var effectiveSource) ||
+            effectiveSource == null)
+        {
+            return;
+        }
+
+        RecordRenderInvalidationSources(visual, effectiveSource, RenderInvalidationKind.Bounds);
+
+        _hasRenderInvalidation = true;
+        _mustDrawNextFrame = true;
+        RenderInvalidationCount++;
+        _renderStateVersion++;
+        if (RenderInvalidationAffectsPointerTargets(visual, effectiveSource))
+        {
+            _pointerResolveStateVersion++;
+        }
+
+        _retainedRender.NotifyLayoutBoundsChanged(transactionRoot, effectiveSource);
+
+        if (visual is IUiRootUpdateParticipant || effectiveSource is IUiRootUpdateParticipant)
+        {
+            InvalidateActiveUpdateParticipants();
+        }
+    }
+
+    private static UIElement ResolveLayoutMetadataTransactionRoot(UIElement visual)
+    {
+        UIElement? candidate = null;
+        for (var current = visual; current != null; current = current.GetInvalidationParent())
+        {
+            if (current is FrameworkElement { CanRetainRenderContentDuringLayoutMetadataUpdate: true })
+            {
+                candidate = current;
+                break;
+            }
+        }
+
+        if (candidate == null ||
+            ReferenceEquals(candidate, visual.GetVisualRoot()) ||
+            candidate.GetInvalidationParent() == null)
+        {
+            return visual;
+        }
+
+        return candidate;
+    }
+
     internal void NotifyInvalidation(
         UiInvalidationType invalidationType,
         UIElement? source = null,

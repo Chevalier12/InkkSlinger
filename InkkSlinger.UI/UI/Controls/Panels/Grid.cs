@@ -320,7 +320,7 @@ public class Grid : Panel
             typeof(Grid),
             new FrameworkPropertyMetadata(
                 0,
-                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange,
+                FrameworkPropertyMetadataOptions.AffectsParentMeasure | FrameworkPropertyMetadataOptions.AffectsParentArrange,
                 OnCellPropertyChanged),
             static value => value is int i && i >= 0);
 
@@ -331,7 +331,7 @@ public class Grid : Panel
             typeof(Grid),
             new FrameworkPropertyMetadata(
                 0,
-                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange,
+                FrameworkPropertyMetadataOptions.AffectsParentMeasure | FrameworkPropertyMetadataOptions.AffectsParentArrange,
                 OnCellPropertyChanged),
             static value => value is int i && i >= 0);
 
@@ -342,7 +342,7 @@ public class Grid : Panel
             typeof(Grid),
             new FrameworkPropertyMetadata(
                 1,
-                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange,
+                FrameworkPropertyMetadataOptions.AffectsParentMeasure | FrameworkPropertyMetadataOptions.AffectsParentArrange,
                 OnCellPropertyChanged),
             static value => value is int i && i > 0);
 
@@ -353,7 +353,7 @@ public class Grid : Panel
             typeof(Grid),
             new FrameworkPropertyMetadata(
                 1,
-                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange,
+                FrameworkPropertyMetadataOptions.AffectsParentMeasure | FrameworkPropertyMetadataOptions.AffectsParentArrange,
                 OnCellPropertyChanged),
             static value => value is int i && i > 0);
 
@@ -407,10 +407,12 @@ public class Grid : Panel
     private string _runtimeLastSplitterArrangeOnlyFailingChildName = "none";
     private string _runtimeLastSplitterArrangeOnlyFailingChildDetail = "none";
     private int _runtimeLastSplitterArrangeOnlyFailingChildIndex = -1;
+    private bool _runtimeLastSplitterArrangeOnlyFailingChildAllowsAncestorReconciliation = true;
     private Vector2 _runtimeLastSplitterArrangeOnlyRequestedAvailableSize = new(float.NaN, float.NaN);
     private Vector2 _runtimeLastSplitterArrangeOnlyCachedAvailableSize = new(float.NaN, float.NaN);
     private Vector2 _runtimeLastSplitterArrangeOnlySimulatedDesiredSize = new(float.NaN, float.NaN);
     private Vector2 _runtimeLastSplitterArrangeOnlyCurrentDesiredSize = new(float.NaN, float.NaN);
+    private bool _suppressAncestorMeasureReconciliationForCurrentInvalidation;
 
     public Grid()
     {
@@ -825,7 +827,17 @@ public class Grid : Panel
                     continue;
                 }
 
-                metadata.Child.Arrange(childRect);
+                var previousChildLayoutSlot = metadata.Child.LayoutSlot;
+                using (UIElement.UseScopedLayoutBoundsMetadataInvalidation())
+                {
+                    metadata.Child.Arrange(childRect);
+                }
+
+                if (!AreRectsClose(previousChildLayoutSlot, metadata.Child.LayoutSlot))
+                {
+                    metadata.Child.InvalidateLayoutBoundsMetadataForScopedLayoutSlot();
+                }
+
                 if (childArrangeIndex >= 0 && childArrangeIndex < _cachedChildArrangeStates.Length)
                 {
                     _cachedChildArrangeStates[childArrangeIndex] = new CachedChildArrangeState(
@@ -846,6 +858,12 @@ public class Grid : Panel
             AddAggregate(ref _diagArrangeSkippedChildCount, skippedChildCount);
         }
     }
+
+    internal override bool CanRetainRenderContentDuringLayoutMetadataUpdate =>
+        base.CanRetainRenderContentDuringLayoutMetadataUpdate && !ShowGridLines;
+
+    internal override bool AllowsAncestorMeasureInvalidationReconciliation =>
+        !_suppressAncestorMeasureReconciliationForCurrentInvalidation;
 
     private void SyncActualDefinitionSizes(
         IReadOnlyList<DefinitionSnapshot> arrangedColumns,
@@ -874,7 +892,6 @@ public class Grid : Panel
         }
 
         grid.InvalidateChildLayoutMetadataCache();
-        grid.InvalidateMeasure();
     }
 
     private static void OnIsSharedSizeScopeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -1142,7 +1159,19 @@ public class Grid : Panel
             return true;
         }
 
-        InvalidateMeasure();
+        var suppressAncestorReconciliation = string.Equals(_runtimeLastSplitterArrangeOnlyDecision, "rejected", StringComparison.Ordinal) &&
+                                             _runtimeLastSplitterArrangeOnlyFailingChildIndex >= 0 &&
+                                             !_runtimeLastSplitterArrangeOnlyFailingChildAllowsAncestorReconciliation;
+        _suppressAncestorMeasureReconciliationForCurrentInvalidation = suppressAncestorReconciliation;
+        try
+        {
+            InvalidateMeasure();
+        }
+        finally
+        {
+            _suppressAncestorMeasureReconciliationForCurrentInvalidation = false;
+        }
+
         return true;
     }
 
@@ -1231,6 +1260,7 @@ public class Grid : Panel
         _runtimeLastSplitterArrangeOnlyFailingChildName = "none";
         _runtimeLastSplitterArrangeOnlyFailingChildDetail = "none";
         _runtimeLastSplitterArrangeOnlyFailingChildIndex = -1;
+        _runtimeLastSplitterArrangeOnlyFailingChildAllowsAncestorReconciliation = true;
         _runtimeLastSplitterArrangeOnlyRequestedAvailableSize = new Vector2(float.NaN, float.NaN);
         _runtimeLastSplitterArrangeOnlyCachedAvailableSize = new Vector2(float.NaN, float.NaN);
         _runtimeLastSplitterArrangeOnlySimulatedDesiredSize = new Vector2(float.NaN, float.NaN);
@@ -1255,6 +1285,8 @@ public class Grid : Panel
         _runtimeLastSplitterArrangeOnlyFailingChildName = failure.ChildName;
         _runtimeLastSplitterArrangeOnlyFailingChildDetail = failure.ChildDetail;
         _runtimeLastSplitterArrangeOnlyFailingChildIndex = failure.ChildIndex;
+        _runtimeLastSplitterArrangeOnlyFailingChildAllowsAncestorReconciliation =
+            failure.Child?.AllowsAncestorMeasureInvalidationReconciliationAfterFailedParentMeasureSimulation ?? true;
         _runtimeLastSplitterArrangeOnlyRequestedAvailableSize = failure.RequestedAvailableSize;
         _runtimeLastSplitterArrangeOnlyCachedAvailableSize = failure.CachedAvailableSize;
         _runtimeLastSplitterArrangeOnlySimulatedDesiredSize = new Vector2(float.NaN, float.NaN);
@@ -2166,12 +2198,16 @@ public class Grid : Panel
             return false;
         }
 
-        if (!child.TryTranslateArrangedSubtree(finalRect))
+        using (UIElement.UseScopedLayoutBoundsMetadataInvalidation())
         {
-            return false;
+            if (!child.TryTranslateArrangedSubtree(finalRect))
+            {
+                return false;
+            }
+
+            child.InvalidateLayoutBoundsMetadataForScopedLayoutSlot();
         }
 
-        child.InvalidateVisual();
         _cachedChildArrangeStates[childArrangeIndex] = new CachedChildArrangeState(
             child,
             finalRect,
@@ -2404,6 +2440,7 @@ public class Grid : Panel
         return new MeasureSimulationFailure(
             reason,
             childIndex,
+            child,
             child.GetType().Name,
             string.IsNullOrEmpty(child.Name) ? "none" : child.Name,
             GetMeasureSimulationFailureChildDetail(child, cachedAvailableSize, requestedAvailableSize),
@@ -3280,6 +3317,7 @@ public class Grid : Panel
     private readonly record struct MeasureSimulationFailure(
         string Reason,
         int ChildIndex,
+        FrameworkElement? Child,
         string ChildType,
         string ChildName,
         string ChildDetail,
@@ -3289,6 +3327,7 @@ public class Grid : Panel
         public static MeasureSimulationFailure None { get; } = new(
             "none",
             -1,
+            null,
             "none",
             "none",
             "none",

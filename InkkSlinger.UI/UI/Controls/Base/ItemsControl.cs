@@ -325,14 +325,18 @@ public class ItemsControl : Control
 
         if (_activeItemsHost is FrameworkElement itemsHost)
         {
-            return itemsHost.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize);
+            return itemsHost.CanReuseMeasureForAvailableSizeChangeForParentLayout(
+                itemsHost.PreviousAvailableSizeForTests,
+                nextAvailableSize);
         }
 
         var source = IsGroupedVisualProjectionActive ? _groupContainers : _itemContainers;
         for (var i = 0; i < source.Count; i++)
         {
             if (source[i] is FrameworkElement element &&
-                !element.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize))
+                !element.CanReuseMeasureForAvailableSizeChangeForParentLayout(
+                    element.PreviousAvailableSizeForTests,
+                    nextAvailableSize))
             {
                 return false;
             }
@@ -340,6 +344,10 @@ public class ItemsControl : Control
 
         return true;
     }
+
+    internal override bool CanRetainRenderContentDuringLayoutMetadataUpdate => !HasTemplateRoot;
+
+    internal override bool AllowsAncestorMeasureInvalidationReconciliationAfterFailedParentMeasureSimulation => HasTemplateRoot;
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
